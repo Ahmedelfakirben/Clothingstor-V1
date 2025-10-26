@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f97316;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background with gradient -->
+  <rect x="5" y="5" width="90" height="90" rx="20" ry="20" fill="url(#gradient)"/>
+
+  <!-- Coffee cup icon (simplified from lucide-react Coffee icon) -->
+  <g transform="translate(50, 50)" fill="white">
+    <!-- Cup body -->
+    <path d="M -12,-15 L -12,5 Q -12,10 -8,12 L 8,12 Q 12,10 12,5 L 12,-15 Z" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Handle -->
+    <path d="M 12,-5 Q 20,-5 20,2 Q 20,9 12,9" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Steam lines -->
+    <path d="M -6,-20 Q -6,-24 -4,-24 Q -2,-24 -2,-20" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M 2,-20 Q 2,-24 4,-24 Q 6,-24 6,-20" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>
