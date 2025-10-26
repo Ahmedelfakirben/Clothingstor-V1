@@ -76,8 +76,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
       items: [
         { id: 'role-management', label: t('nav.role-management'), icon: Shield, roles: ['super_admin'] },
         { id: 'company-settings', label: t('nav.company-settings'), icon: Building2, roles: ['super_admin'] },
-        { id: 'app-settings', label: t('nav.app-settings'), icon: Settings, roles: ['super_admin', 'admin'] },
-        { id: 'tables', label: t('nav.tables'), icon: Grid3x3, roles: ['super_admin', 'admin'] },
+        { id: 'app-settings', label: t('nav.app-settings'), icon: Settings, roles: ['super_admin'] },
+        { id: 'tables', label: t('nav.tables'), icon: Grid3x3, roles: ['super_admin'] },
         { id: 'server', label: t('nav.server'), icon: Server, roles: ['super_admin'] },
         { id: 'backup', label: t('nav.backup'), icon: Database, roles: ['super_admin'] },
       ]

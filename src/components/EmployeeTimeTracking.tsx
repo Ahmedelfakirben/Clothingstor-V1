@@ -255,43 +255,43 @@ export function EmployeeTimeTracking() {
       return;
     }
 
-    toast.loading('Generando reporte...', { id: 'export' });
+    toast.loading(t('reports.generating'), { id: 'export' });
 
     try {
       const wb = XLSX.utils.book_new();
 
       // Hoja 1: Resumen
       const summaryData = [
-        ['🏢 INFORMACIÓN DE LA EMPRESA'],
+        [t('reports.company_info')],
         [''],
         ...(companySettings ? [
-          ['EMPRESA', companySettings.company_name],
-          ['DIRECCIÓN', companySettings.address || 'No especificada'],
-          ['TELÉFONO', companySettings.phone || 'No especificado'],
+          [t('reports.company'), companySettings.company_name],
+          [t('Dirección'), companySettings.address || t('No especificada')],
+          [t('reports.phone'), companySettings.phone || t('No especificado')],
           [''],
         ] : [
-          ['EMPRESA', 'No configurada'],
+          [t('reports.company'), t('No configurada')],
           [''],
         ]),
-        ['📊 REPORTE DE TIEMPO Y RENDIMIENTO'],
+        [t('reports.time_performance_report')],
         [''],
-        ['EMPLEADO', selectedEmployee.full_name],
-        ['ROL', selectedEmployee.role],
-        ['EMAIL', selectedEmployee.email],
-        ['PERIODO', new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
-        ['FECHA DE GENERACIÓN', new Date().toLocaleDateString('es-ES')],
+        [t('Empleado'), selectedEmployee.full_name],
+        [t('reports.role'), selectedEmployee.role],
+        [t('reports.email'), selectedEmployee.email],
+        [t('reports.period'), new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
+        [t('reports.generation_date'), new Date().toLocaleDateString('es-ES')],
         [''],
         ['═'.repeat(60)],
-        ['📈 RESUMEN DEL MES'],
+        [t('reports.month_summary')],
         ['═'.repeat(60)],
         [''],
-        ['MÉTRICA', 'VALOR'],
-        ['📅 Días Trabajados', monthStats.total_days_worked],
-        ['⏰ Horas Totales', `${monthStats.total_hours_worked.toFixed(2)} hrs`],
-        ['📊 Promedio Horas/Día', `${monthStats.average_hours_per_day.toFixed(2)} hrs`],
-        ['💰 Ventas Generadas', `${formatCurrency(monthStats.total_sales)}`],
-        ['📦 Pedidos Completados', monthStats.total_orders],
-        ['💵 Ventas/Hora', monthStats.total_hours_worked > 0 ? `${formatCurrency(monthStats.total_sales / monthStats.total_hours_worked)}` : formatCurrency(0)],
+        [t('reports.metric'), t('reports.value')],
+        [t('reports.days_worked'), monthStats.total_days_worked],
+        [t('reports.total_hours'), `${monthStats.total_hours_worked.toFixed(2)} ${t('reports.hours_abbr')}`],
+        [t('reports.average_hours_per_day'), `${monthStats.average_hours_per_day.toFixed(2)} ${t('reports.hours_abbr')}`],
+        [t('reports.generated_sales'), `${formatCurrency(monthStats.total_sales)}`],
+        [t('reports.completed_orders'), monthStats.total_orders],
+        [t('reports.sales_per_hour'), monthStats.total_hours_worked > 0 ? `${formatCurrency(monthStats.total_sales / monthStats.total_hours_worked)}` : formatCurrency(0)],
       ];
 
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
@@ -300,34 +300,34 @@ export function EmployeeTimeTracking() {
         { s: { r: 9, c: 0 }, e: { r: 9, c: 1 } },
         { s: { r: 10, c: 0 }, e: { r: 10, c: 1 } },
       ];
-      XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen');
+      XLSX.utils.book_append_sheet(wb, wsSummary, t('reports.summary_sheet'));
 
       // Hoja 2: Desglose Diario
       const dailyData = [
-        ['🏢 INFORMACIÓN DE LA EMPRESA'],
+        [t('reports.company_info')],
         [''],
         ...(companySettings ? [
-          ['EMPRESA', companySettings.company_name],
-          ['DIRECCIÓN', companySettings.address || 'No especificada'],
-          ['TELÉFONO', companySettings.phone || 'No especificado'],
+          [t('reports.company'), companySettings.company_name],
+          [t('Dirección'), companySettings.address || t('No especificada')],
+          [t('reports.phone'), companySettings.phone || t('No especificado')],
           [''],
         ] : [
-          ['EMPRESA', 'No configurada'],
+          [t('reports.company'), t('No configurada')],
           [''],
         ]),
-        ['📅 DESGLOSE DIARIO DE TRABAJO'],
+        [t('reports.daily_work_breakdown')],
         [''],
-        ['EMPLEADO', selectedEmployee.full_name],
-        ['PERIODO', new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
+        [t('Empleado'), selectedEmployee.full_name],
+        [t('reports.period'), new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
         [''],
-        ['FECHA', 'DÍA', 'ENTRADA', 'SALIDA', 'HORAS', 'SESIONES', 'VENTAS', 'PEDIDOS', 'VENTAS/HORA'],
+        [t('Fecha'), t('reports.day'), t('Entrada'), t('Salida'), t('reports.hours'), t('reports.sessions'), t('Ventas'), t('Pedidos'), t('reports.sales_per_hour')],
       ];
 
       dayStats.forEach((day) => {
         const date = new Date(day.date);
         const dayName = date.toLocaleDateString('es-ES', { weekday: 'long' });
         const entry = day.first_check_in ? new Date(day.first_check_in).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '-';
-        const exit = day.last_check_out ? new Date(day.last_check_out).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : 'En curso';
+        const exit = day.last_check_out ? new Date(day.last_check_out).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : t('En curso');
         const salesPerHour = day.total_hours > 0 ? day.total_sales / day.total_hours : 0;
 
         dailyData.push([
@@ -335,7 +335,7 @@ export function EmployeeTimeTracking() {
           dayName.charAt(0).toUpperCase() + dayName.slice(1),
           entry,
           exit,
-          `${day.total_hours.toFixed(2)} hrs`,
+          `${day.total_hours.toFixed(2)} ${t('reports.hours_abbr')}`,
           day.sessions.length,
           `${formatCurrency(day.total_sales)}`,
           day.orders_count,
@@ -347,35 +347,35 @@ export function EmployeeTimeTracking() {
       wsDaily['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
       ];
-      XLSX.utils.book_append_sheet(wb, wsDaily, 'Desglose_Diario');
+      XLSX.utils.book_append_sheet(wb, wsDaily, t('reports.daily_breakdown_sheet'));
 
       // Hoja 3: Detalle de Sesiones
       const sessionsData = [
-        ['🏢 INFORMACIÓN DE LA EMPRESA'],
+        [t('reports.company_info')],
         [''],
         ...(companySettings ? [
-          ['EMPRESA', companySettings.company_name],
-          ['DIRECCIÓN', companySettings.address || 'No especificada'],
-          ['TELÉFONO', companySettings.phone || 'No especificado'],
+          [t('reports.company'), companySettings.company_name],
+          [t('Dirección'), companySettings.address || t('No especificada')],
+          [t('reports.phone'), companySettings.phone || t('No especificado')],
           [''],
         ] : [
-          ['EMPRESA', 'No configurada'],
+          [t('reports.company'), t('No configurada')],
           [''],
         ]),
-        ['🕐 DETALLE DE SESIONES DE TRABAJO'],
+        [t('reports.work_sessions_detail')],
         [''],
-        ['EMPLEADO', selectedEmployee.full_name],
-        ['PERIODO', new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
+        [t('Empleado'), selectedEmployee.full_name],
+        [t('reports.period'), new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
         [''],
-        ['FECHA', 'APERTURA', 'CIERRE', 'DURACIÓN', 'MONTO INICIAL', 'MONTO FINAL', 'DIFERENCIA', 'ESTADO'],
+        [t('Fecha'), t('reports.opening'), t('reports.closing'), t('reports.duration'), t('reports.initial_amount'), t('reports.final_amount'), t('reports.difference'), t('Estado')],
       ];
 
       dayStats.forEach((day) => {
         day.sessions.forEach((session) => {
           const date = new Date(session.opened_at).toLocaleDateString('es-ES');
           const opened = new Date(session.opened_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-          const closed = session.closed_at ? new Date(session.closed_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : 'Abierta';
-          const duration = `${session.hours_worked.toFixed(2)} hrs`;
+          const closed = session.closed_at ? new Date(session.closed_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : t('Abierta');
+          const duration = `${session.hours_worked.toFixed(2)} ${t('reports.hours_abbr')}`;
           const difference = session.closing_amount ? session.closing_amount - session.opening_amount : 0;
 
           sessionsData.push([
@@ -386,7 +386,7 @@ export function EmployeeTimeTracking() {
             `${formatCurrency(session.opening_amount)}`,
             session.closing_amount ? `${formatCurrency(session.closing_amount)}` : 'N/A',
             `${formatCurrency(difference)}`,
-            session.status === 'closed' ? 'Cerrada' : 'Abierta',
+            session.status === 'closed' ? t('Cerrada') : t('Abierta'),
           ]);
         });
       });
@@ -395,11 +395,11 @@ export function EmployeeTimeTracking() {
       wsSessions['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } },
       ];
-      XLSX.utils.book_append_sheet(wb, wsSessions, 'Sesiones');
+      XLSX.utils.book_append_sheet(wb, wsSessions, t('Sesiones'));
 
       // Generar nombre de archivo
       const monthName = new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-      const filename = `Reporte_Tiempo_${selectedEmployee.full_name.replace(/\s+/g, '_')}_${monthName.replace(/\s+/g, '_')}.xlsx`;
+      const filename = `${t('reports.filename_time')}${selectedEmployee.full_name.replace(/\s+/g, '_')}_${monthName.replace(/\s+/g, '_')}.xlsx`;
 
       // Descargar archivo
       XLSX.writeFile(wb, filename);
@@ -422,7 +422,7 @@ export function EmployeeTimeTracking() {
               className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors shadow-md"
             >
               <FileSpreadsheet className="w-5 h-5" />
-              <span>{t('Exportar Excel')}</span>
+              <span>{t('analytics.export_excel')}</span>
             </button>
           )}
         </div>
@@ -452,7 +452,7 @@ export function EmployeeTimeTracking() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Mes
+              {t('time_tracking.month')}
             </label>
             <input
               type="month"
@@ -469,7 +469,7 @@ export function EmployeeTimeTracking() {
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
             <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Cargando estadísticas...</p>
+            <p className="text-gray-600">{t('time_tracking.loading_stats')}</p>
           </div>
         </div>
       ) : selectedEmployee ? (
@@ -480,37 +480,37 @@ export function EmployeeTimeTracking() {
               <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
                 <div className="flex items-center justify-between mb-2">
                   <Calendar className="w-8 h-8 opacity-80" />
-                  <span className="text-xs font-medium opacity-90">Días</span>
+                  <span className="text-xs font-medium opacity-90">{t('time_tracking.days')}</span>
                 </div>
                 <p className="text-3xl font-bold mb-1">{monthStats.total_days_worked}</p>
-                <p className="text-sm opacity-90">Días trabajados</p>
+                <p className="text-sm opacity-90">{t('Días trabajados')}</p>
               </div>
 
               <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
                 <div className="flex items-center justify-between mb-2">
                   <Clock className="w-8 h-8 opacity-80" />
-                  <span className="text-xs font-medium opacity-90">Total</span>
+                  <span className="text-xs font-medium opacity-90">{t('Total')}</span>
                 </div>
                 <p className="text-3xl font-bold mb-1">{monthStats.total_hours_worked.toFixed(1)}</p>
-                <p className="text-sm opacity-90">Horas trabajadas</p>
+                <p className="text-sm opacity-90">{t('Horas trabajadas')}</p>
               </div>
 
               <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
                 <div className="flex items-center justify-between mb-2">
                   <TrendingUp className="w-8 h-8 opacity-80" />
-                  <span className="text-xs font-medium opacity-90">Promedio</span>
+                  <span className="text-xs font-medium opacity-90">{t('time_tracking.average')}</span>
                 </div>
                 <p className="text-3xl font-bold mb-1">{monthStats.average_hours_per_day.toFixed(1)}</p>
-                <p className="text-sm opacity-90">Horas por día</p>
+                <p className="text-sm opacity-90">{t('Horas por día')}</p>
               </div>
 
               <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl shadow-lg p-6 text-white">
                 <div className="flex items-center justify-between mb-2">
                   <DollarSign className="w-8 h-8 opacity-80" />
-                  <span className="text-xs font-medium opacity-90">Ventas</span>
+                  <span className="text-xs font-medium opacity-90">{t('Ventas')}</span>
                 </div>
                 <p className="text-3xl font-bold mb-1">${monthStats.total_sales.toFixed(0)}</p>
-                <p className="text-sm opacity-90">Generadas</p>
+                <p className="text-sm opacity-90">{t('time_tracking.generated')}</p>
               </div>
             </div>
           )}
@@ -519,32 +519,32 @@ export function EmployeeTimeTracking() {
           {dayStats.length > 0 ? (
             <div className="bg-white rounded-xl shadow-sm overflow-hidden">
               <div className="p-4 bg-gradient-to-r from-amber-500 to-orange-500">
-                <h3 className="text-lg font-bold text-white">Desglose Diario</h3>
+                <h3 className="text-lg font-bold text-white">{t('time_tracking.daily_breakdown')}</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Fecha
+                        {t('Fecha')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Entrada
+                        {t('Entrada')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Salida
+                        {t('Salida')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Horas
+                        {t('time_tracking.hours')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Sesiones
+                        {t('Sesiones')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ventas
+                        {t('Ventas')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Pedidos
+                        {t('Pedidos')}
                       </th>
                     </tr>
                   </thead>
@@ -572,11 +572,11 @@ export function EmployeeTimeTracking() {
                                 hour: '2-digit',
                                 minute: '2-digit'
                               })
-                            : 'En curso'}
+                            : t('En curso')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                            {day.total_hours.toFixed(2)} hrs
+                            {day.total_hours.toFixed(2)} {t('reports.hours_abbr')}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -598,7 +598,7 @@ export function EmployeeTimeTracking() {
             <div className="bg-white rounded-xl shadow-sm p-12 text-center">
               <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 text-lg">
-                No hay registros de trabajo para este empleado en el mes seleccionado
+                {t('time_tracking.no_records')}
               </p>
             </div>
           )}
@@ -606,7 +606,7 @@ export function EmployeeTimeTracking() {
       ) : (
         <div className="bg-white rounded-xl shadow-sm p-12 text-center">
           <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500 text-lg">Seleccione un empleado para ver sus estadísticas</p>
+          <p className="text-gray-500 text-lg">{t('time_tracking.select_employee')}</p>
         </div>
       )}
     </div>

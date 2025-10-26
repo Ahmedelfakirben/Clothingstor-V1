@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 // Add a function to refresh company info that can be called from outside
 export const refreshCompanyInfo = async () => {
@@ -53,6 +54,7 @@ export function TicketPrinter({
 }: TicketProps) {
   const ticketRef = useRef<HTMLDivElement>(null);
   const { formatCurrency } = useCurrency();
+  const { t } = useLanguage();
   const [companyInfo, setCompanyInfo] = useState({
     company_name: 'El Fakir',
     address: 'Calle Principal #123, Ciudad',
@@ -189,7 +191,7 @@ export function TicketPrinter({
       printWindow.document.write(`
         <html>
           <head>
-            <title>Ticket de Venta</title>
+            <title>${t('ticket.title')}</title>
             <style>
               body {
                 font-family: 'Courier New', monospace;
@@ -322,26 +324,26 @@ export function TicketPrinter({
             <h1>☕ {companyInfo.company_name}</h1>
             {companyInfo.address && <p>{companyInfo.address}</p>}
             {companyInfo.phone && <p>Tel: {companyInfo.phone}</p>}
-            <p>Ticket de Venta</p>
+            <p>{t('ticket.title')}</p>
             <p>═══════</p>
           </div>
 
           {/* Ticket Info */}
           <div className="ticket-info">
-            <div><strong>Ticket:</strong> #{orderNumber}</div>
-            <div><strong>Fecha:</strong> {orderDate.toLocaleDateString('es-ES')}</div>
-            <div><strong>Hora:</strong> {orderDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
-            <div><strong>Cajero:</strong> {cashierName}</div>
+            <div><strong>{t('ticket.number')}</strong> #{orderNumber}</div>
+            <div><strong>{t('Fecha')}:</strong> {orderDate.toLocaleDateString('es-ES')}</div>
+            <div><strong>{t('ticket.time')}</strong> {orderDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div><strong>{t('ticket.cashier')}</strong> {cashierName}</div>
           </div>
 
           {/* Items */}
           <table className="items-table">
             <thead>
               <tr>
-                <th>Cant</th>
-                <th>Producto</th>
-                <th>P.U.</th>
-                <th>Total</th>
+                <th>{t('Cantidad')}</th>
+                <th>{t('Producto')}</th>
+                <th>{t('ticket.unit_price')}</th>
+                <th>{t('Total')}</th>
               </tr>
             </thead>
             <tbody>
@@ -362,16 +364,16 @@ export function TicketPrinter({
           {/* Total */}
           <div className="total-section">
             <div style={{ textAlign: 'right', marginBottom: '3px' }}>
-              TOTAL: {formatCurrency(total)}
+              {t('Total').toUpperCase()}: {formatCurrency(total)}
             </div>
             <div style={{ fontSize: '10px', color: '#666' }}>
-              Pago: {paymentMethod}
+              {t('ticket.payment')} {paymentMethod}
             </div>
           </div>
 
           {/* Thanks message */}
           <div className="thanks">
-            ¡Gracias por tu compra!
+            {t('ticket.thanks')}
           </div>
 
           {/* Footer */}
@@ -388,7 +390,7 @@ export function TicketPrinter({
           className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm"
         >
           <Printer className="w-4 h-4" />
-          Imprimir Ticket
+          {t('ticket.print_button')}
         </button>
       )}
     </div>
