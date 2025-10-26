@@ -7,6 +7,12 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Argumentos de build para variables de entorno de Vite
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
+
 # Copiar package files
 COPY package*.json ./
 
