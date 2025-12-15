@@ -93,6 +93,31 @@
 
   [data-theme="green"] .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #10b981, #059669) !important; }
   [data-theme="green"] .bg-gradient-to-r { background-image: linear-gradient(to right, #10b981, #14b8a6) !important; }
+
+  /* Tema Fashion (Pink/Purple) - Para tienda de ropa */
+  [data-theme="fashion"] .bg-amber-500,
+  [data-theme="fashion"] .from-amber-500,
+  [data-theme="fashion"] .to-amber-600 { background-color: #ec4899 !important; }
+
+  [data-theme="fashion"] .bg-amber-600,
+  [data-theme="fashion"] .hover\:bg-amber-600:hover { background-color: #db2777 !important; }
+
+  [data-theme="fashion"] .bg-amber-100 { background-color: #fce7f3 !important; }
+
+  [data-theme="fashion"] .text-amber-600,
+  [data-theme="fashion"] .text-amber-700 { color: #db2777 !important; }
+
+  [data-theme="fashion"] .border-amber-200,
+  [data-theme="fashion"] .border-amber-500 { border-color: #ec4899 !important; }
+
+  [data-theme="fashion"] .bg-orange-500,
+  [data-theme="fashion"] .from-orange-500 { background-color: #a855f7 !important; }
+
+  [data-theme="fashion"] .bg-orange-600,
+  [data-theme="fashion"] .hover\:bg-orange-600:hover { background-color: #9333ea !important; }
+
+  [data-theme="fashion"] .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #ec4899, #db2777) !important; }
+  [data-theme="fashion"] .bg-gradient-to-r { background-image: linear-gradient(to right, #ec4899, #a855f7) !important; }
 }
 
 @layer utilities {

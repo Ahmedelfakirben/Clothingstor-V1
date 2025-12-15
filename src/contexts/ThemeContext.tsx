@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-export type Theme = 'amber' | 'dark' | 'blue' | 'green';
+export type Theme = 'amber' | 'dark' | 'blue' | 'green' | 'fashion';
 
 export interface ThemeContextType {
   currentTheme: Theme;
@@ -48,6 +48,15 @@ const themeColors = {
     secondaryHover: '#0d9488', // teal-600
     accent: '#2dd4bf',         // teal-400
   },
+  fashion: {
+    primary: '#ec4899',        // pink-500
+    primaryHover: '#db2777',   // pink-600
+    primaryLight: '#fce7f3',   // pink-100
+    primaryDark: '#be185d',    // pink-700
+    secondary: '#a855f7',      // purple-500
+    secondaryHover: '#9333ea', // purple-600
+    accent: '#c084fc',         // purple-400
+  },
 };
 
 // Aplicar tema al documento
@@ -71,7 +80,7 @@ const applyTheme = (theme: Theme) => {
 };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [currentTheme, setCurrentTheme] = useState<Theme>('amber');
+  const [currentTheme, setCurrentTheme] = useState<Theme>('fashion');
   const [isLoading, setIsLoading] = useState(true);
 
   // Cargar tema desde la base de datos al iniciar

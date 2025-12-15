@@ -1,4 +1,4 @@
-import { Coffee, ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Menu, X, Clock, Shield, Building2, Settings, Server, Database, Grid3x3 } from 'lucide-react';
+import { Shirt, ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Menu, X, Clock, Shield, Building2, Settings, Server, Database, Grid3x3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useState, useRef, useEffect } from 'react';
@@ -48,7 +48,6 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
     {
       name: t('nav.sales'),
       items: [
-        { id: 'floor', label: t('nav.floor'), icon: Users, roles: ['super_admin', 'admin', 'cashier', 'barista', 'waiter'] },
         { id: 'pos', label: t('nav.pos'), icon: ShoppingCart, roles: ['super_admin', 'admin', 'cashier', 'barista'] },
         { id: 'orders', label: t('nav.orders'), icon: ClipboardList, roles: ['super_admin', 'admin', 'cashier', 'barista', 'waiter'] },
       ]
@@ -77,7 +76,6 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         { id: 'role-management', label: t('nav.role-management'), icon: Shield, roles: ['super_admin'] },
         { id: 'company-settings', label: t('nav.company-settings'), icon: Building2, roles: ['super_admin'] },
         { id: 'app-settings', label: t('nav.app-settings'), icon: Settings, roles: ['super_admin'] },
-        { id: 'tables', label: t('nav.tables'), icon: Grid3x3, roles: ['super_admin'] },
         { id: 'server', label: t('nav.server'), icon: Server, roles: ['super_admin'] },
         { id: 'backup', label: t('nav.backup'), icon: Database, roles: ['super_admin'] },
       ]
@@ -678,11 +676,11 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-20">
             <div className="flex-shrink-0 flex items-center gap-3">
-              <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                <Coffee className="w-8 h-8 text-white" />
+              <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+                <Shirt className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-extrabold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">LIN-Caisse</h1>
+                <h1 className="text-2xl font-extrabold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">LIN-Fashion</h1>
                 <p className="text-sm text-gray-600 font-medium">{t('Sistema de Gestión')}</p>
               </div>
             </div>

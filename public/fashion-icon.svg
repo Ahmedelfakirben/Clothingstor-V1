@@ -1,17 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Fondo circular con gradiente elegante -->
   <defs>
     <linearGradient id="fashionGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#ec4899;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
     </linearGradient>
   </defs>
+
+  <!-- Círculo de fondo -->
   <circle cx="64" cy="64" r="60" fill="url(#fashionGrad)"/>
+
+  <!-- Percha de ropa (clothing hanger) -->
   <g transform="translate(64, 64)" fill="white" stroke="white" stroke-width="2">
+    <!-- Gancho superior -->
     <path d="M 0,-25 Q 0,-30 5,-30 L 10,-25" fill="none" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- Barra de la percha -->
     <line x1="-25" y1="-15" x2="25" y2="-15" stroke-width="4" stroke-linecap="round"/>
+
+    <!-- Lados inclinados -->
     <line x1="-25" y1="-15" x2="-20" y2="0" stroke-width="3" stroke-linecap="round"/>
     <line x1="25" y1="-15" x2="20" y2="0" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- Silueta de camisa/vestido -->
     <path d="M -20,0 L -15,5 L -15,25 L 15,25 L 15,5 L 20,0 Z" fill="white" fill-opacity="0.9"/>
+
+    <!-- Detalles de la prenda -->
     <circle cx="0" cy="8" r="2" fill="url(#fashionGrad)"/>
     <circle cx="0" cy="14" r="2" fill="url(#fashionGrad)"/>
     <circle cx="0" cy="20" r="2" fill="url(#fashionGrad)"/>

@@ -9,7 +9,6 @@ import { LoginForm } from './components/LoginForm';
 import { Navigation } from './components/Navigation';
 import { POS } from './components/POS';
 import { OrdersDashboard } from './components/OrdersDashboard';
-import { Sala } from './components/Sala';
 import { ProductsManager } from './components/ProductsManager';
 import { CategoryManager } from './components/CategoryManager';
 import { UserManager } from './components/UserManager';
@@ -23,7 +22,6 @@ import { CompanySettings } from './components/CompanySettings';
 import { AppSettings } from './components/AppSettings';
 import { ServerManager } from './components/ServerManager';
 import { BackupManager } from './components/BackupManager';
-import { TableManager } from './components/TableManager';
 import { supabase } from './lib/supabase';
 
 function AppContent() {
@@ -104,19 +102,16 @@ function AppContent() {
       switch (profile.role) {
         case 'cashier':
           defaultView = userPermissions['pos'] ? 'pos' :
-                       userPermissions['floor'] ? 'floor' :
                        userPermissions['orders'] ? 'orders' :
                        userPermissions['cash'] ? 'cash' : 'pos';
           break;
         case 'barista':
           defaultView = userPermissions['pos'] ? 'pos' :
-                       userPermissions['orders'] ? 'orders' :
-                       userPermissions['floor'] ? 'floor' : 'pos';
+                       userPermissions['orders'] ? 'orders' : 'pos';
           break;
         case 'waiter':
-          defaultView = userPermissions['floor'] ? 'floor' :
-                       userPermissions['orders'] ? 'orders' :
-                       userPermissions['pos'] ? 'pos' : 'floor';
+          defaultView = userPermissions['orders'] ? 'orders' :
+                       userPermissions['pos'] ? 'pos' : 'orders';
           break;
         case 'admin':
         case 'super_admin':
@@ -212,7 +207,6 @@ function AppContent() {
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       <Navigation currentView={currentView} onViewChange={setCurrentView} />
       <div className="flex-1 overflow-auto p-6">
-        {currentView === 'floor' && userPermissions['floor'] && <Sala onGoToPOS={() => setCurrentView('pos')} />}
         {currentView === 'pos' && userPermissions['pos'] && <POS />}
         {currentView === 'orders' && userPermissions['orders'] && <OrdersDashboard />}
         {currentView === 'products' && userPermissions['products'] && <ProductsManager />}
@@ -226,7 +220,6 @@ function AppContent() {
         {currentView === 'role-management' && userPermissions['role-management'] && <RoleManagement />}
         {currentView === 'company-settings' && userPermissions['company-settings'] && <CompanySettings />}
         {currentView === 'app-settings' && userPermissions['app-settings'] && <AppSettings />}
-        {currentView === 'tables' && userPermissions['tables'] && <TableManager />}
         {currentView === 'server' && userPermissions['server'] && <ServerManager />}
         {currentView === 'backup' && userPermissions['backup'] && <BackupManager />}
       </div>

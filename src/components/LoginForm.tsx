@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Coffee, Eye, EyeOff } from 'lucide-react';
+import { Shirt, Eye, EyeOff } from 'lucide-react';
 
 export function LoginForm() {
   const { t } = useLanguage();
@@ -76,11 +76,11 @@ export function LoginForm() {
 
       <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl w-full max-w-md p-10 border border-white/20 relative z-10 animate-fadeIn">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl mb-6 shadow-xl transform hover:scale-110 transition-transform duration-300">
-            <Coffee className="w-10 h-10 text-white" />
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-500 rounded-2xl mb-6 shadow-xl transform hover:scale-110 transition-transform duration-300">
+            <Shirt className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-4xl font-extrabold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent mb-2">
-            LIN-Caisse
+          <h1 className="text-4xl font-extrabold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            LIN-Fashion
           </h1>
           <p className="text-gray-600 font-medium">{t('Sistema de Gestión')}</p>
         </div>
