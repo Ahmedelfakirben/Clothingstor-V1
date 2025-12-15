@@ -123,7 +123,11 @@ CREATE TABLE IF NOT EXISTS public.suppliers (
 );
 
 -- Tipo enum para categorías de gastos
-CREATE TYPE IF NOT EXISTS public.expense_category AS ENUM ('supplier', 'salary', 'rent', 'utilities', 'maintenance', 'other');
+DO $$ BEGIN
+    CREATE TYPE public.expense_category AS ENUM ('supplier', 'salary', 'rent', 'utilities', 'maintenance', 'other');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- Tabla de gastos
 CREATE TABLE IF NOT EXISTS public.expenses (
