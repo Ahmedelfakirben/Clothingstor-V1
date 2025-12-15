@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS employee_profiles (
   email text,
   active boolean DEFAULT true,
   deleted_at timestamptz,
+  is_online boolean DEFAULT false,
+  last_login timestamptz,
   created_at timestamptz DEFAULT now()
 );
 
