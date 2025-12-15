@@ -218,6 +218,8 @@ CREATE TABLE IF NOT EXISTS company_settings (
   company_name VARCHAR(255) NOT NULL DEFAULT 'Tienda de Ropa',
   address TEXT,
   phone VARCHAR(50),
+  language VARCHAR(2) DEFAULT 'es' CHECK (language IN ('es', 'fr', 'en')),
+  theme VARCHAR(20) DEFAULT 'fashion' CHECK (theme IN ('amber', 'dark', 'blue', 'green', 'fashion')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
