@@ -19,6 +19,11 @@ interface Product {
   base_price: number;
   available: boolean;
   image_url?: string;
+  brand?: string;
+  material?: string;
+  gender?: string;
+  season?: string;
+  stock?: number;
 }
 
 interface ProductSize {
@@ -42,6 +47,11 @@ export function ProductsManager() {
     category_id: '',
     base_price: 0,
     available: true,
+    brand: '',
+    material: '',
+    gender: '',
+    season: '',
+    stock: 0,
   });
   const [newProductImage, setNewProductImage] = useState<File | null>(null);
   const [newProductPreviewUrl, setNewProductPreviewUrl] = useState<string | null>(null);
@@ -392,6 +402,68 @@ export function ProductsManager() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Stock Inicial')}</label>
+                <input
+                  type="number"
+                  value={newProduct.stock}
+                  onChange={e => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  placeholder="0"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Marca')}</label>
+                  <input
+                    type="text"
+                    value={newProduct.brand}
+                    onChange={e => setNewProduct({ ...newProduct, brand: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    placeholder="Nike, Adidas..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Material')}</label>
+                  <input
+                    type="text"
+                    value={newProduct.material}
+                    onChange={e => setNewProduct({ ...newProduct, material: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    placeholder="Algodón, Poliéster..."
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Género')}</label>
+                  <select
+                    value={newProduct.gender}
+                    onChange={e => setNewProduct({ ...newProduct, gender: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="">{t('Seleccionar')}</option>
+                    <option value="hombre">{t('Hombre')}</option>
+                    <option value="mujer">{t('Mujer')}</option>
+                    <option value="unisex">{t('Unisex')}</option>
+                    <option value="niño">{t('Niño')}</option>
+                    <option value="niña">{t('Niña')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Temporada')}</label>
+                  <select
+                    value={newProduct.season}
+                    onChange={e => setNewProduct({ ...newProduct, season: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="">{t('Seleccionar')}</option>
+                    <option value="primavera_verano">{t('Primavera/Verano')}</option>
+                    <option value="otoño_invierno">{t('Otoño/Invierno')}</option>
+                    <option value="todo_el_año">{t('Todo el año')}</option>
+                  </select>
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Imagen (opcional)')}</label>
                 <div className="relative">
                   <input
@@ -452,8 +524,10 @@ export function ProductsManager() {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Producto')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Categoría')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Precio Base')}</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Tamaños')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Marca')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Género')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Precio')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Stock')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Estado')}</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('Acciones')}</th>
             </tr>
@@ -532,6 +606,37 @@ export function ProductsManager() {
                 <td className="px-6 py-4 text-sm text-gray-900">
                   {editingProduct?.id === product.id ? (
                     <input
+                      type="text"
+                      value={editingProduct.brand || ''}
+                      onChange={e => setEditingProduct({ ...editingProduct, brand: e.target.value })}
+                      className="w-28 px-2 py-1 border border-gray-300 rounded"
+                      placeholder={t('Marca')}
+                    />
+                  ) : (
+                    product.brand || '-'
+                  )}
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-900">
+                  {editingProduct?.id === product.id ? (
+                    <select
+                      value={editingProduct.gender || ''}
+                      onChange={e => setEditingProduct({ ...editingProduct, gender: e.target.value })}
+                      className="w-28 px-2 py-1 border border-gray-300 rounded"
+                    >
+                      <option value="">{t('Seleccionar')}</option>
+                      <option value="hombre">{t('Hombre')}</option>
+                      <option value="mujer">{t('Mujer')}</option>
+                      <option value="unisex">{t('Unisex')}</option>
+                      <option value="niño">{t('Niño')}</option>
+                      <option value="niña">{t('Niña')}</option>
+                    </select>
+                  ) : (
+                    product.gender ? t(product.gender.charAt(0).toUpperCase() + product.gender.slice(1)) : '-'
+                  )}
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-900">
+                  {editingProduct?.id === product.id ? (
+                    <input
                       type="number"
                       step="0.01"
                       value={editingProduct.base_price}
@@ -543,7 +648,18 @@ export function ProductsManager() {
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">
-                  {getProductSizes(product.id).map(s => s.size_name).join(', ') || t('Único')}
+                  {editingProduct?.id === product.id ? (
+                    <input
+                      type="number"
+                      value={editingProduct.stock || 0}
+                      onChange={e => setEditingProduct({ ...editingProduct, stock: parseInt(e.target.value) || 0 })}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded"
+                    />
+                  ) : (
+                    <span className={`font-medium ${(product.stock || 0) < 5 ? 'text-red-600' : 'text-gray-900'}`}>
+                      {product.stock || 0}
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
