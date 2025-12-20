@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Building2, MapPin, Phone, Save, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
+import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
 
 interface CompanySettings {
   id: string;
@@ -301,14 +302,7 @@ export function CompanySettings() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">{t('Cargando configuración...')}</p>
-        </div>
-      </div>
-    );
+    return <LoadingPage message={t('Cargando configuración...')} />;
   }
 
   return (
@@ -317,8 +311,8 @@ export function CompanySettings() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-              <Building2 className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+              <Building2 className="w-6 h-6 text-blue-600" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900">{t('Información de la Empresa')}</h2>
@@ -341,7 +335,7 @@ export function CompanySettings() {
               >
                 {saving ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <LoadingSpinner size="sm" light />
                     {t('Guardando...')}
                   </>
                 ) : (

@@ -3,6 +3,7 @@ import { PlusCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface Category {
   id: string;
@@ -212,7 +213,9 @@ export function CategoryManager() {
         </div>
         {loadingCategories ? (
           <div className="px-4 py-8 text-center text-gray-500">
-            <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <div className="mb-4 flex justify-center">
+              <LoadingSpinner size="lg" />
+            </div>
             {t('Cargando categorías...')}
           </div>
         ) : (

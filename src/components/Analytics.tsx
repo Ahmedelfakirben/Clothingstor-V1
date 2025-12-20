@@ -3,9 +3,45 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { TrendingUp, DollarSign, ShoppingBag, Users, Clock, Activity, AlertTriangle, Bell, Download, FileSpreadsheet } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingBag, Clock, Activity, AlertTriangle, Bell, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+
+// --- Interfaces ---
+
+interface Product {
+  name: string;
+}
+
+interface OrderItem {
+  quantity: number;
+  unit_price: number;
+  products: Product | Product[] | null;
+}
+
+interface Order {
+  id: string;
+  total: number;
+  status: string;
+  created_at: string;
+  employee_id: string;
+  order_number?: number;
+  order_items?: OrderItem[];
+  employee_profiles?: { full_name: string; role?: string } | null;
+}
+
+interface Session {
+  id: string;
+  employee_id: string;
+  opening_amount: number;
+  closing_amount: number | null;
+  opened_at: string;
+  closed_at: string | null;
+  status: string;
+  employee_profiles?: { full_name: string; role?: string } | null;
+}
+
+
 
 interface DailySales {
   date: string;
@@ -30,13 +66,6 @@ interface EmployeeActivity {
   is_online: boolean;
 }
 
-interface ExpenseData {
-  date: string;
-  amount: number;
-  category: string;
-  description: string;
-}
-
 interface FinancialSummary {
   period: string;
   sales: number;
@@ -50,6 +79,16 @@ interface CompanySettings {
   company_name: string;
   address: string;
   phone: string;
+}
+
+interface Notification {
+  id: string;
+  type: string;
+  message: string;
+  timestamp: string;
+  icon: string | JSX.Element;
+  note?: string;
+  total?: number;
 }
 
 export function Analytics() {
@@ -66,7 +105,7 @@ export function Analytics() {
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [employeeActivity, setEmployeeActivity] = useState<EmployeeActivity[]>([]);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary[]>([]);
-  const [recentNotifications, setRecentNotifications] = useState<any[]>([]);
+  const [recentNotifications, setRecentNotifications] = useState<Notification[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<number>(0);
   const [occupiedTables, setOccupiedTables] = useState<number>(0);
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
@@ -125,9 +164,6 @@ export function Analytics() {
 
   const fetchEmployeeActivity = async () => {
     try {
-      console.log('Fetching employee activity...');
-
-      // Fetch only active employees who haven't been deleted (exclude super_admin)
       const { data: employees, error } = await supabase
         .from('employee_profiles')
         .select(`
@@ -142,7 +178,7 @@ export function Analytics() {
         `)
         .eq('active', true)
         .is('deleted_at', null)
-        .neq('role', 'super_admin'); // Ocultar super_admin
+        .neq('role', 'super_admin');
 
       if (error) {
         console.error('Error fetching employees:', error);
@@ -150,8 +186,6 @@ export function Analytics() {
         setOnlineUsers(0);
         return;
       }
-
-      console.log(`Found ${employees?.length || 0} active employees`);
 
       if (employees && employees.length > 0) {
         const today = new Date().toISOString().split('T')[0];
@@ -190,8 +224,6 @@ export function Analytics() {
               const isOnline = emp.is_online ?? false;
               const lastLogin = emp.last_login || emp.created_at;
 
-              console.log(`Employee ${emp.full_name}: is_online: ${isOnline}, sessions today: ${sessions?.length || 0}, orders today: ${orders?.length || 0}`);
-
               return {
                 id: emp.id,
                 full_name: emp.full_name,
@@ -219,13 +251,9 @@ export function Analytics() {
         );
 
         const onlineCount = activityData.filter(emp => emp.is_online).length;
-        console.log(`Total online users: ${onlineCount}`);
-        console.log('Activity data:', activityData);
-
         setEmployeeActivity(activityData);
         setOnlineUsers(onlineCount);
       } else {
-        console.log('No active employees found');
         setEmployeeActivity([]);
         setOnlineUsers(0);
       }
@@ -280,7 +308,8 @@ export function Analytics() {
 
     if (data) {
       const aggregated = data.reduce((acc: Record<string, TopProduct>, item) => {
-        const name = (item.products as any)?.name || 'Unknown';
+        const products = item.products as unknown as Product | Product[];
+        const name = Array.isArray(products) ? products[0]?.name : products?.name || 'Unknown';
         if (!acc[name]) {
           acc[name] = { product_name: name, quantity_sold: 0, revenue: 0 };
         }
@@ -397,6 +426,7 @@ export function Analytics() {
           id,
           order_number,
           total,
+          status,
           created_at,
           employee_id
         `)
@@ -410,7 +440,7 @@ export function Analytics() {
       }
 
       // Obtener información de empleados para las órdenes
-      let ordersWithEmployees: any[] = [];
+      let ordersWithEmployees: Order[] = [];
       if (recentOrders && recentOrders.length > 0) {
         const employeeIds = [...new Set(recentOrders.map(o => o.employee_id))];
         const { data: employeesData } = await supabase
@@ -427,7 +457,7 @@ export function Analytics() {
         );
       }
 
-      const sessionNotifications = (sessions || []).map(session => ({
+      const sessionNotifications: Notification[] = (sessions || []).map(session => ({
         id: session.id,
         type: session.closed_at ? 'session_closed' : 'session_opened',
         message: session.closed_at
@@ -437,7 +467,7 @@ export function Analytics() {
         icon: session.closed_at ? '🔒' : '🔓',
       }));
 
-      const deletedOrderNotifications = (deletedOrders || []).map(order => ({
+      const deletedOrderNotifications: Notification[] = (deletedOrders || []).map(order => ({
         id: `deleted-${order.id}`,
         type: 'order_deleted',
         message: `${t('Pedido')} #${order.order_number?.toString().padStart(3, '0') || 'N/A'} ${t('eliminado por')} ${(order.employee_profiles as any)?.full_name || 'Admin'}`,
@@ -447,7 +477,7 @@ export function Analytics() {
         icon: '🗑️',
       }));
 
-      const orderNotifications = (ordersWithEmployees || []).map(order => ({
+      const orderNotifications: Notification[] = ordersWithEmployees.map(order => ({
         id: `order-${order.id}`,
         type: 'order_completed',
         message: `${t('Pedido')} #${order.order_number?.toString().padStart(3, '0') || 'N/A'} ${t('completado por')} ${order.employee_profiles?.full_name || 'Empleado'}`,
@@ -469,7 +499,7 @@ export function Analytics() {
     }
   };
 
-  const generateDailyReport = async (summary: FinancialSummary) => {
+  const generateDailyReport = async () => {
     try {
       toast.loading(t('reports.generating_daily'), { id: 'daily-report' });
 
@@ -528,11 +558,18 @@ export function Analytics() {
       const profit = totalSales - totalExpenses;
 
       // Group sessions by employee
-      const employeeSessions = (sessions || []).reduce((acc: any, session) => {
+      const employeeSessions = (sessions || []).reduce((acc: Record<string, {
+        employee_name: string;
+        sessions: Session[];
+        totalOpening: number;
+        totalClosing: number;
+        firstOpen: string;
+        lastClose: string | null;
+      }>, session: any) => {
         const empId = session.employee_id;
         if (!acc[empId]) {
           acc[empId] = {
-            employee_name: (session.employee_profiles as any)?.full_name || 'N/A',
+            employee_name: session.employee_profiles?.full_name || 'N/A',
             sessions: [],
             totalOpening: 0,
             totalClosing: 0,
@@ -621,7 +658,7 @@ export function Analytics() {
           [t('reports.sessions_by_employee')],
           [''],
           [t('reports.employee'), t('reports.sessions'), t('reports.first_opening'), t('reports.last_closing'), t('reports.initial_amount'), t('reports.final_amount'), t('reports.difference')],
-          ...Object.values(employeeSessions).map((emp: any) => [
+          ...Object.values(employeeSessions).map((emp) => [
             emp.employee_name,
             emp.sessions.length,
             new Date(emp.firstOpen).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
@@ -645,13 +682,16 @@ export function Analytics() {
           [t('reports.detailed_orders_breakdown')],
           [''],
           [t('reports.time'), t('reports.order'), t('reports.employee'), t('reports.products'), t('reports.total')],
-          ...orders.map(order => [
+          ...orders.map((order: any) => [
             new Date(order.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
             `#${order.id.slice(-8)}`,
-            (order.employee_profiles as any)?.full_name || 'N/A',
-            order.order_items?.map((item: any) =>
-              `${item.quantity}x ${item.products?.[0]?.name || t('reports.product')}`
-            ).join(', ') || t('reports.no_products'),
+            order.employee_profiles?.full_name || 'N/A',
+            order.order_items?.map((item: any) => {
+              const productName = Array.isArray(item.products)
+                ? item.products[0]?.name
+                : (item.products as any)?.name;
+              return `${item.quantity}x ${productName || t('reports.product')}`;
+            }).join(', ') || t('reports.no_products'),
             `$${order.total.toFixed(2)}`
           ])
         ];
@@ -736,7 +776,17 @@ export function Analytics() {
         .order('created_at', { ascending: true });
 
       // Group sessions by day
-      const dailySessions = (sessions || []).reduce((acc: any, session) => {
+      const dailySessions = (sessions || []).reduce((acc: Record<string, {
+        date: string;
+        employee_id: string;
+        employee_profiles: { full_name: string } | null;
+        employee_name: string;
+        sessions: Session[];
+        totalOpening: number;
+        totalClosing: number;
+        firstOpen: string;
+        lastClose: string | null;
+      }>, session: any) => {
         const date = new Date(session.opened_at).toDateString();
         const employeeKey = `${date}-${session.employee_id}`;
 
@@ -842,12 +892,12 @@ export function Analytics() {
           dailyTotals[date].sessions += emp.sessions.length;
         });
 
-        Object.entries(dailySessions).forEach(([key, emp]: [string, any]) => {
+        Object.values(dailySessions).forEach((emp) => {
           const date = new Date(emp.date).toLocaleDateString('es-ES');
           dailyBreakdown.push([
             date,
             emp.employee_name,
-            emp.sessions.length,
+            emp.sessions.length.toString(),
             new Date(emp.firstOpen).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
             emp.lastClose ? new Date(emp.lastClose).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : t('reports.pending'),
             `$${emp.totalOpening.toFixed(2)}`,
@@ -937,7 +987,17 @@ export function Analytics() {
         .order('created_at', { ascending: true });
 
       // Group sessions by day
-      const dailySessions = (sessions || []).reduce((acc: any, session) => {
+      const dailySessions = (sessions || []).reduce((acc: Record<string, {
+        date: string;
+        employee_id: string;
+        employee_profiles: { full_name: string } | null;
+        employee_name: string;
+        sessions: Session[];
+        totalOpening: number;
+        totalClosing: number;
+        firstOpen: string;
+        lastClose: string | null;
+      }>, session: any) => {
         const date = new Date(session.opened_at).toDateString();
         const employeeKey = `${date}-${session.employee_id}`;
 
@@ -1046,12 +1106,12 @@ export function Analytics() {
           dailyTotals[date].employees += 1;
         });
 
-        Object.entries(dailySessions).forEach(([key, emp]: [string, any]) => {
+        Object.values(dailySessions).forEach((emp) => {
           const date = new Date(emp.date).toLocaleDateString('es-ES');
           performanceData.push([
             date,
             emp.employee_name,
-            emp.sessions.length,
+            emp.sessions.length.toString(),
             new Date(emp.firstOpen).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
             emp.lastClose ? new Date(emp.lastClose).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : t('reports.pending'),
             `$${emp.totalOpening.toFixed(2)}`,
@@ -1102,9 +1162,9 @@ export function Analytics() {
         ];
 
         const totalExpensesAmount = expenses.reduce((sum, exp) => sum + exp.amount, 0);
-        Object.entries(expensesByCategory).forEach(([category, data]: [string, any]) => {
+        Object.values(expensesByCategory).forEach((data: any) => {
           expensesData.push([
-            category,
+            data.items[0].category,
             `$${data.total.toFixed(2)}`,
             data.count,
             `${((data.total / totalExpensesAmount) * 100).toFixed(2)}%`
@@ -1140,6 +1200,11 @@ export function Analytics() {
       const [ordersData, sessionsData, expensesData, employeesData, productsData] = await Promise.all([
         supabase.from('orders').select(`
           id, total, status, created_at, employee_id,
+          order_items (
+            quantity,
+            unit_price,
+            products (name)
+          ),
           employee_profiles!inner(full_name, role)
         `).neq('employee_profiles.role', 'super_admin').order('created_at', { ascending: false }),
         supabase.from('cash_register_sessions').select(`
@@ -1358,9 +1423,9 @@ export function Analytics() {
         if (profile && (profile.role === 'admin' || profile.role === 'super_admin')) {
           // Verificar que no sea el super_admin y que el estado cambió
           if (updatedEmployee.role !== 'super_admin' &&
-              updatedEmployee.is_online !== undefined &&
-              oldEmployee.is_online !== undefined &&
-              updatedEmployee.is_online !== oldEmployee.is_online) {
+            updatedEmployee.is_online !== undefined &&
+            oldEmployee.is_online !== undefined &&
+            updatedEmployee.is_online !== oldEmployee.is_online) {
             const statusText = updatedEmployee.is_online ? t('connected') : t('disconnected');
             toast(`${updatedEmployee.full_name} ${statusText}`, {
               icon: updatedEmployee.is_online ? '🟢' : '🔴',
@@ -1428,85 +1493,85 @@ export function Analytics() {
   };
 
   return (
-    <div className="p-6 bg-gradient-to-br from-gray-50 via-white to-gray-100 min-h-screen">
+    <div className="p-6 bg-gray-50 min-h-screen">
       <div className="flex items-center justify-between mb-8">
-        <h2 className="text-4xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">{t('Analíticas y Reportes')}</h2>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl shadow-md">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse shadow-lg"></div>
-            <span className="font-bold text-green-700">{onlineUsers} {t('usuarios conectados')}</span>
+        <h2 className="text-3xl font-bold text-gray-800">{t('Analíticas y Reportes')}</h2>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-gray-700">{onlineUsers} {t('usuarios conectados')}</span>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-200 rounded-xl shadow-md">
-            <div className="w-3 h-3 bg-yellow-500 rounded-full shadow-lg"></div>
-            <span className="font-bold text-yellow-700">{occupiedTables} {t('mesas ocupadas')}</span>
+          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+            <span className="text-sm font-medium text-gray-700">{occupiedTables} {t('mesas ocupadas')}</span>
           </div>
           <button
             onClick={exportToExcel}
-            className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            className="flex items-center gap-2 px-4 py-2 gradient-primary hover:gradient-primary-hover text-white rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md"
           >
-            <FileSpreadsheet className="w-5 h-5" />
+            <FileSpreadsheet className="w-4 h-4" />
             <span>{t('Exportar Excel')}</span>
           </button>
-          <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-indigo-100 rounded-xl flex items-center justify-center">
-            <Bell className="w-5 h-5 text-purple-600" />
+          <div className="w-9 h-9 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm">
+            <Bell className="w-4 h-4 text-gray-600" />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
-        <div className="bg-gradient-to-br from-green-500 via-emerald-500 to-green-600 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 hover:shadow-3xl transition-all duration-300 border-2 border-green-400">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 bg-white/30 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <DollarSign className="w-7 h-7" />
+            <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-green-600" />
             </div>
-            <span className="text-sm font-black opacity-95 bg-white/20 px-3 py-1 rounded-lg">{t('Hoy')}</span>
+            <span className="text-xs font-medium text-gray-500">{t('Hoy')}</span>
           </div>
-          <p className="text-3xl font-black mb-2">{formatCurrency(stats.todaySales)}</p>
-          <p className="text-sm font-semibold opacity-90">{t('Ventas del día')}</p>
+          <p className="text-2xl font-bold text-gray-900 mb-1">{formatCurrency(stats.todaySales)}</p>
+          <p className="text-sm text-gray-600">{t('Ventas del día')}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-blue-500 via-cyan-500 to-blue-600 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 hover:shadow-3xl transition-all duration-300 border-2 border-blue-400">
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 bg-white/30 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <ShoppingBag className="w-7 h-7" />
+            <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+              <ShoppingBag className="w-5 h-5 text-blue-600" />
             </div>
-            <span className="text-sm font-black opacity-95 bg-white/20 px-3 py-1 rounded-lg">{t('Hoy')}</span>
+            <span className="text-xs font-medium text-gray-500">{t('Hoy')}</span>
           </div>
-          <p className="text-3xl font-black mb-2">{stats.todayOrders}</p>
-          <p className="text-sm font-semibold opacity-90">{t('Órdenes completadas')}</p>
+          <p className="text-2xl font-bold text-gray-900 mb-1">{stats.todayOrders}</p>
+          <p className="text-sm text-gray-600">{t('Órdenes completadas')}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 hover:shadow-3xl transition-all duration-300 border-2 border-amber-400">
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 bg-white/30 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-7 h-7" />
+            <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
-            <span className="text-sm font-black opacity-95 bg-white/20 px-3 py-1 rounded-lg">{t('Total')}</span>
+            <span className="text-xs font-medium text-gray-500">{t('Total')}</span>
           </div>
-          <p className="text-3xl font-black mb-2">{stats.totalProducts}</p>
-          <p className="text-sm font-semibold opacity-90">{t('Productos activos')}</p>
+          <p className="text-2xl font-bold text-gray-900 mb-1">{stats.totalProducts}</p>
+          <p className="text-sm text-gray-600">{t('Productos activos')}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-red-500 via-pink-500 to-red-600 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 hover:shadow-3xl transition-all duration-300 border-2 border-red-400">
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 bg-white/30 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <Activity className="w-7 h-7" />
+            <div className="w-10 h-10 bg-pink-50 rounded-lg flex items-center justify-center">
+              <Activity className="w-5 h-5 text-pink-600" />
             </div>
-            <span className="text-sm font-black opacity-95 bg-white/20 px-3 py-1 rounded-lg">{t('Activos')}</span>
+            <span className="text-xs font-medium text-gray-500">{t('Activos')}</span>
           </div>
-          <p className="text-3xl font-black mb-2">{onlineUsers}</p>
-          <p className="text-sm font-semibold opacity-90">{t('Usuarios conectados')}</p>
+          <p className="text-2xl font-bold text-gray-900 mb-1">{onlineUsers}</p>
+          <p className="text-sm text-gray-600">{t('Usuarios conectados')}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-indigo-500 via-purple-500 to-indigo-600 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 hover:shadow-3xl transition-all duration-300 border-2 border-indigo-400">
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between mb-3">
-            <div className="w-12 h-12 bg-white/30 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <Clock className="w-7 h-7" />
+            <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
+              <Clock className="w-5 h-5 text-purple-600" />
             </div>
-            <span className="text-sm font-black opacity-95 bg-white/20 px-3 py-1 rounded-lg">{t('Ahora')}</span>
+            <span className="text-xs font-medium text-gray-500">{t('Ahora')}</span>
           </div>
-          <p className="text-3xl font-black mb-2">{new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
-          <p className="text-sm font-semibold opacity-90">{t('Hora actual')}</p>
+          <p className="text-2xl font-bold text-gray-900 mb-1">{new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
+          <p className="text-sm text-gray-600">{t('Hora actual')}</p>
         </div>
       </div>
 
@@ -1539,7 +1604,7 @@ export function Analytics() {
               <div className="mt-4 pt-4 border-t">
                 {summary.period === t('Hoy') && (
                   <button
-                    onClick={() => generateDailyReport(summary)}
+                    onClick={() => generateDailyReport()}
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
                   >
                     <FileSpreadsheet className="w-4 h-4" />
@@ -1604,9 +1669,8 @@ export function Analytics() {
           {recentNotifications.length > 0 ? (
             <div className="space-y-3 max-h-80 overflow-y-auto">
               {recentNotifications.map((notif: any) => (
-                <div key={notif.id} className={`flex items-start gap-3 p-3 rounded-lg ${
-                  notif.type === 'order_deleted' ? 'bg-red-50 border border-red-200' : 'bg-gray-50'
-                }`}>
+                <div key={notif.id} className={`flex items-start gap-3 p-3 rounded-lg ${notif.type === 'order_deleted' ? 'bg-red-50 border border-red-200' : 'bg-gray-50'
+                  }`}>
                   <span className="text-lg">{notif.icon}</span>
                   <div className="flex-1">
                     <p className="text-sm text-gray-900 font-medium">{notif.message}</p>

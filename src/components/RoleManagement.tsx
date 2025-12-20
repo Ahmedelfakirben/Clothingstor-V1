@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Shield, Check, X, Save, RotateCcw } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface RolePermission {
   id: string;
@@ -27,8 +28,6 @@ const ROLES = [
   { id: 'super_admin', label: 'Super Administrador', color: 'from-purple-500 to-purple-600' },
   { id: 'admin', label: 'Administrador', color: 'from-blue-500 to-blue-600' },
   { id: 'cashier', label: 'Cajero', color: 'from-green-500 to-green-600' },
-  { id: 'barista', label: 'Barista', color: 'from-amber-500 to-amber-600' },
-  { id: 'waiter', label: 'Camarero', color: 'from-pink-500 to-pink-600' },
 ];
 
 const SECTIONS = {
@@ -196,8 +195,8 @@ export function RoleManagement() {
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Shield className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
+              <Shield className="w-6 h-6 text-purple-600" />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-gray-900">{t('Gestión de Roles y Permisos')}</h2>
@@ -221,7 +220,7 @@ export function RoleManagement() {
               >
                 {saving ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <LoadingSpinner size="sm" light />
                     {t('Guardando...')}
                   </>
                 ) : (
@@ -241,10 +240,10 @@ export function RoleManagement() {
             <button
               key={role.id}
               onClick={() => setSelectedRole(role.id)}
-              className={`p-4 rounded-xl transition-all ${
+              className={`p-4 rounded-xl transition-all border-2 ${
                 selectedRole === role.id
-                  ? `bg-gradient-to-br ${role.color} text-white shadow-lg scale-105`
-                  : 'bg-white text-gray-700 hover:shadow-md'
+                  ? 'bg-purple-50 border-purple-300 text-purple-700 shadow-sm'
+                  : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'
               }`}
             >
               <div className="text-center">
@@ -259,7 +258,9 @@ export function RoleManagement() {
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="mb-4 flex justify-center">
+              <LoadingSpinner size="lg" />
+            </div>
             <p className="text-gray-600">{t('Cargando permisos...')}</p>
           </div>
         </div>

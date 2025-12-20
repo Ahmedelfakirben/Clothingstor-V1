@@ -94,30 +94,30 @@
   [data-theme="green"] .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #10b981, #059669) !important; }
   [data-theme="green"] .bg-gradient-to-r { background-image: linear-gradient(to right, #10b981, #14b8a6) !important; }
 
-  /* Tema Fashion (Pink/Purple) - Para tienda de ropa */
+  /* Tema Fashion (Pink/Purple Pastel) - Para tienda de ropa */
   [data-theme="fashion"] .bg-amber-500,
   [data-theme="fashion"] .from-amber-500,
-  [data-theme="fashion"] .to-amber-600 { background-color: #ec4899 !important; }
+  [data-theme="fashion"] .to-amber-600 { background-color: #f9a8d4 !important; }
 
   [data-theme="fashion"] .bg-amber-600,
-  [data-theme="fashion"] .hover\:bg-amber-600:hover { background-color: #db2777 !important; }
+  [data-theme="fashion"] .hover\:bg-amber-600:hover { background-color: #f472b6 !important; }
 
   [data-theme="fashion"] .bg-amber-100 { background-color: #fce7f3 !important; }
 
   [data-theme="fashion"] .text-amber-600,
-  [data-theme="fashion"] .text-amber-700 { color: #db2777 !important; }
+  [data-theme="fashion"] .text-amber-700 { color: #f472b6 !important; }
 
   [data-theme="fashion"] .border-amber-200,
-  [data-theme="fashion"] .border-amber-500 { border-color: #ec4899 !important; }
+  [data-theme="fashion"] .border-amber-500 { border-color: #f9a8d4 !important; }
 
   [data-theme="fashion"] .bg-orange-500,
-  [data-theme="fashion"] .from-orange-500 { background-color: #a855f7 !important; }
+  [data-theme="fashion"] .from-orange-500 { background-color: #d8b4fe !important; }
 
   [data-theme="fashion"] .bg-orange-600,
-  [data-theme="fashion"] .hover\:bg-orange-600:hover { background-color: #9333ea !important; }
+  [data-theme="fashion"] .hover\:bg-orange-600:hover { background-color: #c084fc !important; }
 
-  [data-theme="fashion"] .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #ec4899, #db2777) !important; }
-  [data-theme="fashion"] .bg-gradient-to-r { background-image: linear-gradient(to right, #ec4899, #a855f7) !important; }
+  [data-theme="fashion"] .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #f9a8d4, #f472b6) !important; }
+  [data-theme="fashion"] .bg-gradient-to-r { background-image: linear-gradient(to right, #f9a8d4, #d8b4fe) !important; }
 }
 
 @layer utilities {
@@ -139,11 +139,83 @@
     }
   }
 
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+    20%, 40%, 60%, 80% { transform: translateX(4px); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -1000px 0; }
+    100% { background-position: 1000px 0; }
+  }
+
   .animate-slideInLeft {
     animation: slideInLeft 0.3s ease-out;
   }
 
   .animate-fadeIn {
     animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-shake {
+    animation: shake 0.5s ease-in-out;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* Glassmorphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .glass-dark {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Gradientes elegantes */
+  .gradient-primary {
+    background: linear-gradient(135deg, #f9a8d4 0%, #d8b4fe 100%);
+  }
+
+  .gradient-primary-hover {
+    background: linear-gradient(135deg, #f472b6 0%, #c084fc 100%);
+  }
+
+  /* Sombras modernas */
+  .shadow-elegant {
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .shadow-elegant-hover {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Efectos de texto */
+  .text-gradient {
+    background: linear-gradient(135deg, #f9a8d4 0%, #d8b4fe 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-vibrant {
+    background: linear-gradient(135deg, #ec4899 0%, #a855f7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }

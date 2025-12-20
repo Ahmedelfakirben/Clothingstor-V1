@@ -6,6 +6,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { Clock, Calendar, DollarSign, TrendingUp, Download, User, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface Employee {
   id: string;
@@ -468,7 +469,9 @@ export function EmployeeTimeTracking() {
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="text-center">
-            <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="mb-4 flex justify-center">
+              <LoadingSpinner size="lg" />
+            </div>
             <p className="text-gray-600">{t('time_tracking.loading_stats')}</p>
           </div>
         </div>

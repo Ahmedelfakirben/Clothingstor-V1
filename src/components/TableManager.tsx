@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Plus, Edit2, Trash2, Grid3x3, Users, CheckCircle, XCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface Table {
   id: string;
@@ -163,7 +164,7 @@ export function TableManager() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }

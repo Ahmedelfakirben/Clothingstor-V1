@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Settings, Clock, Cloud, Save, AlertCircle, CheckCircle2, RefreshCw, Play, Pause, Calendar } from 'lucide-react';
+import { Cloud, Save, AlertCircle, CheckCircle2, Play, Calendar } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { LoadingSpinner } from './LoadingSpinner';
 import {
   getBackupConfig,
   saveBackupConfig,
@@ -36,7 +37,7 @@ export function AutomatedBackupConfig() {
     schedule_frequency: 'daily',
     retention_days: 30,
   });
-  const [s3Info, setS3Info] = useState(getS3Info());
+  const [s3Info] = useState(getS3Info());
   const [testingConnection, setTestingConnection] = useState(false);
   const [s3Connected, setS3Connected] = useState<boolean | null>(null);
   const [runningBackup, setRunningBackup] = useState(false);
@@ -181,7 +182,7 @@ export function AutomatedBackupConfig() {
           >
             {testingConnection ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <LoadingSpinner size="sm" light />
                 {t('Verificando...')}
               </>
             ) : (
@@ -218,14 +219,12 @@ export function AutomatedBackupConfig() {
             </div>
             <button
               onClick={() => setConfig({ ...config, schedule_enabled: !config.schedule_enabled })}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                config.schedule_enabled ? 'bg-green-600' : 'bg-gray-300'
-              }`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.schedule_enabled ? 'bg-green-600' : 'bg-gray-300'
+                }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  config.schedule_enabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.schedule_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
               />
             </button>
           </div>
@@ -238,14 +237,12 @@ export function AutomatedBackupConfig() {
             </div>
             <button
               onClick={() => setConfig({ ...config, s3_enabled: !config.s3_enabled })}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                config.s3_enabled ? 'bg-blue-600' : 'bg-gray-300'
-              }`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${config.s3_enabled ? 'bg-blue-600' : 'bg-gray-300'
+                }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  config.s3_enabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${config.s3_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
               />
             </button>
           </div>
@@ -312,7 +309,7 @@ export function AutomatedBackupConfig() {
           >
             {loading ? (
               <>
-                <RefreshCw className="w-5 h-5 animate-spin" />
+                <LoadingSpinner size="sm" light />
                 {t('Guardando...')}
               </>
             ) : (
@@ -330,7 +327,7 @@ export function AutomatedBackupConfig() {
           >
             {runningBackup ? (
               <>
-                <RefreshCw className="w-5 h-5 animate-spin" />
+                <LoadingSpinner size="sm" light />
                 {t('Ejecutando...')}
               </>
             ) : (

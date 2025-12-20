@@ -210,7 +210,7 @@ const translations = {
 
     // Sala - Room Management
     'Gestión de Sala': 'Gestión de Sala',
-    'Sala': 'Sala',
+
     'Cargando mesas...': 'Cargando mesas...',
     'No se pudieron cargar las mesas': 'No se pudieron cargar las mesas',
     'Error al cargar mesas': 'Error al cargar mesas',
@@ -233,7 +233,7 @@ const translations = {
     'Sucia': 'Sucia',
     'Pedidos en': 'Pedidos en',
     'No hay pedidos en preparación para esta mesa.': 'No hay pedidos en preparación para esta mesa.',
-    'Pedido': 'Pedido',
+
     'Total:': 'Total:',
     'Continuar': 'Continuar',
     'Validar': 'Validar',
@@ -261,7 +261,7 @@ const translations = {
     'Esta Semana': 'Esta Semana',
     'Este Mes': 'Este Mes',
     'Todo': 'Todo',
-    'Todos': 'Todos',
+
     'Aperturas': 'Aperturas',
     'Cierres': 'Cierres',
     'No hay órdenes para mostrar': 'No hay órdenes para mostrar',
@@ -294,10 +294,7 @@ const translations = {
     '¿Está seguro de eliminar el pedido': '¿Está seguro de eliminar el pedido',
     'Detalles del pedido:': 'Detalles del pedido:',
     'caracteres': 'caracteres',
-    'Seleccionar Método de Pago': 'Seleccionar Método de Pago',
-    'Pago en efectivo': 'Pago en efectivo',
-    'Pago con tarjeta': 'Pago con tarjeta',
-    'Pago digital': 'Pago digital',
+
     'Error al actualizar el estado': 'Error al actualizar el estado',
     'Orden completada exitosamente': 'Orden completada exitosamente',
     'Error al completar la orden': 'Error al completar la orden',
@@ -318,7 +315,7 @@ const translations = {
     'Tamaños': 'Tamaños',
     'Único': 'Único',
     'Sin categoría': 'Sin categoría',
-    'Disponible': 'Disponible',
+
     'No disponible': 'No disponible',
     'Seleccionar categoría': 'Seleccionar categoría',
     'Error al crear producto': 'Error al crear producto',
@@ -385,13 +382,13 @@ const translations = {
     'Contraseña': 'Contraseña',
     'Teléfono': 'Teléfono',
     'Rol': 'Rol',
-    'Super Administrador': 'Super Administrador',
+
     'Administrador': 'Administrador',
     'Cajero': 'Cajero',
     'Barista': 'Barista',
     'Camarero': 'Camarero',
     'Crear Empleado': 'Crear Empleado',
-    'Empleado': 'Empleado',
+
     'Contacto': 'Contacto',
     'Correo': 'Correo',
     'Activo': 'Activo',
@@ -474,7 +471,7 @@ const translations = {
     'El nombre de la empresa es obligatorio': 'El nombre de la empresa es obligatorio',
     'Error al guardar la configuración:': 'Error al guardar la configuración:',
     'Cargando configuración...': 'Cargando configuración...',
-    'Guardando...': 'Guardando...',
+
     '¿Problemas con permisos?': '¿Problemas con permisos?',
     'Si no puedes acceder a esta página o a la gestión de roles, usa el botón de emergencia para restaurar todos los permisos del super_admin.': 'Si no puedes acceder a esta página o a la gestión de roles, usa el botón de emergencia para restaurar todos los permisos del super_admin.',
     'Restaurar Todos los Permisos (Super Admin)': 'Restaurar Todos los Permisos (Super Admin)',
@@ -533,11 +530,11 @@ const translations = {
     'Monto Apertura': 'Monto Apertura',
     'Monto Cierre': 'Monto Cierre',
     'Órdenes del día': 'Órdenes del día',
-    'Cantidad': 'Cantidad',
+
     'Este documento es oficial y forma parte del registro contable de': 'Este documento es oficial y forma parte del registro contable de',
 
     // Cash Register - New logic translations
-    'Apertura': 'Apertura',
+
     'Ventas': 'Ventas',
     'Retiros': 'Retiros',
     'Cierre Esperado': 'Cierre Esperado',
@@ -579,7 +576,7 @@ const translations = {
     'Nota': 'Nota',
 
     // Cash Opening Modal
-    'Apertura de Caja': 'Apertura de Caja',
+
     'Bienvenido! Ingrese el monto inicial en caja': 'Bienvenido! Ingrese el monto inicial en caja',
     'Este monto será el punto de partida para el control de caja del día.': 'Este monto será el punto de partida para el control de caja del día.',
     'Monto de Apertura': 'Monto de Apertura',
@@ -625,10 +622,10 @@ const translations = {
     'Persona de Contacto': 'Persona de Contacto',
     'Email/Teléfono': 'Email/Teléfono',
     'No hay proveedores registrados': 'No hay proveedores registrados',
-    'Contacto': 'Contacto',
+
 
     // Employee Time Tracking
-    'Error al cargar empleados': 'Error al cargar empleados',
+
     'Error al cargar estadísticas': 'Error al cargar estadísticas',
     'No hay datos para exportar': 'No hay datos para exportar',
     'Reporte generado exitosamente': 'Reporte generado exitosamente',
@@ -658,7 +655,7 @@ const translations = {
     'Error al cargar permisos': 'Error al cargar permisos',
     'Permisos actualizados correctamente': 'Permisos actualizados correctamente',
     'Error al guardar permisos': 'Error al guardar permisos',
-    'Ventas': 'Ventas',
+
     'Inventario': 'Inventario',
     'Finanzas': 'Finanzas',
     'Sistema': 'Sistema',
@@ -666,7 +663,7 @@ const translations = {
     'Usuarios': 'Usuarios',
     'Caja': 'Caja',
     'Tiempo Empleados': 'Tiempo Empleados',
-    'Proveedores': 'Proveedores',
+
     'Gastos': 'Gastos',
     'Analíticas': 'Analíticas',
     'Productos': 'Productos',
@@ -687,22 +684,21 @@ const translations = {
     'Sala y órdenes (sin validar pedidos)': 'Sala y órdenes (sin validar pedidos)',
 
     // App Settings
-    'Configuración de la aplicación': 'Configuración de la aplicación',
-    'Personaliza el idioma y la apariencia de la aplicación. Los cambios se aplican inmediatamente.': 'Personaliza el idioma y la apariencia de la aplicación. Los cambios se aplican inmediatamente.',
-    'Español': 'Español',
-    'Français': 'Français',
-    'Selecciona el tema de color de la aplicación': 'Selecciona el tema de color de la aplicación',
+
+
+
+
     'Tema claro': 'Tema claro',
     'Tema oscuro': 'Tema oscuro',
     'Automático': 'Automático',
-    'Información': 'Información',
-    'Los cambios de idioma se aplican inmediatamente a toda la aplicación': 'Los cambios de idioma se aplican inmediatamente a toda la aplicación',
+
+
     'La configuración se guarda automáticamente en tu navegador': 'La configuración se guarda automáticamente en tu navegador',
     'Puedes cambiar entre idiomas en cualquier momento': 'Puedes cambiar entre idiomas en cualquier momento',
     'El tema automático sigue la configuración de tu sistema operativo': 'El tema automático sigue la configuración de tu sistema operativo',
 
     // Navigation & Cash Register
-    'Ingrese un monto de cierre válido (>= 0)': 'Ingrese un monto de cierre válido (>= 0)',
+
     'No hay sesión de caja abierta para cerrar. Se cerrará la sesión de usuario.': 'No hay sesión de caja abierta para cerrar. Se cerrará la sesión de usuario.',
     'Cierre de caja registrado e impreso.': 'Cierre de caja registrado e impreso.',
     'No se pudo cerrar la caja:': 'No se pudo cerrar la caja:',
@@ -711,10 +707,10 @@ const translations = {
     'Salir Sin Cambios': 'Salir Sin Cambios',
     'Cerrar Caja y Salir': 'Cerrar Caja y Salir',
     'CIERRE DE CAJA': 'CIERRE DE CAJA',
-    'Empleado:': 'Empleado:',
+
     'SESIONES DEL DÍA': 'SESIONES DEL DÍA',
     'Sesión': 'Sesión',
-    'RESUMEN FINANCIERO': 'RESUMEN FINANCIERO',
+
     'Primera Apertura:': 'Primera Apertura:',
     'Cierre Final:': 'Cierre Final:',
     'Resultado del Día:': 'Resultado del Día:',
@@ -723,7 +719,7 @@ const translations = {
     'PEDIDOS DEL DÍA': 'PEDIDOS DEL DÍA',
     'Pedido #': 'Pedido #',
     'Hora:': 'Hora:',
-    'Producto': 'Producto',
+
     'Generado el': 'Generado el',
     'El cambio de idioma se aplicará a todos los usuarios del sistema de forma inmediata.': 'El cambio de idioma se aplicará a todos los usuarios del sistema de forma inmediata.',
 
@@ -863,7 +859,7 @@ const translations = {
     'reports.monthly_success': 'Reporte mensuel généré avec succès',
     'reports.monthly_error': 'Error al generar el reporte mensual',
     'reports.gross_income_month': 'Ingresos brutos del mes',
-    'reports.monthly_operational_efficiency': 'Eficiencia operativa mensual',
+
     'reports.total_sessions': '🔄 Total Sesiones',
     'reports.percentage_of_total': '% DEL TOTAL',
     'reports.monthly_generated_success': 'Reporte mensual generado exitosamente',
@@ -1014,7 +1010,7 @@ const translations = {
     'Français': 'Français',
     'Configuración de la aplicación': 'Configuration de l\'application',
     'Personaliza el idioma y la apariencia de la aplicación. Los cambios se aplican inmediatamente.': 'Personnalisez la langue et l\'apparence de l\'application. Les changements sont appliqués immédiatement.',
-    'Super Administrador': 'Super Administrateur',
+
     'Los cambios de idioma se aplican inmediatamente a toda la aplicación': 'Les changements de langue s\'appliquent immédiatement à toute l\'application',
 
     // Gestion du Serveur
@@ -1149,7 +1145,7 @@ const translations = {
     'Validar e Imprimir': 'Valider et Imprimer',
 
     // Login Form
-    'Correo Electrónico': 'Adresse e-mail',
+
     'Contraseña': 'Mot de passe',
     'Iniciando sesión...': 'Connexion en cours...',
     'Iniciar Sesión': 'Se connecter',
@@ -1260,7 +1256,7 @@ const translations = {
     'Monto Apertura': 'Montant Ouverture',
     'Monto Cierre': 'Montant Fermeture',
     'Órdenes del día': 'Commandes du jour',
-    'Cantidad': 'Quantité',
+
     'Este documento es oficial y forma parte del registro contable de': 'Ce document est officiel et fait partie de l\'enregistrement comptable de',
 
     // Cash Register - New logic translations
@@ -1306,7 +1302,7 @@ const translations = {
     'Nota': 'Note',
 
     // Cash Opening Modal
-    'Apertura de Caja': 'Ouverture de Caisse',
+
     'Bienvenido! Ingrese el monto inicial en caja': 'Bienvenue! Entrez le montant initial en caisse',
     'Este monto será el punto de partida para el control de caja del día.': 'Ce montant sera le point de départ pour le contrôle de caisse du jour.',
     'Monto de Apertura': 'Montant d\'Ouverture',
@@ -1429,7 +1425,7 @@ const translations = {
     'Sucia': 'Sale',
     'Pedidos en': 'Commandes à',
     'No hay pedidos en preparación para esta mesa.': 'Aucune commande en préparation pour cette table.',
-    'Pedido': 'Commande',
+
     'Total:': 'Total :',
     'Continuar': 'Continuer',
     'Validar': 'Valider',
@@ -1457,7 +1453,7 @@ const translations = {
     'Esta Semana': 'Cette Semaine',
     'Este Mes': 'Ce Mois',
     'Todo': 'Tout',
-    'Todos': 'Tous',
+
     'Aperturas': 'Ouvertures',
     'Cierres': 'Fermetures',
     'No hay órdenes para mostrar': 'Aucune commande à afficher',
@@ -1483,17 +1479,17 @@ const translations = {
     'Eliminando...': 'Suppression...',
     'Confirmar Eliminación del Pedido': 'Confirmer la Suppression de la Commande',
     'No hay eventos de caja': 'Aucun événement de caisse',
-    'Apertura': 'Ouverture',
+
     'Cierre': 'Fermeture',
     'Monto:': 'Montant :',
     'Nota:': 'Note :',
     '¿Está seguro de eliminar el pedido': 'Êtes-vous sûr de vouloir supprimer la commande',
     'Detalles del pedido:': 'Détails de la commande :',
     'caracteres': 'caractères',
-    'Seleccionar Método de Pago': 'Sélectionner le Mode de Paiement',
-    'Pago en efectivo': 'Paiement en espèces',
-    'Pago con tarjeta': 'Paiement par carte',
-    'Pago digital': 'Paiement numérique',
+
+
+
+
     'Error al actualizar el estado': 'Erreur lors de la mise à jour du statut',
     'Orden completada exitosamente': 'Commande terminée avec succès',
     'Error al completar la orden': 'Erreur lors de la finalisation de la commande',
@@ -1514,7 +1510,7 @@ const translations = {
     'Tamaños': 'Tailles',
     'Único': 'Unique',
     'Sin categoría': 'Sans catégorie',
-    'Disponible': 'Disponible',
+
     'No disponible': 'Non disponible',
     'Seleccionar categoría': 'Sélectionner une catégorie',
     'Error al crear producto': 'Erreur lors de la création du produit',
@@ -1550,7 +1546,7 @@ const translations = {
     'Nueva Categoría': 'Nouvelle Catégorie',
     'Nombre de la categoría': 'Nom de la catégorie',
     'Editando:': 'Modification :',
-    'Guardando...': 'Enregistrement...',
+
     'Categorías Existentes': 'Catégories Existantes',
     'Error al cargar categorías:': 'Erreur lors du chargement des catégories :',
     'Error desconocido': 'Erreur inconnue',
@@ -1578,7 +1574,7 @@ const translations = {
     'Mostrar inactivos': 'Afficher les inactifs',
     'Nombre Completo': 'Nom Complet',
     'Correo Electrónico': 'Adresse E-mail',
-    'Contraseña': 'Mot de passe',
+
     'Teléfono': 'Téléphone',
     'Rol': 'Rôle',
     'Super Administrador': 'Super Administrateur',
@@ -1587,8 +1583,8 @@ const translations = {
     'Barista': 'Barista',
     'Camarero': 'Serveur',
     'Crear Empleado': 'Créer un Employé',
-    'Empleado': 'Employé',
-    'Contacto': 'Contact',
+
+
     'Correo': 'E-mail',
     'Activo': 'Actif',
     'Inactivo': 'Inactif',
@@ -1609,7 +1605,7 @@ const translations = {
     'Eliminar lógicamente a': 'Supprimer logiquement',
     'Usuario eliminado (borrado lógico)': 'Utilisateur supprimé (suppression logique)',
     'No se pudo eliminar el usuario': 'Impossible de supprimer l\'utilisateur',
-    'Error al cargar empleados': 'Erreur lors du chargement des employés',
+
     'No registrado': 'Non enregistré',
     'correo@ejemplo.com': 'email@exemple.com',
     'Usuario eliminado': 'Utilisateur supprimé',
@@ -1623,13 +1619,13 @@ const translations = {
     'Guardar': 'Enregistrer',
 
     // Role Management
-    'Gestión de Roles y Permisos': 'Gestion des Rôles et Permissions',
-    'Configure los accesos para cada rol del sistema': 'Configurez les accès pour chaque rôle du système',
-    'Cargando permisos...': 'Chargement des permissions...',
+
+
+
     'Error al cargar permisos': 'Erreur lors du chargement des permissions',
     'Permisos actualizados correctamente': 'Permissions mises à jour avec succès',
     'Error al guardar permisos': 'Erreur lors de l\'enregistrement des permissions',
-    'Ventas': 'Ventes',
+
     'Inventario': 'Inventaire',
     'Finanzas': 'Finances',
     'Sistema': 'Système',
@@ -1637,7 +1633,7 @@ const translations = {
     'Usuarios': 'Utilisateurs',
     'Caja': 'Caisse',
     'Tiempo Empleados': 'Temps des Employés',
-    'Proveedores': 'Fournisseurs',
+
     'Gastos': 'Dépenses',
     'Analíticas': 'Analytiques',
     'Productos': 'Produits',
@@ -1658,22 +1654,21 @@ const translations = {
     'Sala y órdenes (sin validar pedidos)': 'Salle et commandes (sans valider les commandes)',
 
     // App Settings
-    'Configuración de la aplicación': 'Configuration de l\'application',
-    'Personaliza el idioma y la apariencia de la aplicación. Los cambios se aplican inmediatamente.': 'Personnalisez la langue et l\'apparence de l\'application. Les modifications sont appliquées immédiatement.',
-    'Español': 'Espagnol',
-    'Français': 'Français',
-    'Selecciona el tema de color de la aplicación': 'Sélectionnez le thème de couleur de l\'application',
+
+
+
+
     'Tema claro': 'Thème clair',
     'Tema oscuro': 'Thème sombre',
     'Automático': 'Automatique',
-    'Información': 'Informations',
-    'Los cambios de idioma se aplican inmediatamente a toda la aplicación': 'Les changements de langue sont appliqués immédiatement à toute l\'application',
+
+
     'La configuración se guarda automáticamente en tu navegador': 'La configuration est enregistrée automatiquement dans votre navigateur',
     'Puedes cambiar entre idiomas en cualquier momento': 'Vous pouvez changer de langue à tout moment',
     'El tema automático sigue la configuración de tu sistema operativo': 'Le thème automatique suit la configuration de votre système d\'exploitation',
 
     // Navigation & Cash Register
-    'Ingrese un monto de cierre válido (>= 0)': 'Entrez un montant de clôture valide (>= 0)',
+
     'No hay sesión de caja abierta para cerrar. Se cerrará la sesión de usuario.': 'Aucune session de caisse ouverte à fermer. La session utilisateur sera fermée.',
     'Cierre de caja registrado e impreso.': 'Clôture de caisse enregistrée et imprimée.',
     'No se pudo cerrar la caja:': 'Impossible de fermer la caisse :',
@@ -1682,10 +1677,10 @@ const translations = {
     'Salir Sin Cambios': 'Quitter sans Modifications',
     'Cerrar Caja y Salir': 'Fermer la Caisse et Quitter',
     'CIERRE DE CAJA': 'CLÔTURE DE CAISSE',
-    'Empleado:': 'Employé :',
+
     'SESIONES DEL DÍA': 'SESSIONS DU JOUR',
     'Sesión': 'Session',
-    'RESUMEN FINANCIERO': 'RÉSUMÉ FINANCIER',
+
     'Primera Apertura:': 'Première Ouverture :',
     'Cierre Final:': 'Clôture Finale :',
     'Resultado del Día:': 'Résultat du Jour :',
@@ -1694,7 +1689,7 @@ const translations = {
     'PEDIDOS DEL DÍA': 'COMMANDES DU JOUR',
     'Pedido #': 'Commande n°',
     'Hora:': 'Heure :',
-    'Producto': 'Produit',
+
     'Generado el': 'Généré le',
     'El cambio de idioma se aplicará a todos los usuarios del sistema de forma inmediata.': 'Le changement de langue sera appliqué à tous les utilisateurs du système immédiatement.',
 
@@ -1834,7 +1829,7 @@ const translations = {
     'reports.monthly_success': 'Rapport mensuel généré avec succès',
     'reports.monthly_error': 'Erreur lors de la génération du rapport mensuel',
     'reports.gross_income_month': 'Revenus bruts du mois',
-    'reports.monthly_operational_efficiency': 'Efficacité opérationnelle mensuelle',
+
     'reports.total_sessions': '🔄 Total des Sessions',
     'reports.percentage_of_total': '% DU TOTAL',
     'reports.monthly_generated_success': 'Rapport mensuel généré avec succès',

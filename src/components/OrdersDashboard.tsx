@@ -6,6 +6,7 @@ import { Clock, CheckCircle, XCircle, Banknote, CreditCard, Smartphone, Trash2 }
 import { toast } from 'react-hot-toast';
 import { TicketPrinter } from './TicketPrinter';
 import { useLanguage } from '../contexts/LanguageContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface Order {
   id: string;
@@ -70,7 +71,7 @@ export function OrdersDashboard() {
   const { formatCurrency } = useCurrency();
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState<string>('preparing');
+  const [selectedStatus, setSelectedStatus] = useState<string>('completed');
   const [viewMode, setViewMode] = useState<'current' | 'history' | 'cash'>('current');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -645,15 +646,14 @@ export function OrdersDashboard() {
   };
 
   const statusLabels = {
-    preparing: t('En Preparación'),
     completed: t('Completado'),
     cancelled: t('Cancelado'),
   };
 
   return (
-    <div className="p-3 md:p-6 bg-gradient-to-br from-gray-50 via-white to-gray-50 min-h-screen">
+    <div className="p-3 md:p-6 bg-gray-50 min-h-screen">
       <div className="mb-6 md:mb-8">
-        <h2 className="text-4xl md:text-5xl font-black mb-6 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 bg-clip-text text-transparent text-center">
+        <h2 className="text-3xl font-bold text-gray-800">
           {t('Panel de Órdenes')}
         </h2>
 
@@ -825,36 +825,36 @@ export function OrdersDashboard() {
       {viewMode === 'current' ? (
         filteredOrders.length === 0 ? (
           <div className="text-center py-20">
-            <div className="inline-block p-8 bg-gradient-to-br from-amber-50 to-orange-50 rounded-3xl shadow-xl mb-4">
-              <Clock className="w-16 h-16 text-amber-500 mx-auto" />
+            <div className="inline-block p-8 bg-gray-50 rounded-2xl shadow-sm mb-4">
+              <Clock className="w-16 h-16 text-gray-400 mx-auto" />
             </div>
-            <p className="text-gray-600 text-xl font-bold">{t('No hay órdenes para mostrar')}</p>
+            <p className="text-gray-700 text-xl font-semibold">{t('No hay órdenes para mostrar')}</p>
             <p className="text-gray-400 text-sm mt-2">{t('Las órdenes aparecerán aquí')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredOrders.map(order => {
               const borderColorClass =
-                order.status === 'preparing' ? 'border-amber-400' :
-                order.status === 'completed' ? 'border-green-400' :
-                'border-red-400';
-              const bgGradientClass =
-                order.status === 'preparing' ? 'bg-gradient-to-br from-amber-50 to-orange-50' :
-                order.status === 'completed' ? 'bg-gradient-to-br from-green-50 to-emerald-50' :
-                'bg-gradient-to-br from-red-50 to-pink-50';
-              const badgeGradientClass =
-                order.status === 'preparing' ? 'bg-gradient-to-r from-amber-500 to-orange-500' :
-                order.status === 'completed' ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
-                'bg-gradient-to-r from-red-500 to-pink-500';
+                order.status === 'preparing' ? 'border-amber-200' :
+                order.status === 'completed' ? 'border-green-200' :
+                'border-red-200';
+              const bgClass =
+                order.status === 'preparing' ? 'bg-amber-50' :
+                order.status === 'completed' ? 'bg-green-50' :
+                'bg-red-50';
+              const badgeClass =
+                order.status === 'preparing' ? 'bg-amber-500' :
+                order.status === 'completed' ? 'bg-green-500' :
+                'bg-red-500';
 
               return (
                 <div
                   key={order.id}
-                  className={`${bgGradientClass} rounded-2xl shadow-xl border-4 ${borderColorClass} p-6 hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1`}
+                  className={`${bgClass} rounded-xl shadow-sm border-2 ${borderColorClass} p-6 hover:shadow-md transition-all duration-200 bg-white`}
                 >
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${badgeGradientClass} text-white shadow-lg mb-2`}>
+                      <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg ${badgeClass} text-white shadow-sm mb-2 text-sm font-medium`}>
                         {getStatusIcon(order.status)}
                         <span className="font-bold text-sm">
                           {statusLabels[order.status as keyof typeof statusLabels]}
@@ -895,22 +895,6 @@ export function OrdersDashboard() {
                       {t('Empleado:')} <span className="text-amber-700 font-bold">{order.employee_profiles?.full_name || profile?.full_name || (user?.email ?? 'N/A')}</span>
                     </p>
 
-                    {order.status === 'preparing' && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => updateOrderStatus(order.id, 'completed')}
-                          className="flex-1 px-4 py-3 text-sm font-bold bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                        >
-                          {t('Completar')}
-                        </button>
-                        <button
-                          onClick={() => updateOrderStatus(order.id, 'cancelled')}
-                          className="px-4 py-3 text-sm font-bold bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl hover:from-red-600 hover:to-pink-600 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                        >
-                          {t('Cancelar')}
-                        </button>
-                      </div>
-                    )}
 
                     {order.status === 'completed' && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
                       <button
@@ -1118,7 +1102,7 @@ export function OrdersDashboard() {
               >
                 {deleteLoading ? (
                   <>
-                    <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <LoadingSpinner size="sm" light />
                     {t('Eliminando...')}
                   </>
                 ) : (

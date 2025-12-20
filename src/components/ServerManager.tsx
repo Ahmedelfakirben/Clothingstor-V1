@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface ServerStatus {
   isOnline: boolean;
@@ -556,7 +557,7 @@ export function ServerManager() {
           >
             {checking ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <LoadingSpinner size="sm" light />
                 {t('Verificando...')}
               </>
             ) : (
@@ -615,7 +616,7 @@ export function ServerManager() {
               <p className="font-semibold text-gray-900">{t('Exportar Backup')}</p>
               <p className="text-xs text-gray-600">{t('Descargar base de datos completa en JSON')}</p>
             </div>
-            {exporting && <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>}
+            {exporting && <LoadingSpinner size="sm" />}
           </button>
 
           {/* Importar Backup Completo */}
@@ -627,7 +628,7 @@ export function ServerManager() {
               <p className="font-semibold text-gray-900">{t('Importar Backup')}</p>
               <p className="text-xs text-gray-600">{t('Cargar backup desde archivo JSON')}</p>
             </div>
-            {importing && <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>}
+            {importing && <LoadingSpinner size="sm" />}
             <input
               type="file"
               accept=".json"
@@ -646,7 +647,7 @@ export function ServerManager() {
               <p className="font-semibold text-gray-900">{t('Importar Sin Productos')}</p>
               <p className="text-xs text-gray-600">{t('Restaurar sin sobrescribir categorías/productos')}</p>
             </div>
-            {importingWithoutProducts && <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>}
+            {importingWithoutProducts && <LoadingSpinner size="sm" />}
             <input
               type="file"
               accept=".json"
@@ -691,7 +692,7 @@ export function ServerManager() {
           >
             {cleaningHistory ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <LoadingSpinner size="sm" light />
                 {t('Limpiando...')}
               </>
             ) : (
@@ -710,7 +711,7 @@ export function ServerManager() {
           >
             {cleaning ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <LoadingSpinner size="sm" light />
                 {t('Limpiando...')}
               </>
             ) : (

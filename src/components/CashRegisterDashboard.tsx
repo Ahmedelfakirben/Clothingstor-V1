@@ -5,6 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { Calendar, DollarSign, Filter, RefreshCw, Printer } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface CashSession {
   id: string;
@@ -924,7 +925,9 @@ export function CashRegisterDashboard() {
       <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
         {loading ? (
           <div className="p-8 text-center">
-            <div className="w-8 h-8 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <div className="mb-4 flex justify-center">
+              <LoadingSpinner size="lg" />
+            </div>
             <p className="text-gray-600">{t('Cargando sesiones...')}</p>
           </div>
         ) : sessions.length === 0 ? (

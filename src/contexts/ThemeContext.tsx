@@ -49,13 +49,13 @@ const themeColors = {
     accent: '#2dd4bf',         // teal-400
   },
   fashion: {
-    primary: '#ec4899',        // pink-500
-    primaryHover: '#db2777',   // pink-600
+    primary: '#f9a8d4',        // pink-300 (pastel suave)
+    primaryHover: '#f472b6',   // pink-400
     primaryLight: '#fce7f3',   // pink-100
-    primaryDark: '#be185d',    // pink-700
-    secondary: '#a855f7',      // purple-500
-    secondaryHover: '#9333ea', // purple-600
-    accent: '#c084fc',         // purple-400
+    primaryDark: '#ec4899',    // pink-500
+    secondary: '#d8b4fe',      // purple-300 (lavanda suave)
+    secondaryHover: '#c084fc', // purple-400
+    accent: '#e9d5ff',         // purple-200
   },
 };
 
@@ -90,29 +90,65 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         console.log('🔄 [THEME] Loading theme from database...');
         const { data, error } = await supabase
           .from('company_settings')
-          .select('theme')
+          .select('id, theme')
           .single();
+
+        console.log('📦 [THEME] Database response:', { data, error });
 
         if (error) {
           console.error('❌ [THEME] Error loading theme from DB:', error);
-          // Si hay error, usar tema por defecto
-          setCurrentTheme('amber');
-          applyTheme('amber');
-          console.log('⚠️ [THEME] Using default theme: amber');
+          console.log('📝 [THEME] Error code:', error.code);
+          console.log('📝 [THEME] Error message:', error.message);
+
+          // Si hay error, intentar crear un registro con tema por defecto
+          console.log('🔨 [THEME] Attempting to create default company_settings...');
+          const { data: insertData, error: insertError } = await supabase
+            .from('company_settings')
+            .insert({
+              company_name: 'LIN-Fashion',
+              theme: 'fashion',
+              language: 'es'
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            console.error('❌ [THEME] Error creating default settings:', insertError);
+            setCurrentTheme('fashion');
+            applyTheme('fashion');
+            console.log('⚠️ [THEME] Using default theme: fashion (without DB)');
+          } else {
+            console.log('✅ [THEME] Created default settings:', insertData);
+            setCurrentTheme('fashion');
+            applyTheme('fashion');
+          }
         } else if (data && data.theme) {
           console.log(`✅ [THEME] Loaded theme from DB: ${data.theme}`);
           setCurrentTheme(data.theme as Theme);
           applyTheme(data.theme as Theme);
         } else {
-          // Si no hay tema configurado, usar amber por defecto
-          console.log('⚠️ [THEME] No theme configured, using default: amber');
-          setCurrentTheme('amber');
-          applyTheme('amber');
+          // Si no hay tema configurado, actualizar con fashion por defecto
+          console.log('⚠️ [THEME] No theme configured in DB');
+          console.log('🔨 [THEME] Updating to default theme: fashion');
+
+          const { error: updateError } = await supabase
+            .from('company_settings')
+            .update({ theme: 'fashion' })
+            .eq('id', data.id);
+
+          if (updateError) {
+            console.error('❌ [THEME] Error updating theme:', updateError);
+          } else {
+            console.log('✅ [THEME] Theme updated to fashion in DB');
+          }
+
+          setCurrentTheme('fashion');
+          applyTheme('fashion');
         }
       } catch (error) {
-        console.error('💥 [THEME] Error loading theme:', error);
-        setCurrentTheme('amber');
-        applyTheme('amber');
+        console.error('💥 [THEME] Unexpected error loading theme:', error);
+        setCurrentTheme('fashion');
+        applyTheme('fashion');
       } finally {
         setIsLoading(false);
       }

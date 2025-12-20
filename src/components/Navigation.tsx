@@ -1,4 +1,4 @@
-import { Shirt, ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Menu, X, Clock, Shield, Building2, Settings, Server, Database, Grid3x3 } from 'lucide-react';
+import { Shirt, ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Menu, X, Clock, Shield, Building2, Settings, Server, Database, Grid3x3, User, Coffee } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useState, useRef, useEffect } from 'react';
@@ -43,6 +43,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
   const [showOpenCashModal, setShowOpenCashModal] = useState(false);
   const [openingAmount, setOpeningAmount] = useState('');
   const [openingLoading, setOpeningLoading] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
 
   const navGroups: NavGroup[] = [
     {
@@ -190,11 +192,14 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
           setOpenMenu(null);
         }
       }
+      if (showUserMenu && userMenuRef.current && !userMenuRef.current.contains(target)) {
+        setShowUserMenu(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [openMenu]);
+  }, [openMenu, showUserMenu]);
 
   const handleMenuClick = (groupName: string, event: React.MouseEvent) => {
     event.preventDefault();
@@ -219,14 +224,14 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         }}
         className={`flex items-center gap-3 w-full px-4 py-3 text-sm transition-all duration-200 rounded-xl mx-2 ${
           isActive
-            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold shadow-md'
-            : 'text-gray-700 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 font-medium'
+            ? 'gradient-primary text-white font-bold shadow-elegant scale-105'
+            : 'text-gray-700 hover:bg-gradient-to-r hover:from-pink-50 hover:to-purple-50 font-medium hover:scale-105 hover:shadow-md'
         }`}
       >
-        <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-amber-600'}`} />
+        <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-pink-500'}`} />
         <span>{item.label}</span>
         {isActive && (
-          <div className="w-2 h-2 rounded-full bg-white ml-auto animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-white ml-auto animate-pulse shadow-lg" />
         )}
       </button>
     );
@@ -672,16 +677,16 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
 
   return (
     <>
-      <nav className="bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-lg sticky top-0 z-50">
+      <nav className="glass border-b-2 border-white/50 shadow-elegant sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-20">
-            <div className="flex-shrink-0 flex items-center gap-3">
-              <div className="w-14 h-14 bg-gradient-to-br from-pink-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                <Shirt className="w-8 h-8 text-white" />
+            <div className="flex-shrink-0 flex items-center gap-4">
+              <div className="w-16 h-16 gradient-primary rounded-3xl flex items-center justify-center shadow-elegant hover:shadow-elegant-hover transition-all duration-300 hover:scale-105 group cursor-pointer">
+                <Shirt className="w-9 h-9 text-white drop-shadow-lg group-hover:rotate-12 transition-transform duration-300" />
               </div>
               <div>
-                <h1 className="text-2xl font-extrabold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">LIN-Fashion</h1>
-                <p className="text-sm text-gray-600 font-medium">{t('Sistema de Gestión')}</p>
+                <h1 className="text-3xl font-black text-gradient-vibrant tracking-tight">LIN-Fashion</h1>
+                <p className="text-sm text-gray-600 font-semibold">{t('Sistema de Gestión')}</p>
               </div>
             </div>
 
@@ -691,21 +696,50 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4" ref={userMenuRef}>
               {profile && (
-                <div className="text-right bg-gradient-to-br from-amber-50 to-orange-50 px-4 py-2 rounded-xl border border-amber-100 shadow-sm">
-                  <p className="text-sm font-bold text-gray-900">{profile.full_name}</p>
-                  <p className="text-xs text-amber-600 capitalize font-semibold">{profile.role}</p>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="flex items-center gap-3 px-4 py-2 bg-white border border-gray-200 rounded-xl hover:border-pink-300 transition-all shadow-sm hover:shadow-md group"
+                  >
+                    <div className="w-10 h-10 gradient-primary rounded-full flex items-center justify-center text-white font-bold group-hover:shadow-lg transition-shadow">
+                      {profile.full_name?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="hidden md:block text-left">
+                      <p className="text-sm font-bold text-gray-900">{profile.full_name}</p>
+                      <p className="text-xs text-gray-500 capitalize">{profile.role}</p>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {showUserMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-64 glass rounded-2xl shadow-elegant border-2 border-white/50 py-2 animate-fadeIn z-50">
+                      <div className="px-4 py-3 border-b border-gray-200">
+                        <p className="text-sm font-bold text-gray-900">{profile.full_name}</p>
+                        <p className="text-xs text-gray-500">{user?.email}</p>
+                        <p className="text-xs text-pink-600 capitalize font-medium mt-1">{profile.role}</p>
+                      </div>
+
+                      <div className="px-2 py-2">
+                        <div className="px-3 py-2">
+                          <OnlineStatusToggle />
+                        </div>
+                      </div>
+
+                      <div className="border-t border-gray-200 px-2 pt-2">
+                        <button
+                          onClick={handleLogoutClick}
+                          className="flex items-center gap-3 w-full px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          <span>{t('Salir')}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-              <OnlineStatusToggle />
-              <button
-                onClick={handleLogoutClick}
-                className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5"
-              >
-                <LogOut className="w-5 h-5" />
-                <span>{t('Salir')}</span>
-              </button>
             </div>
 
           </div>

@@ -7,6 +7,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { Category, Product, ProductSize } from '../types/supabase';
 import { ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, Smartphone, CheckCircle } from 'lucide-react';
 import { TicketPrinter } from './TicketPrinter';
+import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
 import { toast } from 'react-hot-toast';
 
 const ITEMS_PER_PAGE = 12;
@@ -311,43 +312,71 @@ export function POS() {
       return;
     }
 
-    setLoading(true);
+    console.log('✅ Preparando orden (SIN crear en BD aún):', {
+      employeeId: user.id,
+      total,
+      cartItems: cart.length,
+    });
+
+    // SOLO preparar los datos, NO crear en BD aún
+    const ticketItems = cart.map(ci => ({
+      name: ci.product.name,
+      size: ci.size?.size_name,
+      quantity: ci.quantity,
+      price: ci.product.base_price + (ci.size?.price_modifier || 0),
+    }));
+
+    const ticketData = {
+      orderDate: new Date(),
+      orderNumber: 'PENDING', // Temporal hasta que se cree en BD
+      items: ticketItems,
+      total,
+      paymentMethod: 'Pendiente',
+      cashierName: (user.user_metadata as any)?.full_name || user.email || 'Usuario',
+    };
+
+    setPendingOrderData(ticketData);
+    setShowPaymentModal(true); // Mostrar modal de método de pago
+
+    console.log('📋 Datos preparados, esperando selección de método de pago...');
+  };
+
+  const handlePaymentMethodSelection = async (selectedPaymentMethod: string) => {
+    if (!pendingOrderData) {
+      console.error('No hay orden pendiente');
+      return;
+    }
+
+    console.log('Método de pago seleccionado:', selectedPaymentMethod);
+
+    // Actualizar los datos pendientes con el método de pago seleccionado
+    const updatedTicketData = {
+      ...pendingOrderData,
+      paymentMethod: selectedPaymentMethod === 'cash' ? 'Efectivo' :
+                    selectedPaymentMethod === 'card' ? 'Tarjeta' : 'Digital'
+    };
+
+    setPendingOrderData(updatedTicketData);
+
+    // Cerrar modal de pago y mostrar modal de validación
+    setShowPaymentModal(false);
+    setShowValidationModal(true);
+  };
+
+  const handleValidateAndPrint = async () => {
+    if (!pendingOrderData || !user) {
+      console.error('No hay orden pendiente o usuario no autenticado');
+      return;
+    }
+
     try {
-      if (serviceType === 'dine_in' && !tableId) {
-        toast.error('Seleccione una mesa para servicio en sala');
-        setLoading(false);
-        return;
-      }
+      console.log('🔥 AHORA SÍ creando orden en BD con método de pago:', pendingOrderData.paymentMethod);
 
-      // Crear orden como pendiente y mostrar modal de confirmación
-      console.log('Checkout flow check:', {
-        hasCart: cart.length > 0,
-        step: 'creating_pending_order'
-      });
+      // Convertir el método de pago al formato de la BD
+      const paymentMethodDB = pendingOrderData.paymentMethod === 'Efectivo' ? 'cash' :
+                             pendingOrderData.paymentMethod === 'Tarjeta' ? 'card' : 'digital';
 
-      // Continue with the rest of the checkout logic...
-      console.log('Continuing with checkout logic for:', {
-        paymentMethod,
-        cartLength: cart.length,
-        activeOrderId
-      });
-
-      // ===== MAIN CHECKOUT PROCESSING =====
-      // (The existing checkout logic should continue from here)
-
-      // The rest of the checkout logic continues below...
-
-      console.log('Iniciando checkout con:', {
-        employeeId: user.id,
-        total,
-        paymentMethod,
-        cartItems: cart.length,
-        serviceType,
-        tableId,
-        activeOrderId
-      });
-
-      // Preparar datos comunes
+      // Preparar items para la BD
       const orderItemsPayload = cart.map(item => ({
         product_id: item.product.id,
         size_id: item.size?.id || null,
@@ -356,152 +385,54 @@ export function POS() {
         subtotal: (Number(item.product.base_price) + Number(item.size?.price_modifier || 0)) * item.quantity,
         notes: item.notes,
       }));
-      const deltaTotal = orderItemsPayload.reduce((sum, it) => sum + Number(it.subtotal), 0);
-      const ticketItems = cart.map(ci => ({
-        name: ci.product.name,
-        size: ci.size?.size_name,
-        quantity: ci.quantity,
-        price: ci.product.base_price + (ci.size?.price_modifier || 0),
-      }));
 
-      // helpers están definidos fuera
+      // CREAR la orden en la base de datos (SOLO AQUÍ)
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          employee_id: user.id,
+          status: 'completed',
+          total: pendingOrderData.total,
+          payment_method: paymentMethodDB,
+          service_type: 'takeaway',
+          table_id: null,
+        })
+        .select('id,total,created_at,order_number')
+        .single();
 
-      if (!activeOrderId) {
-        // Crear nueva orden como pendiente (sin payment_method todavía)
-        const { data: order, error: orderError} = await supabase
-          .from('orders')
-          .insert({
-            employee_id: user.id,
-            status: 'preparing', // Pendiente de validación
-            total,
-            payment_method: null, // Se establecerá cuando valide
-            service_type: serviceType,
-            table_id: serviceType === 'dine_in' ? tableId : null,
-          })
-          .select('id,total,created_at,order_number')
-          .single();
-
-        if (orderError) throw orderError;
-
-        await insertOrderItems(orderItemsPayload, order.id);
-
-        // Store ticket data for later validation and printing
-        const ticketData = {
-          orderDate: new Date(order.created_at),
-          orderNumber: order.order_number ? order.order_number.toString().padStart(3, '0') : order.id.slice(-8),
-          items: ticketItems,
-          total,
-          paymentMethod: 'Pendiente',
-          cashierName: (user.user_metadata as any)?.full_name || user.email || 'Usuario',
-        };
-
-        setPendingOrderData(ticketData);
-        setActiveOrderId(order.id); // Guardar el ID de la orden pendiente
-        setShowValidationModal(true);
-
-        // Actualizar estado de mesa
-        if (serviceType === 'dine_in' && tableId) {
-          await updateTableStatus(tableId, 'occupied');
-        }
-      } else {
-        // Agregar productos a orden existente
-        const { data: existingOrder, error: existingErr } = await supabase
-          .from('orders')
-          .select('id,total,table_id,status,created_at,order_number')
-          .eq('id', activeOrderId)
-          .single();
-        if (existingErr || !existingOrder) throw existingErr || new Error('Orden no encontrada');
-
-        await insertOrderItems(orderItemsPayload, activeOrderId);
-
-        const newStatus = 'preparing'; // Always keep as preparing until validation
-        const prevTotal = typeof existingOrder.total === 'string' ? parseFloat(existingOrder.total) : (existingOrder.total || 0);
-        const newTotal = prevTotal + deltaTotal;
-        const { error: updateErr } = await supabase
-          .from('orders')
-          .update({ total: newTotal, status: newStatus, payment_method: paymentMethod || 'cash' })
-          .eq('id', activeOrderId);
-        if (updateErr) throw updateErr;
-
-        // Store ticket data for later validation and printing
-        const ticketData = {
-          orderDate: new Date(),
-          orderNumber: existingOrder.order_number ? `#${existingOrder.order_number.toString().padStart(3, '0')}` : `#${activeOrderId.slice(-3).toUpperCase()}`,
-          items: ticketItems,
-          total: newTotal,
-          paymentMethod: 'Pendiente',
-          cashierName: (user.user_metadata as any)?.full_name || user.email || 'Usuario',
-        };
-
-        setPendingOrderData(ticketData);
-        setShowValidationModal(true);
-
-        if (existingOrder.table_id) {
-          await updateTableStatus(existingOrder.table_id, 'occupied');
-        }
-
-        // Refrescar contenido del pedido activo tras añadir
-        setExistingOrderTotal(newTotal);
-        setExistingItems(prev => [
-          ...prev,
-          ...ticketItems.map(it => ({ ...it, subtotal: it.price * it.quantity }))
-        ]);
+      if (orderError) {
+        console.error('❌ Error creating order:', orderError);
+        throw orderError;
       }
 
-      toast.success(activeOrderId ? '¡Productos añadidos al pedido!' : '¡Orden creada exitosamente!');
-      // Don't reset anything yet - wait for validation
-      
-      // Forzar actualización inmediata - Nota: Canal removido para evitar memory leaks
-      // Si se necesita monitoreo en tiempo real, implementar con cleanup adecuado
-    } catch (err) {
-      console.error('Error creating order:', err);
-      toast.error('Error al crear la orden');
-    } finally {
-      setLoading(false);
-    }
-  };
+      console.log('✅ Orden creada en BD:', order.id);
 
-  const handleValidateAndPrint = async () => {
-    if (pendingOrderData) {
-      console.log('Usuario eligió validar e imprimir - mostrando modal de pago');
+      // Insertar los items de la orden
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItemsPayload.map(item => ({
+          ...item,
+          order_id: order.id
+        })));
 
-      // Cerrar modal de validación y mostrar modal de método de pago
-      setShowValidationModal(false);
-      setShowPaymentModal(true);
-    }
-  };
+      if (itemsError) {
+        console.error('❌ Error insertando items:', itemsError);
+        throw itemsError;
+      }
 
-  const handlePaymentMethodSelection = async (selectedPaymentMethod: string) => {
-    if (!pendingOrderData || !activeOrderId) {
-      console.error('No hay orden pendiente o activeOrderId');
-      return;
-    }
+      console.log('✅ Items insertados correctamente');
 
-    try {
-      console.log('Validando orden con método de pago:', selectedPaymentMethod);
-
-      // Actualizar la orden con el método de pago y completarla
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({
-          status: 'completed',
-          payment_method: selectedPaymentMethod
-        })
-        .eq('id', activeOrderId);
-
-      if (updateError) throw updateError;
-
-      // Actualizar los datos del ticket con el método de pago
-      const updatedTicketData = {
+      // Actualizar datos del ticket con el número de orden real
+      const finalTicketData = {
         ...pendingOrderData,
-        paymentMethod: selectedPaymentMethod === 'cash' ? 'Efectivo' :
-                      selectedPaymentMethod === 'card' ? 'Tarjeta' : 'Digital'
+        orderNumber: order.order_number ? order.order_number.toString().padStart(3, '0') : order.id.slice(-8),
+        orderDate: new Date(order.created_at),
       };
 
       // Imprimir ticket
-      console.log('Setting ticket for auto-print:', updatedTicketData);
-      setTicket(updatedTicketData);
-      setShowPaymentModal(false);
+      console.log('🖨️ Imprimiendo ticket:', finalTicketData);
+      setTicket(finalTicketData);
+      setShowValidationModal(false);
       setPendingOrderData(null);
 
       // Reset states after successful validation
@@ -511,22 +442,15 @@ export function POS() {
       setPaymentMethod(null);
       clearCart();
 
-      toast.success('¡Orden validada e impresa!');
+      toast.success('¡Orden creada, validada e impresa correctamente!');
     } catch (error) {
-      console.error('Error validating order:', error);
-      toast.error('Error al validar la orden');
+      console.error('💥 Error creando orden:', error);
+      toast.error('Error al crear la orden. Intenta nuevamente.');
     }
   };
 
   if (dataLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-amber-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">{t('Cargando productos...')}</p>
-        </div>
-      </div>
-    );
+    return <LoadingPage message={t('Cargando productos...')} />;
   }
 
   if (error) {
@@ -537,7 +461,7 @@ export function POS() {
           <p className="text-gray-600 mb-4">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded transition-colors"
+            className="w-full gradient-primary hover:gradient-primary-hover text-white font-bold py-2 px-4 rounded transition-colors"
           >
             {t('Reintentar')}
           </button>
@@ -557,7 +481,7 @@ export function POS() {
             onClick={() => setSelectedCategory('all')}
             className={`px-6 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
               selectedCategory === 'all'
-                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 scale-105'
+                ? 'gradient-primary text-white shadow-md scale-105'
                 : 'bg-gray-50 text-gray-700 border border-gray-200'
             }`}
           >
@@ -569,7 +493,7 @@ export function POS() {
               onClick={() => setSelectedCategory(cat.id)}
               className={`px-6 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${
                 selectedCategory === cat.id
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 scale-105'
+                  ? 'gradient-primary text-white shadow-md scale-105'
                   : 'bg-gray-50 text-gray-700 border border-gray-200'
               }`}
             >
@@ -595,7 +519,7 @@ export function POS() {
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-gray-900 text-sm">{product.name}</h3>
                     <p className="text-xs text-gray-500 truncate">{product.description}</p>
-                    <p className="text-lg font-bold text-amber-600 mt-1">{formatCurrency(product.base_price)}</p>
+                    <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(product.base_price)}</p>
                   </div>
                 </div>
 
@@ -605,7 +529,7 @@ export function POS() {
                       <button
                         key={size.id}
                         onClick={() => addItem(product, size)}
-                        className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 py-2 px-3 rounded-lg text-sm font-medium flex justify-between items-center"
+                        className="w-full bg-gray-50 hover:bg-gray-100 text-gray-800 py-2 px-3 rounded-lg text-sm font-medium flex justify-between items-center border border-gray-200"
                       >
                         <span>{size.size_name}</span>
                         <span className="font-bold">+{formatCurrency(size.price_modifier)}</span>
@@ -615,7 +539,7 @@ export function POS() {
                 ) : (
                   <button
                     onClick={() => addItem(product)}
-                    className="w-full bg-amber-600 hover:bg-amber-700 text-white py-2 px-4 rounded-lg font-semibold mt-2 text-sm"
+                    className="w-full gradient-primary hover:gradient-primary-hover text-white py-2 px-4 rounded-lg font-semibold mt-2 text-sm"
                   >
                     {t('Agregar')}
                   </button>
@@ -632,7 +556,7 @@ export function POS() {
         <div className="flex justify-between items-center">
           <div>
             <p className="text-xs text-gray-600">Total del pedido</p>
-            <p className="text-2xl font-bold text-amber-600">{formatCurrency(total)}</p>
+            <p className="text-2xl font-bold text-gray-900">{formatCurrency(total)}</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-gray-600">Items</p>
@@ -640,27 +564,9 @@ export function POS() {
           </div>
         </div>
 
-        {/* Opciones de servicio */}
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setServiceType('takeaway')}
-            className={`py-2 px-3 rounded-lg text-sm font-medium ${
-              serviceType === 'takeaway' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'
-            }`}
-          >
-            {t('Para llevar')}
-          </button>
-          <button
-            onClick={() => setServiceType('dine_in')}
-            className={`py-2 px-3 rounded-lg text-sm font-medium ${
-              serviceType === 'dine_in' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'
-            }`}
-          >
-            {t('En sala')}
-          </button>
-        </div>
+        {/* Opciones de servicio eliminadas - siempre para llevar */}
 
-        {serviceType === 'dine_in' && (
+        {false && (
           <select
             value={tableId || ''}
             onChange={(e) => setTableId(e.target.value || null)}
@@ -680,7 +586,7 @@ export function POS() {
         <button
           onClick={handleCheckout}
           disabled={cart.length === 0 || loading}
-          className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full gradient-primary hover:gradient-primary-hover text-white font-bold py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Procesando...' : 'Confirmar Pedido'}
         </button>
@@ -720,7 +626,7 @@ export function POS() {
                 itemPrice.textContent = `${formatCurrency(item.product.base_price + (item.size?.price_modifier || 0))} c/u`;
 
                 const itemTotal = document.createElement('p');
-                itemTotal.className = 'font-bold text-amber-600';
+                itemTotal.className = 'font-bold text-gray-900';
                 itemTotal.textContent = formatCurrency((item.product.base_price + (item.size?.price_modifier || 0)) * item.quantity);
 
                 itemInfo.appendChild(itemName);
@@ -740,7 +646,7 @@ export function POS() {
               totalLabel.textContent = 'Total:';
 
               const totalAmount = document.createElement('span');
-              totalAmount.className = 'font-bold text-amber-600 text-xl';
+              totalAmount.className = 'font-bold text-gray-900 text-xl';
               totalAmount.textContent = formatCurrency(total);
 
               totalDiv.appendChild(totalLabel);
@@ -801,7 +707,7 @@ export function POS() {
                 onClick={() => setSelectedCategory('all')}
                 className={`px-8 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300 ${
                   selectedCategory === 'all'
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 scale-105'
+                    ? 'gradient-primary text-white shadow-md scale-105'
                     : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:shadow-md border border-gray-200'
                 }`}
               >
@@ -813,7 +719,7 @@ export function POS() {
                   onClick={() => setSelectedCategory(cat.id)}
                   className={`px-8 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300 ${
                     selectedCategory === cat.id
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 scale-105'
+                      ? 'gradient-primary text-white shadow-md scale-105'
                       : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:shadow-md border border-gray-200'
                   }`}
                 >
@@ -830,21 +736,21 @@ export function POS() {
               const productSizesList = productSizes(product.id);
 
             return (
-              <div key={product.id} className="bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 p-5 border-2 border-gray-100 hover:border-amber-300 group relative overflow-hidden">
+              <div key={product.id} className="bg-white rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 p-5 border-2 border-gray-100 hover:border-gray-300 group relative overflow-hidden">
                 {/* Gradient Overlay on Hover */}
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-50/0 to-orange-50/0 group-hover:from-amber-50/50 group-hover:to-orange-50/50 transition-all duration-300 rounded-3xl pointer-events-none"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-50/0 to-gray-100/0 group-hover:from-gray-50/30 group-hover:to-gray-100/30 transition-all duration-300 rounded-3xl pointer-events-none"></div>
 
                 {product.image_url && product.image_url.length > 0 && (
-                  <div className="relative w-full h-36 bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl overflow-hidden mb-4 shadow-md group-hover:shadow-lg transition-shadow duration-300">
+                  <div className="relative w-full h-36 bg-gray-100 rounded-2xl overflow-hidden mb-4 shadow-md group-hover:shadow-lg transition-shadow duration-300">
                     <img src={product.image_url} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                   </div>
                 )}
                 <div className="space-y-3 relative z-10">
-                  <h3 className="font-extrabold text-gray-900 text-base leading-tight group-hover:text-amber-700 transition-colors">{product.name}</h3>
+                  <h3 className="font-extrabold text-gray-900 text-base leading-tight group-hover:text-gray-700 transition-colors">{product.name}</h3>
                   <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">{product.description}</p>
                   <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                    <p className="text-xl font-black bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">{formatCurrency(product.base_price)}</p>
+                    <p className="text-xl font-black text-gray-900">{formatCurrency(product.base_price)}</p>
                     <div className="flex items-center gap-1.5 bg-green-50 px-2 py-1 rounded-full">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                       <span className="text-xs text-green-700 font-bold">Stock</span>
@@ -858,20 +764,20 @@ export function POS() {
                       <button
                         key={size.id}
                         onClick={() => addItem(product, size)}
-                        className="w-full bg-gradient-to-r from-amber-100 to-orange-100 hover:from-amber-200 hover:to-orange-200 text-amber-800 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-200 flex justify-between items-center border-2 border-amber-300 hover:border-amber-400 shadow-md hover:shadow-xl transform hover:-translate-y-0.5"
+                        className="w-full bg-gray-50 hover:bg-gray-100 text-gray-800 py-2.5 px-4 rounded-xl text-sm font-bold transition-all duration-200 flex justify-between items-center border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md transform hover:-translate-y-0.5"
                       >
                         <span className="flex items-center gap-2">
                           <span className="text-base">📏</span>
                           <span>{size.size_name}</span>
                         </span>
-                        <span className="font-black text-amber-900">+{formatCurrency(size.price_modifier)}</span>
+                        <span className="font-black text-gray-900">+{formatCurrency(size.price_modifier)}</span>
                       </button>
                     ))}
                   </div>
                 ) : (
                   <button
                     onClick={() => addItem(product)}
-                    className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white py-3.5 px-4 rounded-xl font-black transition-all duration-200 mt-4 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 relative z-10"
+                    className="w-full gradient-primary hover:gradient-primary-hover text-white py-3.5 px-4 rounded-xl font-black transition-all duration-200 mt-4 shadow-md hover:shadow-lg transform hover:-translate-y-1 relative z-10"
                   >
                     <span className="flex items-center justify-center gap-2">
                       <Plus className="w-5 h-5" />
@@ -888,7 +794,7 @@ export function POS() {
             <div className="mt-8 text-center">
               <button
                 onClick={handleLoadMore}
-                className="bg-white hover:bg-gray-50 text-amber-600 font-medium py-3 px-6 rounded-lg shadow-sm transition-colors"
+                className="bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 px-6 rounded-lg shadow-sm transition-colors border border-gray-200"
               >
                 {t('Cargar más productos')}
               </button>
@@ -897,15 +803,15 @@ export function POS() {
         </div>
       </div>
 
-      <div className="w-80 bg-gradient-to-b from-gray-50 to-white border-l-2 border-amber-200 flex flex-col shadow-2xl">
-        <div className="p-5 border-b-2 border-amber-200 bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg">
+      <div className="w-80 bg-white border-l border-gray-200 flex flex-col shadow-lg">
+        <div className="p-5 border-b border-gray-200 bg-white">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white/30 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-md">
-              <ShoppingCart className="w-6 h-6" />
+            <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center shadow-sm">
+              <ShoppingCart className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-black">{t('Carrito de Compras')}</h2>
-              <p className="text-sm font-semibold opacity-95">{cart.length} productos</p>
+              <h2 className="text-lg font-bold text-gray-800">{t('Carrito de Compras')}</h2>
+              <p className="text-sm text-gray-500">{cart.length} {cart.length === 1 ? 'producto' : 'productos'}</p>
             </div>
           </div>
         </div>
@@ -916,7 +822,7 @@ export function POS() {
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">Pedido activo #{activeOrderId}</h3>
                 <p className="text-xs text-gray-600">Total actual: <span className="font-semibold">{formatCurrency(existingOrderTotal)}</span></p>
-                <p className="text-xs text-amber-600 font-medium">Pendiente de validación</p>
+                <p className="text-xs text-pink-600 font-medium">Pendiente de validación</p>
               </div>
               <div className="flex gap-2">
                 <button
@@ -933,7 +839,7 @@ export function POS() {
                     setPendingOrderData(ticketData);
                     setShowValidationModal(true);
                   }}
-                  className="px-3 py-2 rounded-lg border-2 text-xs bg-amber-600 text-white transition-colors hover:bg-amber-700"
+                  className="px-3 py-2 rounded-lg border text-xs gradient-primary text-white transition-colors hover:gradient-primary-hover"
                 >
                   Validar
                 </button>
@@ -944,7 +850,7 @@ export function POS() {
                     setServiceType('takeaway');
                     toast.success('Pedido finalizado');
                   }}
-                  className="px-3 py-2 rounded-lg border-2 text-xs bg-white transition-colors hover:bg-gray-50 border-amber-600 text-amber-700"
+                  className="px-3 py-2 rounded-lg border text-xs bg-white transition-colors hover:bg-gray-50 border-pink-300 text-pink-700"
                 >
                   Finalizar
                 </button>
@@ -955,12 +861,12 @@ export function POS() {
                 <p className="text-xs text-gray-500">Sin productos registrados en el pedido.</p>
               ) : (
                 existingItems.map((it, idx) => (
-                  <div key={idx} className="bg-gray-50 rounded-lg p-2">
+                  <div key={idx} className="bg-gray-50 rounded-lg p-2 border border-gray-200">
                     <div className="flex justify-between items-start">
                       <div className="text-xs text-gray-900 font-medium">
                         {it.quantity}x {it.name}{it.size ? ` (${it.size})` : ''}
                       </div>
-                      <div className="text-xs font-semibold text-amber-700">{formatCurrency(it.subtotal)}</div>
+                      <div className="text-xs font-semibold text-gray-900">{formatCurrency(it.subtotal)}</div>
                     </div>
                     <div className="text-[11px] text-gray-600">c/u {formatCurrency(it.price)}</div>
                   </div>
@@ -970,54 +876,54 @@ export function POS() {
           </div>
         )}
 
-        <div className="flex-1 overflow-auto p-4 bg-gradient-to-b from-gray-50 to-white">
+        <div className="flex-1 overflow-auto p-4 bg-gray-50">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center">
-              <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-3xl flex items-center justify-center mb-4 shadow-lg">
-                <ShoppingCart className="w-10 h-10 text-amber-600" />
+              <div className="w-20 h-20 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 shadow-sm border border-gray-200">
+                <ShoppingCart className="w-10 h-10 text-gray-400" />
               </div>
-              <p className="text-gray-600 text-base font-bold">{t('El carrito está vacío')}</p>
+              <p className="text-gray-700 text-base font-semibold">{t('El carrito está vacío')}</p>
               <p className="text-gray-400 text-sm mt-2">{t('Selecciona productos para comenzar')}</p>
             </div>
           ) : (
             <div className="space-y-3">
               {cart.slice().reverse().map((item, index) => (
-                <div key={cart.length - 1 - index} className="bg-white rounded-2xl shadow-md border-2 border-gray-100 p-4 hover:shadow-xl hover:border-amber-200 transition-all duration-200">
+                <div key={cart.length - 1 - index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md hover:border-gray-300 transition-all duration-200">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1">
-                      <h4 className="font-black text-gray-900 text-sm leading-tight">
+                      <h4 className="font-bold text-gray-900 text-sm leading-tight">
                         {item.quantity}x {item.product.name}
                         {item.size && ` (${item.size.size_name})`}
                       </h4>
-                      <p className="text-xs text-gray-500 mt-1 font-semibold">
+                      <p className="text-xs text-gray-500 mt-1">
                         c/u {formatCurrency(item.product.base_price + (item.size?.price_modifier || 0))}
                       </p>
                     </div>
                     <button
                       onClick={() => removeItem(cart.length - 1 - index)}
-                      className="text-red-500 hover:text-white hover:bg-red-500 p-2 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
+                      className="text-gray-400 hover:text-white hover:bg-red-500 p-2 rounded-lg transition-all duration-200"
                       title="Eliminar producto"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-1.5 border border-amber-200">
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1.5 border border-gray-200">
                       <button
                         onClick={() => updateQuantity(cart.length - 1 - index, -1)}
-                        className="w-7 h-7 rounded-lg bg-white border-2 border-amber-300 flex items-center justify-center hover:bg-amber-100 transition-all shadow-sm"
+                        className="w-7 h-7 rounded-md bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100 hover:border-gray-300 transition-all"
                       >
-                        <Minus className="w-3.5 h-3.5 text-amber-700" />
+                        <Minus className="w-3.5 h-3.5 text-gray-600" />
                       </button>
-                      <span className="w-9 text-center font-black text-base text-amber-900">{item.quantity}</span>
+                      <span className="w-9 text-center font-bold text-base text-gray-900">{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(cart.length - 1 - index, 1)}
-                        className="w-7 h-7 rounded-lg bg-white border-2 border-amber-300 flex items-center justify-center hover:bg-amber-100 transition-all shadow-sm"
+                        className="w-7 h-7 rounded-md bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100 hover:border-gray-300 transition-all"
                       >
-                        <Plus className="w-3.5 h-3.5 text-amber-700" />
+                        <Plus className="w-3.5 h-3.5 text-gray-600" />
                       </button>
                     </div>
-                    <span className="font-black text-amber-700 text-base bg-gradient-to-r from-amber-100 to-orange-100 px-3 py-1.5 rounded-xl border-2 border-amber-300 shadow-sm">
+                    <span className="font-bold text-gray-900 text-base bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-300">
                       {formatCurrency((item.product.base_price + (item.size?.price_modifier || 0)) * item.quantity)}
                     </span>
                   </div>
@@ -1027,11 +933,11 @@ export function POS() {
           )}
         </div>
 
-        <div className="p-5 border-t-2 border-amber-200 bg-gradient-to-b from-white to-gray-50 space-y-4 shadow-inner">
-          <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-5 shadow-lg border-2 border-amber-200">
-            <div className="flex justify-between items-center text-2xl font-black">
+        <div className="p-5 border-t border-gray-200 bg-white space-y-4">
+          <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+            <div className="flex justify-between items-center text-2xl font-bold">
               <span className="text-gray-800">{activeOrderId ? 'Añadir:' : 'Total:'}</span>
-              <span className="bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent px-4 py-1 rounded-xl">{formatCurrency(total)}</span>
+              <span className="text-gray-900">{formatCurrency(total)}</span>
             </div>
 
             {activeOrderId && (
@@ -1042,66 +948,26 @@ export function POS() {
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">Total después de añadir:</span>
-                  <span className="font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded">{formatCurrency(existingOrderTotal + total)}</span>
+                  <span className="font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">{formatCurrency(existingOrderTotal + total)}</span>
                 </div>
               </div>
             )}
           </div>
 
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-2">Servicio</label>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <button
-                onClick={() => setServiceType('takeaway')}
-                className={`p-2 rounded-lg border-2 bg-white transition-colors text-xs ${
-                  serviceType === 'takeaway' ? 'border-amber-600 bg-amber-50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                Para llevar
-              </button>
-              <button
-                onClick={() => setServiceType('dine_in')}
-                className={`p-2 rounded-lg border-2 bg-white transition-colors text-xs ${
-                  serviceType === 'dine_in' ? 'border-amber-600 bg-amber-50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                En sala
-              </button>
-            </div>
-            {serviceType === 'dine_in' && (
-              <div className="flex gap-2 items-center">
-                <select
-                  value={tableId || ''}
-                  onChange={(e) => setTableId(e.target.value || null)}
-                  className="flex-1 px-2 py-2 rounded-lg border-2 bg-white text-sm"
-                >
-                  <option value="">Seleccione mesa</option>
-                  {tables.map(t => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} • {t.seats} plazas • {t.status === 'available' ? 'Disponible' : t.status === 'occupied' ? 'Ocupada' : 'Reservada'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-
           <button
             onClick={handleCheckout}
             disabled={cart.length === 0 || loading}
-            className="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-600 hover:via-orange-600 hover:to-amber-600 text-white font-black py-5 px-6 rounded-2xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-base shadow-2xl hover:shadow-3xl transform hover:-translate-y-1 hover:scale-105 disabled:transform-none border-2 border-amber-400"
+            className="w-full gradient-primary hover:gradient-primary-hover text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-base shadow-elegant hover:shadow-elegant-hover transform hover:-translate-y-1 disabled:transform-none"
           >
             <span className="flex items-center justify-center gap-3">
               {loading ? (
                 <>
-                  <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <LoadingSpinner size="sm" light />
                   <span>Procesando...</span>
                 </>
               ) : (
                 <>
-                  <CreditCard className="w-6 h-6" />
+                  <CreditCard className="w-5 h-5" />
                   <span>{t('Confirmar Pedido')}</span>
                 </>
               )}
@@ -1116,10 +982,10 @@ export function POS() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 transform scale-100 transition-all">
             <div className="text-center mb-8">
-              <div className="inline-block p-4 bg-gradient-to-br from-amber-100 to-orange-100 rounded-2xl mb-4">
-                <CreditCard className="w-12 h-12 text-amber-600" />
+              <div className="inline-block p-4 bg-gray-100 rounded-2xl mb-4">
+                <CreditCard className="w-12 h-12 text-gray-700" />
               </div>
-              <h2 className="text-3xl font-black bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+              <h2 className="text-3xl font-black text-gray-900">
                 {t('Seleccionar Método de Pago')}
               </h2>
               <p className="text-sm text-gray-600 mt-2">{t('Elija cómo se realizará el pago')}</p>
@@ -1156,9 +1022,9 @@ export function POS() {
 
               <button
                 onClick={() => handlePaymentMethodSelection('digital')}
-                className="group flex items-center gap-4 p-6 rounded-2xl border-3 bg-gradient-to-br from-purple-50 to-pink-50 border-purple-300 transition-all hover:border-purple-500 hover:shadow-xl transform hover:-translate-y-1 hover:scale-102"
+                className="group flex items-center gap-4 p-6 rounded-2xl border-3 bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-300 transition-all hover:border-purple-500 hover:shadow-xl transform hover:-translate-y-1 hover:scale-102"
               >
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all">
                   <Smartphone className="w-8 h-8 text-white" />
                 </div>
                 <div className="text-left flex-1">
@@ -1196,16 +1062,16 @@ export function POS() {
             </div>
 
             <div className="mb-6">
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-6 mb-4 shadow-lg">
+              <div className="bg-gray-50 border-2 border-gray-300 rounded-2xl p-6 mb-4 shadow-sm">
                 <div className="flex justify-between items-center mb-3">
                   <span className="font-bold text-gray-800 text-sm">{t('Total del Pedido:')}</span>
-                  <span className="font-black text-3xl bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+                  <span className="font-black text-3xl text-gray-900">
                     {formatCurrency(pendingOrderData.total)}
                   </span>
                 </div>
-                <div className="flex justify-between items-center pt-3 border-t-2 border-amber-300">
+                <div className="flex justify-between items-center pt-3 border-t-2 border-gray-300">
                   <span className="font-bold text-gray-800 text-sm">{t('Método de Pago:')}</span>
-                  <span className="font-bold text-amber-700 bg-white/60 px-3 py-1 rounded-lg">
+                  <span className="font-bold text-gray-900 bg-white px-3 py-1 rounded-lg border border-gray-300">
                     {pendingOrderData.paymentMethod}
                   </span>
                 </div>

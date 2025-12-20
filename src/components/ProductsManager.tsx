@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Save, X, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface Category {
   id: string;
@@ -41,17 +42,23 @@ export function ProductsManager() {
   const [sizes, setSizes] = useState<ProductSize[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showNewProduct, setShowNewProduct] = useState(false);
-  const [newProduct, setNewProduct] = useState({
+  const [newProduct, setNewProduct] = useState<{
+    name: string;
+    description: string;
+    category_id: string;
+    base_price: number;
+    available: boolean;
+    brand?: string;
+    material?: string;
+    gender?: string;
+    season?: string;
+    stock?: number;
+  }>({
     name: '',
     description: '',
     category_id: '',
     base_price: 0,
     available: true,
-    brand: '',
-    material: '',
-    gender: '',
-    season: '',
-    stock: 0,
   });
   const [newProductImage, setNewProductImage] = useState<File | null>(null);
   const [newProductPreviewUrl, setNewProductPreviewUrl] = useState<string | null>(null);
@@ -107,19 +114,92 @@ export function ProductsManager() {
   const handleCreateProduct = async () => {
     if (creatingProduct) return;
 
+    // Validar campos requeridos
+    if (!newProduct.name.trim()) {
+      toast.error(t('El nombre del producto es obligatorio'));
+      return;
+    }
+
+    if (!newProduct.category_id) {
+      toast.error(t('La categoría es obligatoria'));
+      return;
+    }
+
+    if (newProduct.base_price <= 0) {
+      toast.error(t('El precio debe ser mayor a 0'));
+      return;
+    }
+
     setCreatingProduct(true);
     try {
+      // Preparar datos para insertar (eliminar campos vacíos opcionales)
+      const productData: any = {
+        name: newProduct.name.trim(),
+        description: newProduct.description?.trim() || '',
+        category_id: newProduct.category_id,
+        base_price: newProduct.base_price,
+        available: newProduct.available ?? true,
+      };
+
+      // Solo agregar campos opcionales si tienen valor válido
+      console.log('🔍 [PRODUCTS] Validating optional fields:', {
+        brand: newProduct.brand,
+        material: newProduct.material,
+        gender: newProduct.gender,
+        season: newProduct.season,
+        stock: newProduct.stock
+      });
+
+      if (newProduct.brand && newProduct.brand.trim()) {
+        productData.brand = newProduct.brand.trim();
+        console.log('✅ Added brand:', productData.brand);
+      }
+      if (newProduct.material && newProduct.material.trim()) {
+        productData.material = newProduct.material.trim();
+        console.log('✅ Added material:', productData.material);
+      }
+      if (newProduct.gender && newProduct.gender.trim() && newProduct.gender !== '') {
+        productData.gender = newProduct.gender.trim();
+        console.log('✅ Added gender:', productData.gender);
+      }
+      if (newProduct.season && newProduct.season.trim() && newProduct.season !== '') {
+        productData.season = newProduct.season.trim();
+        console.log('✅ Added season:', productData.season);
+      }
+      if (newProduct.stock !== undefined && newProduct.stock > 0) {
+        productData.stock = newProduct.stock;
+        console.log('✅ Added stock:', productData.stock);
+      }
+
+      console.log('📝 [PRODUCTS] Final product data to insert:', JSON.stringify(productData, null, 2));
+
       // Create product first
       const { data: created, error } = await supabase
         .from('products')
-        .insert(newProduct)
+        .insert(productData)
         .select('id')
         .single();
 
       if (error) {
-        toast.error(t('Error al crear producto'));
+        console.error('❌ [PRODUCTS] Error creating product:', error);
+        console.error('📋 [PRODUCTS] Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+
+        if (error.code === '42501') {
+          toast.error(t('No tienes permisos para crear productos. Solo admin y super_admin pueden hacerlo.'));
+        } else if (error.message.includes('violates check constraint')) {
+          toast.error(t('Error: Verifica que los valores de género y temporada sean correctos.'));
+        } else {
+          toast.error(`${t('Error al crear producto:')} ${error.message}`);
+        }
         return;
       }
+
+      console.log('✅ [PRODUCTS] Product created successfully:', created);
 
       // Upload image if provided
       if (created && newProductImage) {
@@ -138,8 +218,24 @@ export function ProductsManager() {
             });
 
           if (uploadError) {
-            console.error('Error subiendo imagen:', uploadError);
-            toast.error(`${t('Error subiendo imagen:')} ${uploadError.message || t('Verifica el bucket "product-images" y permisos públicos.')}`, { id: 'image-upload' });
+            console.error('❌ [PRODUCTS] Error uploading image:', uploadError);
+
+            if (uploadError.message.includes('Bucket not found')) {
+              toast.error(
+                t('❌ El bucket "product-images" no existe. Ve a Storage en Supabase y créalo como público. Consulta GUIA_CONFIGURAR_STORAGE.md'),
+                { id: 'image-upload', duration: 8000 }
+              );
+            } else if (uploadError.message.includes('policy')) {
+              toast.error(
+                t('❌ Error de permisos. Verifica las políticas RLS del bucket "product-images".'),
+                { id: 'image-upload', duration: 6000 }
+              );
+            } else {
+              toast.error(
+                `${t('Error subiendo imagen:')} ${uploadError.message}`,
+                { id: 'image-upload', duration: 6000 }
+              );
+            }
           } else {
             const { data: publicData } = supabase.storage
               .from('product-images')
@@ -166,7 +262,13 @@ export function ProductsManager() {
       }
 
       setShowNewProduct(false);
-      setNewProduct({ name: '', description: '', category_id: '', base_price: 0, available: true });
+      setNewProduct({
+        name: '',
+        description: '',
+        category_id: '',
+        base_price: 0,
+        available: true,
+      });
       setNewProductImage(null);
       setNewProductPreviewUrl(null);
       fetchProducts();
@@ -475,7 +577,7 @@ export function ProductsManager() {
                   />
                   {uploadingImage && (
                     <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                      <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />
+                      <LoadingSpinner size="sm" />
                     </div>
                   )}
                 </div>
@@ -484,7 +586,7 @@ export function ProductsManager() {
                     <img src={newProductPreviewUrl} alt={t('Vista previa')} className="h-24 w-24 object-cover rounded border" />
                     {uploadingImage && (
                       <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
-                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                        <LoadingSpinner size="md" />
                       </div>
                     )}
                   </div>
@@ -498,7 +600,7 @@ export function ProductsManager() {
                 >
                   {creatingProduct || uploadingImage ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <LoadingSpinner size="sm" light />
                       {uploadingImage ? t('Subiendo imagen...') : t('Creando...')}
                     </>
                   ) : (
@@ -555,7 +657,7 @@ export function ProductsManager() {
                             />
                             {uploadingImage && (
                               <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
-                                <Loader2 className="w-4 h-4 text-white animate-spin" />
+                                <LoadingSpinner size="sm" light />
                               </div>
                             )}
                           </div>
@@ -573,7 +675,7 @@ export function ProductsManager() {
                           />
                           {uploadingImage && (
                             <div className="absolute right-0 top-1/2 transform -translate-y-1/2">
-                              <Loader2 className="w-4 h-4 text-amber-600 animate-spin" />
+                              <LoadingSpinner size="sm" />
                             </div>
                           )}
                         </div>
@@ -680,7 +782,7 @@ export function ProductsManager() {
                         title={updatingProduct || uploadingImage ? (uploadingImage ? t('Subiendo imagen...') : t('Guardando cambios...')) : t('Guardar cambios')}
                       >
                         {updatingProduct || uploadingImage ? (
-                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <LoadingSpinner size="sm" />
                         ) : (
                           <Save className="w-5 h-5" />
                         )}

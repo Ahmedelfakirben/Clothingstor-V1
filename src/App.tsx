@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
@@ -7,21 +7,21 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { LoginForm } from './components/LoginForm';
 import { Navigation } from './components/Navigation';
-import { POS } from './components/POS';
-import { OrdersDashboard } from './components/OrdersDashboard';
-import { ProductsManager } from './components/ProductsManager';
-import { CategoryManager } from './components/CategoryManager';
-import { UserManager } from './components/UserManager';
-import { SupplierManager } from './components/SupplierManager';
-import { ExpenseManager } from './components/ExpenseManager';
-import { Analytics } from './components/Analytics';
-import { CashRegisterDashboard } from './components/CashRegisterDashboard';
-import { EmployeeTimeTracking } from './components/EmployeeTimeTracking';
-import { RoleManagement } from './components/RoleManagement';
-import { CompanySettings } from './components/CompanySettings';
-import { AppSettings } from './components/AppSettings';
-import { ServerManager } from './components/ServerManager';
-import { BackupManager } from './components/BackupManager';
+const POS = lazy(() => import('./components/POS').then(module => ({ default: module.POS })));
+const OrdersDashboard = lazy(() => import('./components/OrdersDashboard').then(module => ({ default: module.OrdersDashboard })));
+const ProductsManager = lazy(() => import('./components/ProductsManager').then(module => ({ default: module.ProductsManager })));
+const CategoryManager = lazy(() => import('./components/CategoryManager').then(module => ({ default: module.CategoryManager })));
+const UserManager = lazy(() => import('./components/UserManager').then(module => ({ default: module.UserManager })));
+const SupplierManager = lazy(() => import('./components/SupplierManager').then(module => ({ default: module.SupplierManager })));
+const ExpenseManager = lazy(() => import('./components/ExpenseManager').then(module => ({ default: module.ExpenseManager })));
+const Analytics = lazy(() => import('./components/Analytics').then(module => ({ default: module.Analytics })));
+const CashRegisterDashboard = lazy(() => import('./components/CashRegisterDashboard').then(module => ({ default: module.CashRegisterDashboard })));
+const EmployeeTimeTracking = lazy(() => import('./components/EmployeeTimeTracking').then(module => ({ default: module.EmployeeTimeTracking })));
+const RoleManagement = lazy(() => import('./components/RoleManagement').then(module => ({ default: module.RoleManagement })));
+const CompanySettings = lazy(() => import('./components/CompanySettings').then(module => ({ default: module.CompanySettings })));
+const AppSettings = lazy(() => import('./components/AppSettings').then(module => ({ default: module.AppSettings })));
+const ServerManager = lazy(() => import('./components/ServerManager').then(module => ({ default: module.ServerManager })));
+const BackupManager = lazy(() => import('./components/BackupManager').then(module => ({ default: module.BackupManager })));
 import { supabase } from './lib/supabase';
 
 function AppContent() {
@@ -102,16 +102,16 @@ function AppContent() {
       switch (profile.role) {
         case 'cashier':
           defaultView = userPermissions['pos'] ? 'pos' :
-                       userPermissions['orders'] ? 'orders' :
-                       userPermissions['cash'] ? 'cash' : 'pos';
+            userPermissions['orders'] ? 'orders' :
+              userPermissions['cash'] ? 'cash' : 'pos';
           break;
         case 'barista':
           defaultView = userPermissions['pos'] ? 'pos' :
-                       userPermissions['orders'] ? 'orders' : 'pos';
+            userPermissions['orders'] ? 'orders' : 'pos';
           break;
         case 'waiter':
           defaultView = userPermissions['orders'] ? 'orders' :
-                       userPermissions['pos'] ? 'pos' : 'orders';
+            userPermissions['pos'] ? 'pos' : 'orders';
           break;
         case 'admin':
         case 'super_admin':
@@ -207,21 +207,27 @@ function AppContent() {
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       <Navigation currentView={currentView} onViewChange={setCurrentView} />
       <div className="flex-1 overflow-auto p-6">
-        {currentView === 'pos' && userPermissions['pos'] && <POS />}
-        {currentView === 'orders' && userPermissions['orders'] && <OrdersDashboard />}
-        {currentView === 'products' && userPermissions['products'] && <ProductsManager />}
-        {currentView === 'categories' && userPermissions['categories'] && <CategoryManager />}
-        {currentView === 'users' && userPermissions['users'] && <UserManager />}
-        {currentView === 'suppliers' && userPermissions['suppliers'] && <SupplierManager />}
-        {currentView === 'expenses' && userPermissions['expenses'] && <ExpenseManager />}
-        {currentView === 'time-tracking' && userPermissions['time-tracking'] && <EmployeeTimeTracking />}
-        {currentView === 'analytics' && userPermissions['analytics'] && <Analytics />}
-        {currentView === 'cash' && userPermissions['cash'] && <CashRegisterDashboard />}
-        {currentView === 'role-management' && userPermissions['role-management'] && <RoleManagement />}
-        {currentView === 'company-settings' && userPermissions['company-settings'] && <CompanySettings />}
-        {currentView === 'app-settings' && userPermissions['app-settings'] && <AppSettings />}
-        {currentView === 'server' && userPermissions['server'] && <ServerManager />}
-        {currentView === 'backup' && userPermissions['backup'] && <BackupManager />}
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-full">
+            <div className="w-8 h-8 border-4 border-amber-600 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        }>
+          {currentView === 'pos' && userPermissions['pos'] && <POS />}
+          {currentView === 'orders' && userPermissions['orders'] && <OrdersDashboard />}
+          {currentView === 'products' && userPermissions['products'] && <ProductsManager />}
+          {currentView === 'categories' && userPermissions['categories'] && <CategoryManager />}
+          {currentView === 'users' && userPermissions['users'] && <UserManager />}
+          {currentView === 'suppliers' && userPermissions['suppliers'] && <SupplierManager />}
+          {currentView === 'expenses' && userPermissions['expenses'] && <ExpenseManager />}
+          {currentView === 'time-tracking' && userPermissions['time-tracking'] && <EmployeeTimeTracking />}
+          {currentView === 'analytics' && userPermissions['analytics'] && <Analytics />}
+          {currentView === 'cash' && userPermissions['cash'] && <CashRegisterDashboard />}
+          {currentView === 'role-management' && userPermissions['role-management'] && <RoleManagement />}
+          {currentView === 'company-settings' && userPermissions['company-settings'] && <CompanySettings />}
+          {currentView === 'app-settings' && userPermissions['app-settings'] && <AppSettings />}
+          {currentView === 'server' && userPermissions['server'] && <ServerManager />}
+          {currentView === 'backup' && userPermissions['backup'] && <BackupManager />}
+        </Suspense>
       </div>
 
       {showOpenCashModal && (

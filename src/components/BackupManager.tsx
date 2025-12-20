@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { AutomatedBackupConfig } from './AutomatedBackupConfig';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface BackupHistory {
   id: string;
@@ -354,7 +355,7 @@ export function BackupManager() {
         >
           {loading ? (
             <>
-              <RefreshCw className="w-5 h-5 animate-spin" />
+              <LoadingSpinner size="sm" light />
               {t('Creando Backup...')}
             </>
           ) : (
@@ -375,7 +376,9 @@ export function BackupManager() {
 
         {loadingHistory ? (
           <div className="text-center py-8">
-            <RefreshCw className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-2" />
+            <div className="mb-2 flex justify-center">
+              <LoadingSpinner size="lg" />
+            </div>
             <p className="text-sm text-gray-500">{t('Cargando historial...')}</p>
           </div>
         ) : backupHistory.length === 0 ? (

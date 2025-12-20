@@ -10,7 +10,7 @@ interface NewEmployee {
   email: string;
   password: string;
   full_name: string;
-  role: 'super_admin' | 'admin' | 'cashier' | 'barista' | 'waiter';
+  role: 'super_admin' | 'admin' | 'cashier';
   phone: string;
 }
 
@@ -35,16 +35,23 @@ export function UserManager() {
   const [showInactive, setShowInactive] = useState(true);
 
   useEffect(() => {
-    fetchEmployees();
-  }, []);
+    if (profile) {
+      fetchEmployees();
+    }
+  }, [profile]);
 
   const fetchEmployees = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('employee_profiles')
-        .select('id, full_name, role, phone, active, created_at, email, deleted_at')
-        .neq('role', 'super_admin') // Ocultar super_admin de todos los usuarios
-        .order('full_name');
+        .select('id, full_name, role, phone, active, created_at, email, deleted_at');
+
+      // Solo super_admin puede ver otros super_admins
+      if (profile?.role !== 'super_admin') {
+        query = query.neq('role', 'super_admin');
+      }
+
+      const { data, error } = await query.order('full_name');
 
       if (error) throw error;
       setEmployees(data || []);
@@ -193,13 +200,9 @@ export function UserManager() {
       case 'super_admin':
         return 'bg-purple-100 text-purple-800';
       case 'admin':
-        return 'bg-red-100 text-red-800';
-      case 'cashier':
         return 'bg-blue-100 text-blue-800';
-      case 'barista':
+      case 'cashier':
         return 'bg-green-100 text-green-800';
-      case 'waiter':
-        return 'bg-pink-100 text-pink-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -213,10 +216,6 @@ export function UserManager() {
         return t('Administrador');
       case 'cashier':
         return t('Cajero');
-      case 'barista':
-        return t('Barista');
-      case 'waiter':
-        return t('Camarero');
       default:
         return role;
     }
@@ -320,15 +319,18 @@ export function UserManager() {
               <select
                 value={newEmployee.role}
                 onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value as any })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
                 required
               >
-                <option value="waiter">{t('Camarero')}</option>
                 <option value="cashier">{t('Cajero')}</option>
-                <option value="barista">{t('Barista')}</option>
-                <option value="admin">{t('Administrador')}</option>
                 {profile?.role === 'super_admin' && (
-                  <option value="super_admin">{t('Super Administrador')}</option>
+                  <>
+                    <option value="admin">{t('Administrador')}</option>
+                    <option value="super_admin">{t('Super Administrador')}</option>
+                  </>
+                )}
+                {profile?.role === 'admin' && (
+                  <option value="admin">{t('Administrador')}</option>
                 )}
               </select>
             </div>
