@@ -242,6 +242,17 @@ const translations = {
     'Continuando pedido existente': 'Continuando pedido existente',
     'Mesa': 'Mesa',
 
+    // Product Attributes
+    'gender.hombre': 'Hombre',
+    'gender.mujer': 'Mujer',
+    'gender.unisex': 'Unisex',
+    'gender.niño': 'Niño',
+    'gender.niña': 'Niña',
+
+    'season.primavera_verano': 'Primavera/Verano',
+    'season.otoño_invierno': 'Otoño/Invierno',
+    'season.todo_el_año': 'Todo el año',
+
     // Orders Dashboard
     'Panel de Órdenes': 'Panel de Órdenes',
     'Órdenes Actuales': 'Órdenes Actuales',
@@ -1433,6 +1444,17 @@ const translations = {
     'Confirmar Validación': 'Confirmer la Validation',
     'Continuando pedido existente': 'Poursuite de la commande existante',
     'Mesa': 'Table',
+
+    // Product Attributes
+    'gender.hombre': 'Homme',
+    'gender.mujer': 'Femme',
+    'gender.unisex': 'Unisexe',
+    'gender.niño': 'Garçon',
+    'gender.niña': 'Fille',
+
+    'season.primavera_verano': 'Printemps/Été',
+    'season.otoño_invierno': 'Automne/Hiver',
+    'season.todo_el_año': 'Toute l\'année',
 
     // Orders Dashboard
     'Panel de Órdenes': 'Tableau des Commandes',

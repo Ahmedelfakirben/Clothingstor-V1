@@ -107,7 +107,7 @@ export function Analytics() {
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary[]>([]);
   const [recentNotifications, setRecentNotifications] = useState<Notification[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<number>(0);
-  const [occupiedTables, setOccupiedTables] = useState<number>(0);
+
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
 
   useEffect(() => {
@@ -117,7 +117,6 @@ export function Analytics() {
     fetchEmployeeActivity();
     fetchFinancialSummary();
     fetchRecentNotifications();
-    fetchOccupiedTables();
     fetchCompanySettings();
     setupRealtimeSubscriptions();
 
@@ -189,6 +188,7 @@ export function Analytics() {
 
       if (employees && employees.length > 0) {
         const today = new Date().toISOString().split('T')[0];
+        const INACTIVITY_THRESHOLD = 40 * 60 * 1000; // 40 minutes
 
         const activityData = await Promise.all(
           employees.map(async (emp) => {
@@ -196,7 +196,7 @@ export function Analytics() {
               // Get sessions today
               const { data: sessions, error: sessionsError } = await supabase
                 .from('cash_register_sessions')
-                .select('id')
+                .select('id, opened_at, closed_at')
                 .eq('employee_id', emp.id)
                 .gte('opened_at', today);
 
@@ -207,7 +207,7 @@ export function Analytics() {
               // Get orders today (all statuses to show real activity)
               const { data: orders, error: ordersError } = await supabase
                 .from('orders')
-                .select('total, status')
+                .select('total, status, created_at')
                 .eq('employee_id', emp.id)
                 .gte('created_at', today);
 
@@ -220,19 +220,47 @@ export function Analytics() {
                 ?.filter(order => order.status === 'completed')
                 .reduce((sum, order) => sum + order.total, 0) || 0;
 
-              // Usar el estado is_online directamente de la base de datos
-              const isOnline = emp.is_online ?? false;
-              const lastLogin = emp.last_login || emp.created_at;
+              // --- INACTIVITY CHECK LOGIC ---
+              const now = new Date().getTime();
+              let lastActivityTime = new Date(emp.last_login || emp.created_at).getTime();
+
+              // Check latest session activity
+              if (sessions && sessions.length > 0) {
+                sessions.forEach(session => {
+                  const openTime = new Date(session.opened_at).getTime();
+                  if (openTime > lastActivityTime) lastActivityTime = openTime;
+
+                  if (session.closed_at) {
+                    const closeTime = new Date(session.closed_at).getTime();
+                    if (closeTime > lastActivityTime) lastActivityTime = closeTime;
+                  }
+                });
+              }
+
+              // Check latest order activity
+              if (orders && orders.length > 0) {
+                orders.forEach(order => {
+                  const orderTime = new Date(order.created_at).getTime();
+                  if (orderTime > lastActivityTime) lastActivityTime = orderTime;
+                });
+              }
+
+              // Determine online status based on inactivity
+              const timeDiff = now - lastActivityTime;
+              const isInactive = timeDiff > INACTIVITY_THRESHOLD;
+
+              // If user is marked online in DB but inactive locally, show as offline
+              const isOnline = (emp.is_online && !isInactive) ?? false;
 
               return {
                 id: emp.id,
                 full_name: emp.full_name,
                 role: emp.role,
-                last_login: lastLogin,
+                last_login: emp.last_login || emp.created_at,
                 total_sessions_today: sessions?.length || 0,
                 total_orders_today: orders?.length || 0,
                 total_sales_today: totalSales,
-                is_online: isOnline ?? false,
+                is_online: isOnline,
               };
             } catch (empError) {
               console.error('Error processing employee:', emp.id, empError);
@@ -1372,19 +1400,7 @@ export function Analytics() {
     }
   };
 
-  const fetchOccupiedTables = async () => {
-    try {
-      const { data: tables, error } = await supabase
-        .from('tables')
-        .select('id, status')
-        .eq('status', 'occupied');
 
-      if (error) throw error;
-      setOccupiedTables(tables?.length || 0);
-    } catch (error) {
-      console.error('Error fetching occupied tables:', error);
-    }
-  };
 
   const fetchCompanySettings = async () => {
     try {
@@ -1472,23 +1488,13 @@ export function Analytics() {
       })
       .subscribe();
 
-    // Subscribe to tables
-    const tableSubscription = supabase
-      .channel('tables')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'tables'
-      }, () => {
-        fetchOccupiedTables();
-      })
-      .subscribe();
+
 
     return () => {
       employeeSubscription.unsubscribe();
       sessionSubscription.unsubscribe();
       orderSubscription.unsubscribe();
-      tableSubscription.unsubscribe();
+
     };
   };
 
@@ -1501,10 +1507,7 @@ export function Analytics() {
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span className="text-sm font-medium text-gray-700">{onlineUsers} {t('usuarios conectados')}</span>
           </div>
-          <div className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-            <span className="text-sm font-medium text-gray-700">{occupiedTables} {t('mesas ocupadas')}</span>
-          </div>
+
           <button
             onClick={exportToExcel}
             className="flex items-center gap-2 px-4 py-2 gradient-primary hover:gradient-primary-hover text-white rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md"

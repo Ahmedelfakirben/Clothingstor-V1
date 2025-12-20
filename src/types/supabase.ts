@@ -13,7 +13,12 @@ export interface Product {
   available: boolean;
   created_at: string;
   updated_at: string;
-  image_url: string; // added: product image url
+  image_url: string;
+  brand?: string;
+  material?: string;
+  gender?: string;
+  season?: string;
+  stock?: number;
 }
 
 export interface ProductSize {

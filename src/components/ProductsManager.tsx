@@ -544,11 +544,11 @@ export function ProductsManager() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="">{t('Seleccionar')}</option>
-                    <option value="hombre">{t('Hombre')}</option>
-                    <option value="mujer">{t('Mujer')}</option>
-                    <option value="unisex">{t('Unisex')}</option>
-                    <option value="niño">{t('Niño')}</option>
-                    <option value="niña">{t('Niña')}</option>
+                    <option value="hombre">{t('gender.hombre')}</option>
+                    <option value="mujer">{t('gender.mujer')}</option>
+                    <option value="unisex">{t('gender.unisex')}</option>
+                    <option value="niño">{t('gender.niño')}</option>
+                    <option value="niña">{t('gender.niña')}</option>
                   </select>
                 </div>
                 <div>
@@ -559,9 +559,9 @@ export function ProductsManager() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="">{t('Seleccionar')}</option>
-                    <option value="primavera_verano">{t('Primavera/Verano')}</option>
-                    <option value="otoño_invierno">{t('Otoño/Invierno')}</option>
-                    <option value="todo_el_año">{t('Todo el año')}</option>
+                    <option value="primavera_verano">{t('season.primavera_verano')}</option>
+                    <option value="otoño_invierno">{t('season.otoño_invierno')}</option>
+                    <option value="todo_el_año">{t('season.todo_el_año')}</option>
                   </select>
                 </div>
               </div>
@@ -726,14 +726,14 @@ export function ProductsManager() {
                       className="w-28 px-2 py-1 border border-gray-300 rounded"
                     >
                       <option value="">{t('Seleccionar')}</option>
-                      <option value="hombre">{t('Hombre')}</option>
-                      <option value="mujer">{t('Mujer')}</option>
-                      <option value="unisex">{t('Unisex')}</option>
-                      <option value="niño">{t('Niño')}</option>
-                      <option value="niña">{t('Niña')}</option>
+                      <option value="hombre">{t('gender.hombre')}</option>
+                      <option value="mujer">{t('gender.mujer')}</option>
+                      <option value="unisex">{t('gender.unisex')}</option>
+                      <option value="niño">{t('gender.niño')}</option>
+                      <option value="niña">{t('gender.niña')}</option>
                     </select>
                   ) : (
-                    product.gender ? t(product.gender.charAt(0).toUpperCase() + product.gender.slice(1)) : '-'
+                    product.gender ? t(`gender.${product.gender}`) : '-'
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-900">
@@ -764,11 +764,10 @@ export function ProductsManager() {
                   )}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                    product.available
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${product.available
                       ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
-                  }`}>
+                    }`}>
                     {product.available ? t('Disponible') : t('No disponible')}
                   </span>
                 </td>

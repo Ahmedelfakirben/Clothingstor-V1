@@ -102,54 +102,21 @@ export function TicketPrinter({
             address: data.address?.trim() || 'Calle Principal #123, Ciudad',
             phone: data.phone?.trim() || '+34 000 000 000'
           });
+          // Auto-print logic is handled by the useEffect dependent on dataLoaded
           console.log('📍 TICKET: Setting dataLoaded = true');
           setDataLoaded(true);
-
-          // Si autoPrint está activo, imprimir después de que React actualice el DOM
-          if (autoPrint) {
-            console.log('🖨️ TICKET: Scheduling auto-print with company data', new Date().toISOString());
-            // Usar doble requestAnimationFrame + setTimeout para asegurar que React renderice
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                setTimeout(() => {
-                  console.log('🖨️ TICKET: Executing scheduled auto-print', new Date().toISOString());
-                  printTicket();
-                }, 300);
-              });
-            });
-          }
         } else {
           console.log('⚠️ TICKET: No company data found');
           setDataLoaded(true);
-
-          // Si autoPrint está activo, imprimir con datos por defecto
-          if (autoPrint) {
-            console.log('🖨️ TICKET: Scheduling auto-print with default data');
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                setTimeout(() => {
-                  console.log('🖨️ TICKET: Executing scheduled auto-print (default)');
-                  printTicket();
-                }, 300);
-              });
-            });
-          }
         }
       } catch (err) {
         console.error('💥 TICKET: Error loading company info:', err);
         setDataLoaded(true);
 
         // Si autoPrint está activo, imprimir incluso si falla
+        // Handled by useEffect
         if (autoPrint) {
-          console.log('🖨️ TICKET: Scheduling auto-print despite error');
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              setTimeout(() => {
-                console.log('🖨️ TICKET: Executing scheduled auto-print (after error)');
-                printTicket();
-              }, 300);
-            });
-          });
+          console.log('🖨️ TICKET: Error loading info, but proceeding directly to dataLoaded');
         }
       }
     };
@@ -185,10 +152,21 @@ export function TicketPrinter({
       return;
     }
 
-    const printWindow = window.open('', '', 'height=800,width=400');
+    // Create a hidden iframe for printing
+    // This bypasses popup blockers that catch window.open()
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
 
-    if (printWindow) {
-      printWindow.document.write(`
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(`
         <html>
           <head>
             <title>${t('ticket.title')}</title>
@@ -285,21 +263,41 @@ export function TicketPrinter({
           </head>
           <body>
             ${printContent}
+            <script>
+               // Wait for images if any (though ticket usually text only)
+               window.onload = function() {
+                 try {
+                   window.focus();
+                   window.print();
+                 } catch(e) { console.error(e); }
+               };
+            </script>
           </body>
         </html>
       `);
+      doc.close();
 
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      printWindow.close();
+      // Fallback if onload doesn't trigger immediately
+      setTimeout(() => {
+        try {
+          if (iframe.contentWindow) {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+          }
+        } catch (e) { console.error('Print error:', e); }
+      }, 500);
 
-      // Disparar evento de impresión completada
-      console.log('✅ TICKET: Print completed, dispatching event');
+      // Clean up the iframe after a delay
+      setTimeout(() => {
+        try {
+          document.body.removeChild(iframe);
+        } catch (e) { }
+      }, 2000);
+
+      console.log('✅ TICKET: Print dialog invoked via iframe');
       window.dispatchEvent(new CustomEvent('ticketPrinted'));
     } else {
-      console.error('❌ TICKET: Failed to open print window');
-      // Disparar evento incluso si falla
+      console.error('❌ TICKET: Failed to access iframe document');
       window.dispatchEvent(new CustomEvent('ticketPrinted'));
     }
   };
@@ -317,11 +315,11 @@ export function TicketPrinter({
 
   return (
     <div>
-      <div ref={ticketRef} className="hidden">
+      <div ref={ticketRef}>
         <div className="ticket">
           {/* Header */}
           <div className="header">
-            <h1>☕ {companyInfo.company_name}</h1>
+            <h1>{companyInfo.company_name}</h1>
             {companyInfo.address && <p>{companyInfo.address}</p>}
             {companyInfo.phone && <p>Tel: {companyInfo.phone}</p>}
             <p>{t('ticket.title')}</p>
