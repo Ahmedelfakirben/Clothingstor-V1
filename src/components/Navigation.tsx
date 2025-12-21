@@ -185,9 +185,10 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+
       if (openMenu) {
         const dropdownRef = dropdownRefs.current[openMenu];
-        const target = event.target as Node;
         if (dropdownRef && !dropdownRef.contains(target) && !target.parentElement?.closest('.nav-dropdown')) {
           setOpenMenu(null);
         }
@@ -223,8 +224,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
           setOpenMenu(null);
         }}
         className={`flex items-center gap-3 w-full px-4 py-3 text-sm transition-all duration-200 rounded-xl mx-2 ${isActive
-            ? 'gradient-primary text-white font-bold shadow-elegant scale-105'
-            : 'text-gray-700 hover:bg-gradient-to-r hover:from-pink-50 hover:to-purple-50 font-medium hover:scale-105 hover:shadow-md'
+          ? 'gradient-primary text-white font-bold shadow-elegant scale-105'
+          : 'text-gray-700 hover:bg-gradient-to-r hover:from-pink-50 hover:to-purple-50 font-medium hover:scale-105 hover:shadow-md'
           }`}
       >
         <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-pink-500'}`} />
@@ -260,8 +261,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                 key={item.id}
                 onClick={() => onViewChange(item.id)}
                 className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all duration-200 shadow-sm ${isActive
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:shadow-md'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
+                  : 'text-gray-700 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:shadow-md'
                   }`}
               >
                 <Icon className="w-4 h-4" />
@@ -284,8 +285,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         <button
           onClick={(e) => handleMenuClick(group.name, e)}
           className={`flex items-center gap-2 px-5 py-3 rounded-xl font-semibold transition-all duration-200 shadow-sm ${isActive
-              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
-              : 'text-gray-700 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:shadow-md'
+            ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
+            : 'text-gray-700 hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-50 hover:shadow-md'
             }`}
         >
           <span>{group.name}</span>
@@ -748,8 +749,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                   <button
                     onClick={() => onViewChange('pos')}
                     className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${currentView === 'pos'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'text-gray-600 hover:bg-gray-100'
                       }`}
                   >
                     <ShoppingCart className="w-5 h-5" />
@@ -760,8 +761,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                   <button
                     onClick={() => onViewChange('floor')}
                     className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${currentView === 'floor'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'text-gray-600 hover:bg-gray-100'
                       }`}
                   >
                     <Users className="w-5 h-5" />
@@ -772,8 +773,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                   <button
                     onClick={() => onViewChange('orders')}
                     className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${currentView === 'orders'
-                        ? 'bg-amber-100 text-amber-700'
-                        : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'text-gray-600 hover:bg-gray-100'
                       }`}
                   >
                     <ClipboardList className="w-5 h-5" />
@@ -850,8 +851,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                                 setMobileMenuOpen(false);
                               }}
                               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${isActive
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : 'text-gray-700 hover:bg-gray-100'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'text-gray-700 hover:bg-gray-100'
                                 }`}
                             >
                               <Icon className="w-5 h-5" />
@@ -971,25 +972,25 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
               {/* Difference Display */}
               {closingAmount && !isNaN(parseFloat(closingAmount)) && (
                 <div className={`mt-4 p-3 rounded-lg ${parseFloat(closingAmount) - cashBreakdown.expectedClosing === 0
-                    ? 'bg-green-50 border border-green-200'
-                    : parseFloat(closingAmount) - cashBreakdown.expectedClosing > 0
-                      ? 'bg-blue-50 border border-blue-200'
-                      : 'bg-red-50 border border-red-200'
+                  ? 'bg-green-50 border border-green-200'
+                  : parseFloat(closingAmount) - cashBreakdown.expectedClosing > 0
+                    ? 'bg-blue-50 border border-blue-200'
+                    : 'bg-red-50 border border-red-200'
                   }`}>
                   <div className="flex justify-between items-center">
                     <span className={`text-sm font-semibold ${parseFloat(closingAmount) - cashBreakdown.expectedClosing === 0
-                        ? 'text-green-900'
-                        : parseFloat(closingAmount) - cashBreakdown.expectedClosing > 0
-                          ? 'text-blue-900'
-                          : 'text-red-900'
+                      ? 'text-green-900'
+                      : parseFloat(closingAmount) - cashBreakdown.expectedClosing > 0
+                        ? 'text-blue-900'
+                        : 'text-red-900'
                       }`}>
                       {t('Diferencia')}:
                     </span>
                     <span className={`text-lg font-bold ${parseFloat(closingAmount) - cashBreakdown.expectedClosing === 0
-                        ? 'text-green-900'
-                        : parseFloat(closingAmount) - cashBreakdown.expectedClosing > 0
-                          ? 'text-blue-900'
-                          : 'text-red-900'
+                      ? 'text-green-900'
+                      : parseFloat(closingAmount) - cashBreakdown.expectedClosing > 0
+                        ? 'text-blue-900'
+                        : 'text-red-900'
                       }`}>
                       {formatCurrency(parseFloat(closingAmount) - cashBreakdown.expectedClosing)}
                       {parseFloat(closingAmount) - cashBreakdown.expectedClosing === 0 && ' ✓'}
@@ -997,8 +998,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                   </div>
                   {parseFloat(closingAmount) - cashBreakdown.expectedClosing !== 0 && (
                     <p className={`text-xs mt-1 ${parseFloat(closingAmount) - cashBreakdown.expectedClosing > 0
-                        ? 'text-blue-700'
-                        : 'text-red-700'
+                      ? 'text-blue-700'
+                      : 'text-red-700'
                       }`}>
                       {parseFloat(closingAmount) - cashBreakdown.expectedClosing > 0
                         ? t('Hay más dinero del esperado')
