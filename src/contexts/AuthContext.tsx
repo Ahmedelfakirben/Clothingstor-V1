@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (updateError) {
         console.error('Error updating online status:', updateError);
       } else {
-        console.log('✅ Usuario marcado como conectado:', data.full_name);
+
       }
     }
 

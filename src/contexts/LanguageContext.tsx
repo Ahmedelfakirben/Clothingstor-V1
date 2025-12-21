@@ -1951,7 +1951,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadLanguageFromDB = async () => {
       try {
-        console.log('🔄 [LANGUAGE] Loading language from database...');
+
         const { data, error } = await supabase
           .from('company_settings')
           .select('language')
@@ -1961,7 +1961,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
           console.error('❌ [LANGUAGE] Error loading language from DB:', error);
           // Si hay error, usar idioma por defecto
           setCurrentLanguage('es');
-          console.log('⚠️ [LANGUAGE] Using default language: es');
+
         } else if (data && data.language) {
           console.log(`✅ [LANGUAGE] Loaded language from DB: ${data.language}`);
           setCurrentLanguage(data.language as Language);

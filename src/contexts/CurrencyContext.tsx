@@ -61,8 +61,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           schema: 'public',
           table: 'app_currency_settings',
         },
-        (payload) => {
-          console.log('💱 Cambio de divisa detectado:', payload);
+        () => {
+
           loadCurrencySettings();
         }
       )
@@ -94,7 +94,6 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
           decimal_places: data.decimal_places,
           position: data.position,
         });
-        console.log('💱 Divisa cargada:', data.currency_code, data.currency_symbol);
       }
     } catch (err) {
       console.error('Error en loadCurrencySettings:', err);
@@ -105,17 +104,37 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
   const setCurrency = async (currency: Currency) => {
     try {
-      const { error } = await supabase
-        .from('app_currency_settings')
-        .update({
-          currency_code: currency.code,
-          currency_symbol: currency.symbol,
-          currency_name: currency.name,
-          decimal_places: currency.decimal_places,
-          position: currency.position,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', (await supabase.from('app_currency_settings').select('id').single()).data?.id);
+      // First get the ID
+      const { data: currentData } = await supabase.from('app_currency_settings').select('id').single();
+
+      let error;
+
+      if (currentData) {
+        const { error: updateError } = await supabase
+          .from('app_currency_settings')
+          .update({
+            currency_code: currency.code,
+            currency_symbol: currency.symbol,
+            currency_name: currency.name,
+            decimal_places: currency.decimal_places,
+            position: currency.position,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', currentData.id);
+        error = updateError;
+      } else {
+        // If no settings exist, create them
+        const { error: insertError } = await supabase
+          .from('app_currency_settings')
+          .insert({
+            currency_code: currency.code,
+            currency_symbol: currency.symbol,
+            currency_name: currency.name,
+            decimal_places: currency.decimal_places,
+            position: currency.position,
+          });
+        error = insertError;
+      }
 
       if (error) {
         throw error;
@@ -123,7 +142,6 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
       // Actualizar estado local
       setCurrentCurrency(currency);
-      console.log('💱 Divisa actualizada a:', currency.code);
     } catch (err: any) {
       console.error('Error actualizando divisa:', err);
       throw new Error(`No se pudo actualizar la divisa: ${err.message}`);

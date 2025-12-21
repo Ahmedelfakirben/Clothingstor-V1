@@ -757,18 +757,6 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                     <span className="text-xs font-medium">{t('Punto de Venta')}</span>
                   </button>
                 )}
-                {userPermissions['floor'] && (
-                  <button
-                    onClick={() => onViewChange('floor')}
-                    className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${currentView === 'floor'
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                  >
-                    <Users className="w-5 h-5" />
-                    <span className="text-xs font-medium">{t('Sala')}</span>
-                  </button>
-                )}
                 {userPermissions['orders'] && (
                   <button
                     onClick={() => onViewChange('orders')}

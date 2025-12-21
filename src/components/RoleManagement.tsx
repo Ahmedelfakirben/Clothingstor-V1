@@ -32,7 +32,6 @@ const ROLES = [
 
 const SECTIONS = {
   'Ventas': [
-    { id: 'floor', label: 'Sala' },
     { id: 'pos', label: 'Punto de Venta' },
     { id: 'orders', label: 'Órdenes' },
   ],
@@ -188,7 +187,7 @@ export function RoleManagement() {
     setHasChanges(false);
   };
 
-  const selectedRoleInfo = ROLES.find(r => r.id === selectedRole);
+
 
   return (
     <div className="p-4 md:p-6 bg-gray-50 min-h-screen">
@@ -240,11 +239,10 @@ export function RoleManagement() {
             <button
               key={role.id}
               onClick={() => setSelectedRole(role.id)}
-              className={`p-4 rounded-xl transition-all border-2 ${
-                selectedRole === role.id
-                  ? 'bg-purple-50 border-purple-300 text-purple-700 shadow-sm'
-                  : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'
-              }`}
+              className={`p-4 rounded-xl transition-all border-2 ${selectedRole === role.id
+                ? 'bg-purple-50 border-purple-300 text-purple-700 shadow-sm'
+                : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'
+                }`}
             >
               <div className="text-center">
                 <Shield className="w-6 h-6 mx-auto mb-2" />
@@ -307,11 +305,10 @@ export function RoleManagement() {
                       return (
                         <div
                           key={page.id}
-                          className={`p-4 rounded-lg border-2 transition-all ${
-                            isEnabled
-                              ? 'border-green-500 bg-green-50'
-                              : 'border-gray-200 bg-gray-50'
-                          }`}
+                          className={`p-4 rounded-lg border-2 transition-all ${isEnabled
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 bg-gray-50'
+                            }`}
                         >
                           {/* Header con toggle principal */}
                           <button
@@ -327,9 +324,8 @@ export function RoleManagement() {
                                   {page.id}
                                 </p>
                               </div>
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                isEnabled ? 'bg-green-500' : 'bg-gray-300'
-                              }`}>
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isEnabled ? 'bg-green-500' : 'bg-gray-300'
+                                }`}>
                                 {isEnabled ? (
                                   <Check className="w-6 h-6 text-white" />
                                 ) : (

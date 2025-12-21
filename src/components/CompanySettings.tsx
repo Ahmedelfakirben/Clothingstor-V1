@@ -138,7 +138,6 @@ export function CompanySettings() {
 
       // All permissions for super_admin
       const allPermissions = [
-        { role: 'super_admin', section: 'Ventas', page_id: 'floor', can_access: true },
         { role: 'super_admin', section: 'Ventas', page_id: 'pos', can_access: true },
         { role: 'super_admin', section: 'Ventas', page_id: 'orders', can_access: true },
         { role: 'super_admin', section: 'Inventario', page_id: 'products', can_access: true },

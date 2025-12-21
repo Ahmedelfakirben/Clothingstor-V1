@@ -87,7 +87,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadThemeFromDB = async () => {
       try {
-        console.log('🔄 [THEME] Loading theme from database...');
+
         const { data, error } = await supabase
           .from('company_settings')
           .select('id, theme')
