@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Download, Share } from 'lucide-react';
 
-export function InstallPWA() {
+export function InstallPWA({ variant = 'button' }: { variant?: 'button' | 'menu-item' }) {
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [isIOS, setIsIOS] = useState(false);
     const [isStandalone, setIsStandalone] = useState(false);
@@ -54,6 +54,14 @@ export function InstallPWA() {
 
     // Handle iOS instructions
     if (isIOS) {
+        if (variant === 'menu-item') {
+            return (
+                <div className="flex items-center gap-3 w-full px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors font-medium cursor-help" title="Para instalar en iOS: Presiona Compartir y luego 'Agregar a Inicio'">
+                    <Share className="w-4 h-4" />
+                    <span>Instalar App (iOS)</span>
+                </div>
+            );
+        }
         return (
             <div className="hidden md:flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm transition-colors cursor-help" title="Para instalar en iOS: Presiona Compartir y luego 'Agregar a Inicio'">
                 <Share className="w-4 h-4" />
@@ -65,6 +73,18 @@ export function InstallPWA() {
     // Handle Android/Desktop button
     if (!deferredPrompt) {
         return null;
+    }
+
+    if (variant === 'menu-item') {
+        return (
+            <button
+                onClick={handleInstallClick}
+                className="flex items-center gap-3 w-full px-3 py-2 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors font-medium text-left"
+            >
+                <Download className="w-4 h-4 text-pink-500" />
+                <span>Instalar App</span>
+            </button>
+        );
     }
 
     return (

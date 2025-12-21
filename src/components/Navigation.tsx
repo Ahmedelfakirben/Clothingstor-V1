@@ -709,6 +709,9 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                         <div className="px-3 py-2">
                           <OnlineStatusToggle />
                         </div>
+                        <div className="px-2">
+                          <InstallPWA variant="menu-item" />
+                        </div>
                       </div>
 
                       <div className="border-t border-gray-200 px-2 pt-2">
