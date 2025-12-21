@@ -14,6 +14,10 @@ export default defineConfig({
         short_name: 'LIN-Fashion',
         description: 'Sistema de Gestión de Moda y Punto de Venta',
         theme_color: '#ec4899',
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/',
+        orientation: 'portrait',
         icons: [
           {
             src: 'pwa-192x192.png',

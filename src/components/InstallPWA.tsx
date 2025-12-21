@@ -28,6 +28,14 @@ export function InstallPWA({ variant = 'button' }: { variant?: 'button' | 'menu-
             setDeferredPrompt(e);
         };
 
+        // Monitor Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                console.log('UsePWA: SW Registrations found:', registrations.length);
+                registrations.forEach(reg => console.log('UsePWA: SW Scope:', reg.scope, 'State:', reg.active ? 'Active' : 'Installing'));
+            });
+        }
+
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
         console.log('UsePWA: Event listener added. isStandalone:', isStandalone, 'isIOS:', iOS);
 
