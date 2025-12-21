@@ -1,15 +1,26 @@
-# Coffee Shop - Sistema de Gestión
+# LIN-Fashion - Sistema de Gestión para Tiendas de Ropa (Clothing Store POS)
 
-Sistema de gestión para cafeterías desarrollado con React, TypeScript, Tailwind CSS y Supabase.
+Sistema de gestión integral para comercios de ropa (Retail) desarrollado con **React**, **TypeScript**, **Tailwind CSS** y **Supabase**. Diseñado para ser moderno, rápido y fácil de usar, con soporte completo para dos idiomas (Español e Inglés).
 
-## Características
+![LIN-Fashion Header](https://via.placeholder.com/800x200?text=LIN-Fashion+POS)
 
-- 🔐 Autenticación de empleados
-- 💰 Punto de venta (POS)
-- 📋 Gestión de órdenes
-- 📦 Administración de productos
-- 📊 Análisis de ventas
-- 👥 Roles de usuario (Admin, Cajero, Barista)
+## Características Principales / Key Features
+
+- 🌍 **Bilingüe / Bilingual**: Interfaz totalmente adaptable a Español e Inglés.
+- 🔐 **Gestión de Usuarios**: Autenticación segura y roles diferenciados (Admin, Cajero/Cashier, Vendedor/Sales).
+- 💰 **Punto de Venta (POS)**: Interfaz de venta rápida optimizada para tiendas de ropa.
+- 👕 **Gestión de Inventario**: Control de productos, tallas, stock y categorías.
+- 📊 **Análisis y Reportes**: Dashboards visuales de ventas, rendimiento de empleados y movimientos de caja.
+- 📅 **Turnos y Caja**: Apertura y cierre de caja con control de sesiones.
+- 🧾 **Tickets**: Generación e impresión de tickets de venta.
+
+## Tecnologías / Tech Stack
+
+- **Frontend**: React + Vite
+- **Lenguaje**: TypeScript
+- **Estilos**: Tailwind CSS (Diseño Premium Moderno)
+- **Backend & Base de Datos**: Supabase
+- **Iconos**: Lucide React
 
 ## Requisitos Previos
 
@@ -17,77 +28,57 @@ Sistema de gestión para cafeterías desarrollado con React, TypeScript, Tailwin
 - npm o pnpm
 - Cuenta en Supabase
 
-## Configuración
+## Configuración / Setup
 
-1. Clona el repositorio:
+1. **Clonar el repositorio**:
    ```bash
-   git clone https://github.com/tu-usuario/coffee-shop.git
-   cd coffee-shop
+   git clone https://github.com/Ahmedelfakirben/Clothingstor-V1.git
+   cd ClothingStore
    ```
 
-2. Instala las dependencias:
+2. **Instalar dependencias**:
    ```bash
    npm install
-   # o con pnpm
-   pnpm install
    ```
 
-3. Configura las variables de entorno:
-   - Copia el archivo `.env.example` a `.env`
-   - Actualiza las variables con tus credenciales de Supabase
+3. **Variables de Entorno**:
+   Crea un archivo `.env` basado en `.env.example` y configura tus credenciales de Supabase:
+   ```env
+   VITE_SUPABASE_URL=tu_url_supabase
+   VITE_SUPABASE_ANON_KEY=tu_anon_key_supabase
+   ```
 
-4. Configura la base de datos:
-   - Las migraciones se encuentran en `/supabase/migrations`
-   - Aplica las migraciones en tu proyecto de Supabase
+4. **Base de Datos**:
+   Aplica las migraciones situadas en `supabase/migrations` en tu proyecto de Supabase para crear las tablas necesarias (`products`, `orders`, `cash_register_sessions`, etc.).
 
-5. Inicia el servidor de desarrollo:
+5. **Iniciar Desarrollo**:
    ```bash
    npm run dev
-   # o con pnpm
-   pnpm dev
    ```
 
 ## Estructura del Proyecto
 
 ```
-├── src/
-│   ├── components/     # Componentes React
-│   ├── contexts/       # Contextos de React (Auth, etc.)
-│   ├── lib/           # Utilidades y configuraciones
-│   ├── App.tsx        # Componente principal
-│   └── main.tsx       # Punto de entrada
-├── supabase/
-│   └── migrations/    # Migraciones de la base de datos
-└── ...
+src/
+├── components/     # Componentes del sistema (POS, Inventario, Navegación...)
+├── contexts/       # Contextos globales (Auth, Idioma/Language)
+├── lib/            # Utilidades (Supabase client, helpers)
+├── locales/        # Archivos de traducción (ES/EN)
+└── types/          # Definiciones de tipos TypeScript
 ```
 
-## Scripts Disponibles
+## Scripts
 
-- `npm run dev`: Inicia el servidor de desarrollo
-- `npm run build`: Construye la aplicación para producción
-- `npm run preview`: Vista previa de la build de producción
-- `npm run typecheck`: Verifica tipos de TypeScript
-- `npm run lint`: Ejecuta el linter
-
-## Base de Datos
-
-El esquema incluye las siguientes tablas:
-
-- `employee_profiles`: Perfiles de empleados
-- `products`: Catálogo de productos
-- `orders`: Órdenes de clientes
-- `order_items`: Items individuales de cada orden
+- `npm run dev`: Servidor de desarrollo
+- `npm run build`: Build para producción
+- `npm run preview`: Vista previa local del build
+- `npm run typecheck`: Validación de tipos TS
 
 ## Seguridad
 
-- Las credenciales de Supabase deben mantenerse privadas
-- No compartir el archivo `.env`
-- Usar políticas de RLS en Supabase para control de acceso
+- Credenciales protegidas mediante variables de entorno.
+- Políticas RLS (Row Level Security) en Supabase para proteger los datos según el rol del usuario.
 
-## Contribuir
+---
 
-1. Crea un fork del repositorio
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+Desarrollado para ofrecer una experiencia premium en la gestión de tiendas de moda.
