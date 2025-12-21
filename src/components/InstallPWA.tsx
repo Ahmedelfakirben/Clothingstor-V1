@@ -21,6 +21,7 @@ export function InstallPWA({ variant = 'button' }: { variant?: 'button' | 'menu-
 
         // Listen for install prompt logic for Android/Desktop
         const handleBeforeInstallPrompt = (e: Event) => {
+            console.log('UsePWA: beforeinstallprompt triggered');
             // Prevent Chrome 67 and earlier from automatically showing the prompt
             e.preventDefault();
             // Stash the event so it can be triggered later.
@@ -28,6 +29,7 @@ export function InstallPWA({ variant = 'button' }: { variant?: 'button' | 'menu-
         };
 
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        console.log('UsePWA: Event listener added. isStandalone:', isStandalone, 'isIOS:', iOS);
 
         return () => {
             window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
