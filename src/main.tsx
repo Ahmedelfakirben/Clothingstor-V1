@@ -11,6 +11,12 @@ const updateSW = registerSW({
   onOfflineReady() {
     console.log('UsePWA: App ready to work offline');
   },
+  onRegistered(r) {
+    console.log('UsePWA: Service Worker registered successfully:', r);
+  },
+  onRegisterError(error) {
+    console.error('UsePWA: Service Worker registration failed:', error);
+  },
   immediate: true
 });
 
