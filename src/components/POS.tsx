@@ -5,7 +5,7 @@ import { useCart } from '../contexts/CartContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { Category, Product, ProductSize } from '../types/supabase';
-import { ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, Smartphone, CheckCircle } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, Smartphone, CheckCircle, ShoppingBag } from 'lucide-react';
 import { TicketPrinter } from './TicketPrinter';
 import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
 import { toast } from 'react-hot-toast';
@@ -19,14 +19,11 @@ export function POS() {
   const {
     items: cart,
     total,
-    paymentMethod,
     addItem,
     updateQuantity,
     removeItem,
     setPaymentMethod,
     clearCart,
-    serviceType,
-    tableId,
     setServiceType,
     setTableId,
     activeOrderId,
@@ -57,7 +54,6 @@ export function POS() {
   const [existingOrderTotal, setExistingOrderTotal] = useState<number>(0);
   const [existingOrderNumber, setExistingOrderNumber] = useState<number | null>(null);
   const [canConfirmOrder, setCanConfirmOrder] = useState(true);
-  const [canValidateOrder, setCanValidateOrder] = useState(true);
   const [ticket, setTicket] = useState<{
     orderDate: Date;
     orderNumber: string;
@@ -95,7 +91,6 @@ export function POS() {
 
         if (data) {
           setCanConfirmOrder(data.can_confirm_order ?? true);
-          setCanValidateOrder(data.can_validate_order ?? true);
         }
       } catch (err) {
         console.error('Error loading POS permissions:', err);
@@ -276,29 +271,7 @@ export function POS() {
 
   const productSizes = (productId: string) => sizes.filter(s => s.product_id === productId);
 
-  // Helper function to insert order items
-  const insertOrderItems = async (orderItemsPayload: any[], orderId: string) => {
-    const orderItems = orderItemsPayload.map(it => ({ ...it, order_id: orderId }));
-    const { data: items, error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems)
-      .select();
-    if (itemsError) throw itemsError;
-    return items;
-  };
 
-  // Helpers para estado de mesas
-  const updateTableStatus = async (id: string, status: 'available' | 'occupied') => {
-    try {
-      const { error } = await supabase
-        .from('tables')
-        .update({ status })
-        .eq('id', id);
-      if (error) throw error;
-    } catch (err) {
-      console.error('Error actualizando estado de mesa:', err);
-    }
-  };
 
   const handleCheckout = async () => {
     if (cart.length === 0 || !user) {
@@ -370,6 +343,7 @@ export function POS() {
     }
 
     try {
+      setLoading(true);
       console.log('🔥 AHORA SÍ creando orden en BD con método de pago:', pendingOrderData.paymentMethod);
 
       // Convertir el método de pago al formato de la BD
@@ -446,6 +420,8 @@ export function POS() {
     } catch (error) {
       console.error('💥 Error creando orden:', error);
       toast.error('Error al crear la orden. Intenta nuevamente.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -564,20 +540,7 @@ export function POS() {
 
         {/* Opciones de servicio eliminadas - siempre para llevar */}
 
-        {false && (
-          <select
-            value={tableId || ''}
-            onChange={(e) => setTableId(e.target.value || null)}
-            className="w-full px-3 py-2 rounded-lg border bg-white text-sm"
-          >
-            <option value="">{t('Seleccione mesa')}</option>
-            {tables.map(t => (
-              <option key={t.id} value={t.id}>
-                {t.name} • {t.status === 'available' ? 'Disponible' : 'Ocupada'}
-              </option>
-            ))}
-          </select>
-        )}
+
 
 
         {/* Botón confirmar */}
@@ -695,7 +658,7 @@ export function POS() {
       )}
 
       {/* Vista Desktop */}
-      <div className="hidden md:flex h-[calc(100vh-5rem)] bg-gray-50">
+      <div className="hidden md:flex h-[calc(100vh-5rem)] bg-gray-50 overflow-hidden">
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* Sección de Categorías - Diseño Minimalista Moderno */}
           <div className="bg-white border-b border-gray-200">
@@ -841,7 +804,7 @@ export function POS() {
           </div>
         </div>
 
-        <div className="w-80 bg-white border-l border-gray-200 flex flex-col shadow-lg">
+        <div className="w-[450px] bg-white border-l border-gray-200 flex flex-col shadow-lg h-full">
           <div className="p-5 border-b border-gray-200 bg-white">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center shadow-sm">
@@ -1017,7 +980,7 @@ export function POS() {
 
         {/* Payment Method Modal */}
         {showPaymentModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 transform scale-100 transition-all">
               <div className="text-center mb-8">
                 <div className="inline-block p-4 bg-gray-100 rounded-2xl mb-4">
@@ -1084,7 +1047,7 @@ export function POS() {
 
         {/* Validation Modal */}
         {showValidationModal && pendingOrderData && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-[60] p-4">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 transform scale-100 transition-all">
               <div className="text-center mb-6">
                 <div className="inline-block p-4 bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl mb-4">
