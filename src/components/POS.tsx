@@ -499,21 +499,52 @@ export function POS() {
 
                 {productSizesList.length > 0 ? (
                   <div className="mt-2 space-y-1">
-                    {productSizesList.map(size => (
-                      <button
-                        key={size.id}
-                        onClick={() => addItem(product, size)}
-                        className="w-full bg-gray-50 hover:bg-gray-100 text-gray-800 py-2 px-3 rounded-lg text-sm font-medium flex justify-between items-center border border-gray-200"
-                      >
-                        <span>{size.size_name}</span>
-                        <span className="font-bold">+{formatCurrency(size.price_modifier)}</span>
-                      </button>
-                    ))}
+                    {productSizesList.map(size => {
+                      const currentInCart = cart.find(item => item.product.id === product.id && item.size?.id === size.id)?.quantity || 0;
+                      const stockAvailable = size.stock - currentInCart;
+
+                      return (
+                        <button
+                          key={size.id}
+                          disabled={stockAvailable <= 0}
+                          onClick={() => {
+                            if (stockAvailable > 0) {
+                              addItem(product, size);
+                            } else {
+                              toast.error(t('No hay suficiente stock para esta talla'));
+                            }
+                          }}
+                          className={`w-full py-2 px-3 rounded-lg text-sm font-medium flex justify-between items-center border border-gray-200 transition-colors
+                          ${stockAvailable <= 0
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-gray-50 hover:bg-gray-100 text-gray-800'
+                            }`}
+                        >
+                          <div className="flex flex-col items-start">
+                            <span>{size.size_name}</span>
+                            <span className="text-xs text-gray-500">{t('Stock')}: {size.stock}</span>
+                          </div>
+                          <span className="font-bold">+{formatCurrency(size.price_modifier)}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
                   <button
-                    onClick={() => addItem(product)}
-                    className="w-full gradient-primary hover:gradient-primary-hover text-white py-2 px-4 rounded-lg font-semibold mt-2 text-sm"
+                    disabled={(product.stock || 0) <= (cart.find(item => item.product.id === product.id && !item.size)?.quantity || 0)}
+                    onClick={() => {
+                      const currentInCart = cart.find(item => item.product.id === product.id && !item.size)?.quantity || 0;
+                      if ((product.stock || 0) > currentInCart) {
+                        addItem(product);
+                      } else {
+                        toast.error(t('No hay suficiente stock'));
+                      }
+                    }}
+                    className={`w-full py-2 px-4 rounded-lg font-semibold mt-2 text-sm transition-colors
+                      ${(product.stock || 0) <= (cart.find(item => item.product.id === product.id && !item.size)?.quantity || 0)
+                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                        : 'gradient-primary hover:gradient-primary-hover text-white'
+                      }`}
                   >
                     {t('Agregar')}
                   </button>

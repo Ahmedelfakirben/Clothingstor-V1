@@ -32,6 +32,7 @@ interface ProductSize {
   product_id: string;
   size_name: string;
   price_modifier: number;
+  stock: number;
 }
 
 export function ProductsManager() {
@@ -60,6 +61,10 @@ export function ProductsManager() {
     base_price: 0,
     available: true,
   });
+  const [newProductSizes, setNewProductSizes] = useState<{ name: string; stock: number; price: number }[]>([]);
+  const [newSizeName, setNewSizeName] = useState('');
+  const [newSizeStock, setNewSizeStock] = useState('0');
+
   const [newProductImage, setNewProductImage] = useState<File | null>(null);
   const [newProductPreviewUrl, setNewProductPreviewUrl] = useState<string | null>(null);
   const [editingImage, setEditingImage] = useState<File | null>(null);
@@ -110,6 +115,27 @@ export function ProductsManager() {
     const { data } = await supabase.from('product_sizes').select('*');
     if (data) setSizes(data);
   };
+
+  const handleAddSize = () => {
+    if (!newSizeName.trim()) {
+      toast.error(t('El nombre de la talla es obligatorio'));
+      return;
+    }
+    const stock = parseInt(newSizeStock);
+    if (isNaN(stock) || stock < 0) {
+      toast.error(t('El stock debe ser un número válido >= 0'));
+      return;
+    }
+
+    setNewProductSizes([...newProductSizes, { name: newSizeName.trim(), stock, price: 0 }]);
+    setNewSizeName('');
+    setNewSizeStock('0');
+  };
+
+  const handleRemoveSize = (index: number) => {
+    setNewProductSizes(newProductSizes.filter((_, i) => i !== index));
+  };
+
 
   const handleCreateProduct = async () => {
     if (creatingProduct) return;
@@ -166,9 +192,15 @@ export function ProductsManager() {
         productData.season = newProduct.season.trim();
         console.log('✅ Added season:', productData.season);
       }
-      if (newProduct.stock !== undefined && newProduct.stock > 0) {
-        productData.stock = newProduct.stock;
-        console.log('✅ Added stock:', productData.stock);
+      // Calculate total stock from sizes if any are defined
+      let initialStock = newProduct.stock || 0;
+      if (newProductSizes.length > 0) {
+        initialStock = newProductSizes.reduce((sum, size) => sum + size.stock, 0);
+      }
+
+      if (initialStock > 0) {
+        productData.stock = initialStock;
+        console.log('✅ Added stock (calculated from sizes or input):', productData.stock);
       }
 
       console.log('📝 [PRODUCTS] Final product data to insert:', JSON.stringify(productData, null, 2));
@@ -182,13 +214,6 @@ export function ProductsManager() {
 
       if (error) {
         console.error('❌ [PRODUCTS] Error creating product:', error);
-        console.error('📋 [PRODUCTS] Error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-
         if (error.code === '42501') {
           toast.error(t('No tienes permisos para crear productos. Solo admin y super_admin pueden hacerlo.'));
         } else if (error.message.includes('violates check constraint')) {
@@ -200,6 +225,27 @@ export function ProductsManager() {
       }
 
       console.log('✅ [PRODUCTS] Product created successfully:', created);
+
+      // Insert sizes if any
+      if (created && newProductSizes.length > 0) {
+        const sizesToInsert = newProductSizes.map(size => ({
+          product_id: created.id,
+          size_name: size.name,
+          stock: size.stock,
+          price_modifier: size.price
+        }));
+
+        const { error: sizesError } = await supabase
+          .from('product_sizes')
+          .insert(sizesToInsert);
+
+        if (sizesError) {
+          console.error('❌ [PRODUCTS] Error creating sizes:', sizesError);
+          toast.error(t('Producto creado pero hubo error al guardar las tallas'));
+        } else {
+          console.log('✅ [PRODUCTS] Sizes created successfully');
+        }
+      }
 
       // Upload image if provided
       if (created && newProductImage) {
@@ -269,9 +315,11 @@ export function ProductsManager() {
         base_price: 0,
         available: true,
       });
+      setNewProductSizes([]);
       setNewProductImage(null);
       setNewProductPreviewUrl(null);
       fetchProducts();
+      fetchSizes();
       toast.success(t('Producto creado correctamente'));
     } catch (err) {
       console.error('Error creando producto:', err);
@@ -279,6 +327,7 @@ export function ProductsManager() {
     } finally {
       setCreatingProduct(false);
     }
+
   };
 
   const handleUpdateProduct = async () => {
@@ -504,14 +553,62 @@ export function ProductsManager() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Stock Inicial')}</label>
-                <input
-                  type="number"
-                  value={newProduct.stock}
-                  onChange={e => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                  placeholder="0"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Manejo de Tallas y Stock')}</label>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder={t('Nombre Talla (ej: XL, 42)')}
+                      value={newSizeName}
+                      onChange={e => setNewSizeName(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-amber-500 text-sm"
+                    />
+                    <input
+                      type="number"
+                      placeholder={t('Stock')}
+                      value={newSizeStock}
+                      onChange={e => setNewSizeStock(e.target.value)}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-amber-500 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddSize}
+                      className="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {newProductSizes.length > 0 ? (
+                    <div className="space-y-2 mt-3 p-2 bg-white rounded border border-gray-100">
+                      {newProductSizes.map((size, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-sm p-1 border-b last:border-0 border-gray-100">
+                          <span>{size.name}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold">{size.stock} u.</span>
+                            <button onClick={() => handleRemoveSize(idx)} className="text-red-500 hover:text-red-700">
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="pt-2 mt-2 border-t border-gray-200 text-right text-xs font-bold text-gray-600">
+                        Total Stock: {newProductSizes.reduce((a, b) => a + b.stock, 0)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 mb-1">{t('O ingresa el stock total si no hay tallas:')}</p>
+                      <input
+                        type="number"
+                        value={newProduct.stock}
+                        onChange={e => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                        placeholder="0"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -638,57 +735,69 @@ export function ProductsManager() {
             {products.map(product => (
               <tr key={product.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
-                  {editingProduct?.id === product.id ? (
-                    <div>
-                      <input
-                        type="text"
-                        value={editingProduct.name}
-                        onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                        className="w-full px-2 py-1 border border-gray-300 rounded"
-                      />
-                      <div className="mt-2 flex items-center gap-3">
-                        {(editingImagePreviewUrl || product.image_url) && (
+                  {/* Show sizes badge if available */}
+                  <div className="flex flex-col">
+                    {editingProduct?.id === product.id ? (
+                      <div>
+                        {/* Edit mode inputs */}
+                        <input
+                          type="text"
+                          value={editingProduct.name}
+                          onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                          className="w-full px-2 py-1 border border-gray-300 rounded"
+                        />
+                        {/* Image edit controls... */}
+                        <div className="mt-2 flex items-center gap-3">
+                          {(editingImagePreviewUrl || product.image_url) && (
+                            <div className="relative">
+                              <img
+                                src={editingImagePreviewUrl || product.image_url || ''}
+                                alt={t('Vista previa')}
+                                className="h-16 w-16 object-cover rounded border"
+                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                              />
+                              {uploadingImage && (
+                                <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
+                                  <LoadingSpinner size="sm" light />
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <div className="relative">
-                            <img
-                              src={editingImagePreviewUrl || product.image_url || ''}
-                              alt={t('Vista previa')}
-                              className="h-16 w-16 object-cover rounded border"
-                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={uploadingImage}
+                              onChange={e => {
+                                const file = e.target.files?.[0] || null;
+                                setEditingImage(file);
+                              }}
+                              className={`text-sm ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
                             />
                             {uploadingImage && (
-                              <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
-                                <LoadingSpinner size="sm" light />
+                              <div className="absolute right-0 top-1/2 transform -translate-y-1/2">
+                                <LoadingSpinner size="sm" />
                               </div>
                             )}
                           </div>
-                        )}
-                        <div className="relative">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            disabled={uploadingImage}
-                            onChange={e => {
-                              const file = e.target.files?.[0] || null;
-                              setEditingImage(file);
-                            }}
-                            className={`text-sm ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          />
-                          {uploadingImage && (
-                            <div className="absolute right-0 top-1/2 transform -translate-y-1/2">
-                              <LoadingSpinner size="sm" />
-                            </div>
-                          )}
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {product.name}
-                      </div>
-                      <div className="text-sm text-gray-500">{product.description}</div>
-                    </div>
-                  )}
+                    ) : (
+                      <>
+                        <div className="font-medium text-gray-900">{product.name}</div>
+                        <div className="text-sm text-gray-500">{product.description}</div>
+                        {getProductSizes(product.id).length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {getProductSizes(product.id).map(s => (
+                              <span key={s.id} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                {s.size_name} ({s.stock})
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-900">
                   {editingProduct?.id === product.id ? (
@@ -765,8 +874,8 @@ export function ProductsManager() {
                 </td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${product.available
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-red-100 text-red-800'
                     }`}>
                     {product.available ? t('Disponible') : t('No disponible')}
                   </span>

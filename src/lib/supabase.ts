@@ -38,6 +38,7 @@ export interface Database {
           product_id: string;
           size_name: string;
           price_modifier: number;
+          stock: number;
           created_at: string;
         };
       };
