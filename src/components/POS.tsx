@@ -39,7 +39,6 @@ export function POS() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tables, setTables] = useState<{ id: string; name: string; seats: number; status: string }[]>([]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<{
@@ -99,23 +98,6 @@ export function POS() {
 
     fetchPOSPermissions();
   }, [profile?.role]);
-
-  const fetchTables = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('tables')
-        .select('*')
-        .order('name');
-      if (error) throw error;
-      setTables(data || []);
-    } catch (err) {
-      console.error('Error fetching tables:', err);
-    }
-  };
-
-  useEffect(() => {
-    fetchTables();
-  }, []);
 
   // Limpiar ticket después de imprimir
   useEffect(() => {

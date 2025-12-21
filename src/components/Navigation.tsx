@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import OnlineStatusToggle from './OnlineStatusToggle';
+import { InstallPWA } from './InstallPWA';
 
 interface NavigationProps {
   currentView: string;
@@ -468,22 +469,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         return;
       }
 
-      // Calcular el resultado del día: primera apertura - monto actual + todas las aperturas intermedias
-      const firstOpening = sessions[0].opening_amount;
-      const totalOpenings = sessions.reduce((sum, session) => sum + session.opening_amount, 0);
-      const dailyResult = amount - firstOpening; // Resultado = cierre final - primera apertura
-
-      // Cerrar todas las sesiones abiertas
       const sessionIds = sessions.map(s => s.id);
-      const { error: updateErr } = await supabase
-        .from('cash_register_sessions')
-        .update({
-          closing_amount: amount,
-          closed_at: new Date().toISOString(),
-          status: 'closed',
-        })
-        .in('id', sessionIds);
-      if (updateErr) throw updateErr;
 
       // Obtener pedidos del día laboral para el ticket
       const { data: orders, error: ordersErr } = await supabase
@@ -516,7 +502,10 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
       // Calcular totales para el ticket
       const totalSales = (orders || []).reduce((sum, order) => sum + order.total, 0);
       const totalWithdrawals = (withdrawals || []).reduce((sum, w) => sum + w.amount, 0);
-      const expectedClosing = firstOpening + totalSales - totalWithdrawals;
+
+      // Usar la suma de todas las aperturas por si hubo múltiples sesiones (ej. refuerzo de caja)
+      const totalOpenings = sessions.reduce((sum, session) => sum + session.opening_amount, 0);
+      const expectedClosing = totalOpenings + totalSales - totalWithdrawals;
       const difference = amount - expectedClosing;
 
       // Generar ticket de cierre
@@ -540,7 +529,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
           </div>
 
           <div style="margin-bottom: 5px;">
-            <strong>${t('Apertura')}:</strong> ${formatCurrency(firstOpening)}
+            <strong>${t('Apertura')}:</strong> ${formatCurrency(totalOpenings)}
           </div>
 
           <div style="margin-bottom: 5px; color: green;">
@@ -686,6 +675,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
 
             <div className="hidden lg:flex flex-1 justify-center">
               <div className="flex items-center space-x-4">
+                <InstallPWA />
                 {navGroups.map(group => renderGroup(group))}
               </div>
             </div>
@@ -810,6 +800,11 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                 >
                   <X className="w-6 h-6 text-white" />
                 </button>
+              </div>
+
+              {/* Install PWA Button Mobile */}
+              <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-center">
+                <InstallPWA />
               </div>
 
               {/* Contenido del menú */}
