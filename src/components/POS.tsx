@@ -486,6 +486,10 @@ export function POS() {
       setCustomerId(null); // Clear customer too
       clearCart();
 
+      // Refresh products and sizes to reflect new stock
+      await fetchInitialProducts();
+      await fetchSizes();
+
     } catch (error: any) {
       console.error('💥 Error creando orden:', error);
       toast.error(`${t('pos.order_creation_error')}: ${error.message || t('Reintentar')}.`);
@@ -812,6 +816,10 @@ export function POS() {
               {products.map(product => {
                 const productSizesList = productSizes(product.id);
 
+                const displayStock = productSizesList.length > 0
+                  ? productSizesList.reduce((acc, s) => acc + s.stock, 0)
+                  : (product.stock || 0);
+
                 return (
                   <div key={product.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-200 overflow-hidden flex flex-col h-full group">
                     <div className="relative h-48 bg-gray-50 flex-shrink-0">
@@ -830,8 +838,8 @@ export function POS() {
 
                       {/* Stock Badge */}
                       <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-gray-100">
-                        <div className={`w-2 h-2 rounded-full ${(!product.stock || product.stock > 10) ? 'bg-green-500' : product.stock > 0 ? 'bg-amber-500' : 'bg-red-500'}`}></div>
-                        <span className="text-xs font-semibold text-gray-700">{product.stock || 0}</span>
+                        <div className={`w-2 h-2 rounded-full ${(!displayStock || displayStock > 10) ? 'bg-green-500' : displayStock > 0 ? 'bg-amber-500' : 'bg-red-500'}`}></div>
+                        <span className="text-xs font-semibold text-gray-700">{displayStock}</span>
                       </div>
                     </div>
 
