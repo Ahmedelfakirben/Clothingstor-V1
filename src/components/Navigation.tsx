@@ -26,7 +26,7 @@ interface NavGroup {
 
 export function Navigation({ currentView, onViewChange }: NavigationProps) {
   const { user, profile, signOut } = useAuth();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
@@ -521,7 +521,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
           </div>
 
           <div style="margin-bottom: 10px;">
-            <strong>${t('Fecha:')}</strong> ${new Date().toLocaleDateString('es-ES')}
+            <strong>${t('Fecha:')}</strong> ${new Date().toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')}
           </div>
 
           <div style="border-bottom: 1px solid #000; margin: 10px 0;"></div>
@@ -565,7 +565,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
           ${(orders || []).length > 0 ? (orders || []).map(order => `
             <div style="margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 5px;">
               <div><strong>${t('Pedido #')}${order.id.slice(-8)}</strong></div>
-              <div>${t('Hora:')} ${new Date(order.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
+              <div>${t('Hora:')} ${new Date(order.created_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
               <div>Total: ${formatCurrency(order.total)}</div>
               <div style="font-size: 12px; margin-top: 3px;">
                 ${order.order_items.map(item => `${item.quantity}x ${item.products[0]?.name || t('Producto')}`).join(', ')}
@@ -584,7 +584,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
               <div style="margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 5px;">
                 <div><strong>${formatCurrency(withdrawal.amount)}</strong></div>
                 <div style="font-size: 12px;">${t('Motivo')}: ${withdrawal.reason}</div>
-                <div style="font-size: 12px;">${t('Hora:')} ${new Date(withdrawal.withdrawn_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div style="font-size: 12px;">${t('Hora:')} ${new Date(withdrawal.withdrawn_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
                 ${withdrawal.notes ? `<div style="font-size: 11px; color: #666;">${t('Nota')}: ${withdrawal.notes}</div>` : ''}
               </div>
             `).join('')}
@@ -593,7 +593,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
           <div style="border-bottom: 1px solid #000; margin: 10px 0;"></div>
 
           <div style="text-align: center; margin-top: 20px; font-size: 12px;">
-            ${t('Generado el')} ${new Date().toLocaleString('es-ES')}
+            ${t('Generado el')} ${new Date().toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')}
           </div>
         </div>
       `;

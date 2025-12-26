@@ -1,28 +1,44 @@
--- Trigger function to update stock when an order is created
+-- Trigger function to update stock when an order is created OR deleted
 CREATE OR REPLACE FUNCTION update_stock_after_order()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER AS $func$
 BEGIN
-  -- 1. Always decrement the main cached stock in 'products' table
-  -- This ensures the total count on the card is always correct
-  UPDATE products
-  SET stock = stock - NEW.quantity
-  WHERE id = NEW.product_id;
-
-  -- 2. If the item has a specific size, ALSO decrement the size stock
-  IF NEW.size_id IS NOT NULL THEN
-    UPDATE product_sizes
+  -- Handle INSERT (Order Created) -> Decrease Stock
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE products
     SET stock = stock - NEW.quantity
-    WHERE id = NEW.size_id;
+    WHERE id = NEW.product_id;
+
+    IF NEW.size_id IS NOT NULL THEN
+      UPDATE product_sizes
+      SET stock = stock - NEW.quantity
+      WHERE id = NEW.size_id;
+    END IF;
+    
+    RETURN NEW;
+    
+  -- Handle DELETE (Order Cancelled/Deleted) -> Increase Stock
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE products
+    SET stock = stock + OLD.quantity
+    WHERE id = OLD.product_id;
+
+    IF OLD.size_id IS NOT NULL THEN
+      UPDATE product_sizes
+      SET stock = stock + OLD.quantity
+      WHERE id = OLD.size_id;
+    END IF;
+    
+    RETURN OLD;
   END IF;
   
-  RETURN NEW;
+  RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$func$ LANGUAGE plpgsql;
 
--- Re-create the trigger to ensure it uses the updated function
+-- Re-create the trigger to fire on both INSERT and DELETE
 DROP TRIGGER IF EXISTS trigger_update_stock_after_order ON order_items;
 
 CREATE TRIGGER trigger_update_stock_after_order
-AFTER INSERT ON order_items
+AFTER INSERT OR DELETE ON order_items
 FOR EACH ROW
 EXECUTE FUNCTION update_stock_after_order();

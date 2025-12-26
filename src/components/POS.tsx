@@ -880,7 +880,7 @@ export function POS() {
 
                         <div className="pt-2 border-t border-gray-100 flex items-end justify-between">
                           <div className="flex flex-col">
-                            <span className="text-xs text-gray-400">Precio</span>
+                            <span className="text-xs text-gray-400">{t('Precio')}</span>
                             <span className="text-xl font-bold text-gray-900">{formatCurrency(product.base_price)}</span>
                           </div>
                         </div>

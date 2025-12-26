@@ -620,6 +620,12 @@ const translations = {
     'Motivo': 'Motivo',
     'Nota': 'Nota',
 
+    'Fecha:': 'Fecha:',
+    'PEDIDOS DEL DÍA': 'PEDIDOS DEL DÍA',
+    'Pedido #': 'Pedido #',
+    'Hora:': 'Hora:',
+
+
     // Cash Opening Modal
 
     'Bienvenido! Ingrese el monto inicial en caja': 'Bienvenido! Ingrese el monto inicial en caja',
@@ -796,11 +802,9 @@ const translations = {
     'Resultado del Día:': 'Resultado del Día:',
     'Total Pedidos:': 'Total Pedidos:',
     'Total Ventas:': 'Total Ventas:',
-    'PEDIDOS DEL DÍA': 'PEDIDOS DEL DÍA',
-    'Pedido #': 'Pedido #',
-    'Hora:': 'Hora:',
 
-    'Generado el': 'Generado el',
+
+
     'El cambio de idioma se aplicará a todos los usuarios del sistema de forma inmediata.': 'El cambio de idioma se aplicará a todos los usuarios del sistema de forma inmediata.',
 
     // Ticket Printer
@@ -1697,6 +1701,34 @@ const translations = {
     'Cancelar edición': 'Annuler la modification',
     'Editar producto': 'Modifier le produit',
     'Eliminar producto permanentemente': 'Supprimer le produit définitivement',
+    'Fecha:': 'Date :',
+    // 'Empleado:': 'Employé :', // Duplicate (Line 1624)
+    'Manejo de Tallas y Stock': 'Gestion des Tailles et du Stock',
+    'Marca': 'Marque',
+    'Material': 'Matériau',
+    'Género': 'Genre',
+    'Temporada': 'Saison',
+    'Temp.': 'Sais.',
+    'Precio': 'Prix',
+    'Stock': 'Stock',
+    'Código de Barras': 'Code-barres',
+    'Seleccionar': 'Sélectionner',
+    // 'Cancelar': 'Annuler', // Removed duplicate (Line 1226)
+    'Escanear o ingresar código...': 'Scanner ou saisir le code...',
+    'Nombre Talla (ej: XL, 42)': 'Nom Taille (ex: XL, 42)',
+    'O ingresa el stock total si no hay tallas:': 'Ou entrez le stock total s\'il n\'y a pas de tailles :',
+    // 'Acciones': 'Actions', // Removed duplicate (Line 1333)
+    // 'El carrito está vacío': 'Le panier est vide', // Removed duplicate (Line 1213)
+    // 'Selecciona productos para comenzar': 'Sélectionnez des produits pour commencer', // Removed duplicate (Line 1214)
+    'agregado': 'ajouté',
+    'Producto no encontrado': 'Produit non trouvé',
+    'Escanear código de barras o escribir...': 'Scanner le code-barres ou écire...',
+    'Cargando más productos...': 'Chargement de plus de produits...',
+    // 'Cargar más productos': 'Charger plus de produits', // Removed duplicate (Line 1211)
+    // 'Carrito de Compras': 'Panier d\'achat', // Removed duplicate (Line 1212)
+    // 'pos.customer_selected': 'Client sélectionné', // Removed duplicate (Line 1497)
+    // 'pos.assign_customer': 'Assigner client', // Removed duplicate (Line 1494)
+    // 'common.edit': 'Éditer', // Removed duplicate (Line 1064)
 
     // Category Manager
     'Gestión de Categorías': 'Gestion des Catégories',
@@ -1849,8 +1881,9 @@ const translations = {
     'PEDIDOS DEL DÍA': 'COMMANDES DU JOUR',
     'Pedido #': 'Commande n°',
     'Hora:': 'Heure :',
-
     'Generado el': 'Généré le',
+
+
     'El cambio de idioma se aplicará a todos los usuarios del sistema de forma inmediata.': 'Le changement de langue sera appliqué à tous les utilisateurs du système immédiatement.',
 
     // Ticket Printer

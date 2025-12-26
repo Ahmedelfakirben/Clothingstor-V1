@@ -47,9 +47,14 @@ const SECTIONS = {
     { id: 'expenses', label: 'Gastos' },
     { id: 'analytics', label: 'Analíticas' },
     { id: 'stock-analytics', label: 'Análisis de Stock' },
+    { id: 'clients', label: 'nav.clients' },
   ],
   'Sistema': [
     { id: 'role-management', label: 'Gestión de Roles' },
+    { id: 'company-settings', label: 'nav.company-settings' },
+    { id: 'app-settings', label: 'nav.app-settings' },
+    { id: 'server', label: 'nav.server' },
+    { id: 'backup', label: 'nav.backup' },
   ],
 };
 

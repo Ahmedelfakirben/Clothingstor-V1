@@ -1,0 +1,81 @@
+-- ====================================
+-- RESET FORZADO - DESHABILITAR RLS TEMPORALMENTE
+-- ====================================
+-- Este script deshabilita RLS, elimina datos, y vuelve a habilitar RLS
+-- EJECUTA TODO EL SCRIPT COMPLETO DE UNA VEZ
+-- ====================================
+
+-- 1. DESHABILITAR RLS TEMPORALMENTE
+ALTER TABLE orders DISABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE order_history DISABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_register_sessions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_withdrawals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE products DISABLE ROW LEVEL SECURITY;
+ALTER TABLE product_sizes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE customers DISABLE ROW LEVEL SECURITY;
+ALTER TABLE suppliers DISABLE ROW LEVEL SECURITY;
+ALTER TABLE categories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE tables DISABLE ROW LEVEL SECURITY;
+ALTER TABLE expenses DISABLE ROW LEVEL SECURITY;
+ALTER TABLE deleted_products DISABLE ROW LEVEL SECURITY;
+ALTER TABLE deleted_orders DISABLE ROW LEVEL SECURITY;
+ALTER TABLE backup_history DISABLE ROW LEVEL SECURITY;
+ALTER TABLE employee_profiles DISABLE ROW LEVEL SECURITY;
+
+-- 2. ELIMINAR DATOS
+DELETE FROM order_items;
+DELETE FROM order_history;
+DELETE FROM cash_withdrawals;
+DELETE FROM orders;
+DELETE FROM product_sizes;
+DELETE FROM cash_register_sessions;
+DELETE FROM products;
+DELETE FROM expenses;
+DELETE FROM customers;
+DELETE FROM suppliers;
+DELETE FROM categories;
+DELETE FROM tables;
+DELETE FROM deleted_products;
+DELETE FROM deleted_orders;
+DELETE FROM backup_history;
+
+-- Eliminar empleados NO administradores
+DELETE FROM employee_profiles 
+WHERE role NOT IN ('super_admin', 'admin');
+
+-- 3. RE-HABILITAR RLS
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_register_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_withdrawals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE product_sizes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tables ENABLE ROW LEVEL SECURITY;
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deleted_products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deleted_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE backup_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE employee_profiles ENABLE ROW LEVEL SECURITY;
+
+-- 4. VERIFICAR RESULTADOS
+SELECT 
+    'orders' as tabla,
+    (SELECT COUNT(*) FROM orders) as registros
+UNION ALL
+SELECT 'order_history', (SELECT COUNT(*) FROM order_history)
+UNION ALL
+SELECT 'cash_register_sessions', (SELECT COUNT(*) FROM cash_register_sessions)
+UNION ALL
+SELECT 'deleted_orders', (SELECT COUNT(*) FROM deleted_orders)
+UNION ALL
+SELECT 'products', (SELECT COUNT(*) FROM products)
+UNION ALL
+SELECT 'customers', (SELECT COUNT(*) FROM customers)
+UNION ALL
+SELECT 'employee_profiles', (SELECT COUNT(*) FROM employee_profiles)
+ORDER BY tabla;
