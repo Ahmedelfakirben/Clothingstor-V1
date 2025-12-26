@@ -15,6 +15,7 @@ interface CartContextType {
   serviceType: 'dine_in' | 'takeaway';
   tableId: string | null;
   activeOrderId: string | null;
+  customerId: string | null;
   addItem: (product: Product, size?: ProductSize) => void;
   updateQuantity: (index: number, delta: number) => void;
   removeItem: (index: number) => void;
@@ -23,6 +24,7 @@ interface CartContextType {
   setServiceType: (type: 'dine_in' | 'takeaway') => void;
   setTableId: (tableId: string | null) => void;
   setActiveOrderId: (orderId: string | null) => void;
+  setCustomerId: (customerId: string | null) => void;
   clearCart: () => void;
 }
 
@@ -34,6 +36,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [serviceType, setServiceType] = useState<'dine_in' | 'takeaway'>('takeaway');
   const [tableId, setTableId] = useState<string | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
 
   const addItem = useCallback((product: Product, size: ProductSize | null = null) => {
     setItems(currentItems => {
@@ -55,7 +58,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems(currentItems => {
       const newItems = [...currentItems];
       newItems[index].quantity += delta;
-      return newItems[index].quantity <= 0 
+      return newItems[index].quantity <= 0
         ? newItems.filter((_, i) => i !== index)
         : newItems;
     });
@@ -79,6 +82,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setTableId(null);
     setServiceType('takeaway');
     setActiveOrderId(null);
+    setCustomerId(null);
   }, []);
 
   const total = items.reduce((sum, item) => {
@@ -96,6 +100,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         serviceType,
         tableId,
         activeOrderId,
+        customerId,
         addItem,
         updateQuantity,
         removeItem,
@@ -104,6 +109,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setServiceType,
         setTableId,
         setActiveOrderId,
+        setCustomerId,
         clearCart,
       }}
     >

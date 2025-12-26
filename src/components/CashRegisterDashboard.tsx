@@ -48,13 +48,14 @@ export function CashRegisterDashboard() {
   const [sessions, setSessions] = useState<CashSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: new Date().toISOString().split('T')[0],
     status: 'all' as 'all' | 'open' | 'closed',
     employeeId: 'all' as string,
   });
 
-  const [employees, setEmployees] = useState<Array<{id: string, full_name: string}>>([]);
+  const [employees, setEmployees] = useState<Array<{ id: string, full_name: string }>>([]);
+
 
   const [totals, setTotals] = useState({
     totalOpening: 0,
@@ -1006,10 +1007,9 @@ export function CashRegisterDashboard() {
                       {formatCurrency(day.totalClosing || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold">
-                      <span className={`px-2 py-1 rounded ${
-                        Math.abs(day.difference) < 0.01 ? 'bg-green-100 text-green-700' :
+                      <span className={`px-2 py-1 rounded ${Math.abs(day.difference) < 0.01 ? 'bg-green-100 text-green-700' :
                         day.difference > 0 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
-                      }`}>
+                        }`}>
                         {formatCurrency(day.difference || 0)}
                       </span>
                     </td>
@@ -1017,10 +1017,11 @@ export function CashRegisterDashboard() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => printDailyReport(day)}
-                          className="text-amber-600 hover:text-amber-900 p-1 rounded-md hover:bg-amber-50 transition-colors"
+                          className="flex items-center gap-1 bg-amber-100 text-amber-700 hover:bg-amber-200 hover:text-amber-800 px-3 py-1.5 rounded-md transition-colors text-sm font-medium"
                           title={t('Imprimir reporte diario')}
                         >
                           <Printer className="w-4 h-4" />
+                          <span>{t('Reporte')}</span>
                         </button>
                         {(profile?.role === 'admin' || profile?.role === 'super_admin') && day.sessions.length > 0 && (
                           <button
@@ -1130,6 +1131,200 @@ export function CashRegisterDashboard() {
           </div>
         </div>
       )}
+
+      {/* HISTORIAL GLOBAL DIARIO (SOLO ADMINS) */}
+      {(profile?.role === 'admin' || profile?.role === 'super_admin') && (
+        <DailyHistorySection profile={profile} />
+      )}
+    </div>
+  );
+}
+
+// Sub-component for Daily History to keep main component clean
+function DailyHistorySection({ profile }: { profile: any }) {
+  const { t, currentLanguage } = useLanguage(); // Added currentLanguage for date locale
+  const { formatCurrency } = useCurrency();
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchGlobalHistory();
+  }, []);
+
+  const fetchGlobalHistory = async () => {
+    try {
+      setLoading(true);
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+      // 1. Fetch Sessions
+      const { data: sessions } = await supabase
+        .from('cash_register_sessions')
+        .select('*')
+        .gte('opened_at', dateStr)
+        .order('opened_at', { ascending: false });
+
+      // 2. Fetch Orders
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('id, total, created_at, status')
+        .gte('created_at', dateStr)
+        .eq('status', 'completed');
+
+      // 3. Fetch Withdrawals
+      const { data: withdrawals } = await supabase
+        .from('cash_withdrawals')
+        .select('id, amount, withdrawn_at')
+        .gte('withdrawn_at', dateStr);
+
+      // Aggregate by Date
+      const dateMap = new Map();
+
+      // Helper to init date entry
+      const getEntry = (date: string) => {
+        if (!dateMap.has(date)) {
+          dateMap.set(date, {
+            date,
+            totalOpening: 0,
+            totalClosing: 0,
+            salesCount: 0,
+            totalSales: 0,
+            totalWithdrawals: 0,
+            sessionsCount: 0
+          });
+        }
+        return dateMap.get(date);
+      };
+
+      (sessions || []).forEach(s => {
+        const d = new Date(s.opened_at).toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const entry = getEntry(d);
+        entry.totalOpening += s.opening_amount || 0;
+        entry.totalClosing += s.closing_amount || 0;
+        entry.sessionsCount++;
+      });
+
+      (orders || []).forEach(o => {
+        const d = new Date(o.created_at).toLocaleDateString('en-CA');
+        const entry = getEntry(d);
+        entry.totalSales += o.total || 0;
+        entry.salesCount++;
+      });
+
+      (withdrawals || []).forEach(w => {
+        const d = new Date(w.withdrawn_at).toLocaleDateString('en-CA');
+        const entry = getEntry(d);
+        entry.totalWithdrawals += w.amount || 0;
+      });
+
+      const sortedHistory = Array.from(dateMap.values())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      setHistory(sortedHistory);
+    } catch (error) {
+      console.error('Error fetching global history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const printSummary = (day: any) => {
+    // Determine locale for date formatting based on current language
+    const dateLocale = currentLanguage === 'fr' ? 'fr-FR' : 'es-ES';
+
+    const printContent = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; text-align: center;">
+        <h2>${t('cash.report_title')}</h2>
+        <p><strong>${t('Fecha')}:</strong> ${new Date(day.date).toLocaleDateString(dateLocale)}</p>
+        <hr style="margin: 15px 0;" />
+        
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td style="text-align: left; padding: 5px;">${t('Aperturas')}:</td>
+            <td style="text-align: right; padding: 5px;">${formatCurrency(day.totalOpening)}</td>
+          </tr>
+          <tr>
+            <td style="text-align: left; padding: 5px;">${t('Ventas')} (${day.salesCount}):</td>
+            <td style="text-align: right; padding: 5px;">${formatCurrency(day.totalSales)}</td>
+          </tr>
+          <tr>
+            <td style="text-align: left; padding: 5px;">${t('Retiros')}:</td>
+            <td style="text-align: right; padding: 5px; color: red;">-${formatCurrency(day.totalWithdrawals)}</td>
+          </tr>
+          <tr>
+             <td colspan="2"><hr/></td>
+          </tr>
+          <tr style="font-weight: bold; font-size: 1.2em;">
+            <td style="text-align: left; padding: 5px;">${t('cash.net_balance')}:</td>
+            <td style="text-align: right; padding: 5px;">${formatCurrency(day.totalOpening + day.totalSales - day.totalWithdrawals)}</td>
+          </tr>
+        </table>
+        
+        <p style="font-size: 12px; color: #666;">${t('Generado el')} ${new Date().toLocaleString(dateLocale)}</p>
+      </div>
+    `;
+
+    const win = window.open('', '', 'width=400,height=600');
+    if (win) {
+      win.document.write('<html><head><title>' + t('cash.report_title') + '</title></head><body>' + printContent + '</body></html>');
+      win.document.close();
+      win.focus();
+      win.print();
+    }
+  };
+
+  return (
+    <div className="mt-8 bg-white p-6 rounded-lg shadow-sm border">
+      <div className="flex items-center gap-2 mb-4">
+        <Calendar className="w-6 h-6 text-gray-700" />
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">{t('cash.daily_history_title')}</h2>
+          <p className="text-sm text-gray-500">{t('cash.daily_history_subtitle')}</p>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Fecha')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('cash.total_openings_sum')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('cash.total_sales_sum')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('cash.total_withdrawals_sum')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('cash.theoretical_balance')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Acciones')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {loading ? (
+              <tr><td colSpan={6} className="text-center py-4">{t('cash.loading_history')}</td></tr>
+            ) : history.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-4">{t('cash.no_history_data')}</td></tr>
+            ) : (
+              history.map(day => (
+                <tr key={day.date} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    {new Date(day.date).toLocaleDateString(currentLanguage === 'fr' ? 'fr-FR' : 'es-ES', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatCurrency(day.totalOpening)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">{formatCurrency(day.totalSales)} <span className="text-xs text-gray-400">({day.salesCount})</span></td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">{formatCurrency(day.totalWithdrawals)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{formatCurrency(day.totalOpening + day.totalSales - day.totalWithdrawals)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <button
+                      onClick={() => printSummary(day)}
+                      className="text-amber-600 hover:text-amber-900 flex items-center gap-1 text-xs font-bold uppercase tracking-wider"
+                    >
+                      <Printer className="w-4 h-4" /> {t('cash.report_button')}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

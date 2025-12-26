@@ -19,6 +19,7 @@ export interface Product {
   gender?: string;
   season?: string;
   stock?: number;
+  barcode?: string;
 }
 
 export interface ProductSize {

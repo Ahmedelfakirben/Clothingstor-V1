@@ -22,6 +22,8 @@ const CompanySettings = lazy(() => import('./components/CompanySettings').then(m
 const AppSettings = lazy(() => import('./components/AppSettings').then(module => ({ default: module.AppSettings })));
 const ServerManager = lazy(() => import('./components/ServerManager').then(module => ({ default: module.ServerManager })));
 const BackupManager = lazy(() => import('./components/BackupManager').then(module => ({ default: module.BackupManager })));
+const ClientsManager = lazy(() => import('./components/ClientsManager').then(module => ({ default: module.ClientsManager })));
+const StockAnalytics = lazy(() => import('./components/StockAnalytics').then(module => ({ default: module.StockAnalytics })));
 import { supabase } from './lib/supabase';
 
 function AppContent() {
@@ -227,6 +229,8 @@ function AppContent() {
           {currentView === 'app-settings' && userPermissions['app-settings'] && <AppSettings />}
           {currentView === 'server' && userPermissions['server'] && <ServerManager />}
           {currentView === 'backup' && userPermissions['backup'] && <BackupManager />}
+          {currentView === 'clients' && userPermissions['clients'] && <ClientsManager />}
+          {currentView === 'stock-analytics' && userPermissions['stock-analytics'] && <StockAnalytics />}
         </Suspense>
       </div>
 

@@ -46,6 +46,7 @@ const SECTIONS = {
     { id: 'suppliers', label: 'Proveedores' },
     { id: 'expenses', label: 'Gastos' },
     { id: 'analytics', label: 'Analíticas' },
+    { id: 'stock-analytics', label: 'Análisis de Stock' },
   ],
   'Sistema': [
     { id: 'role-management', label: 'Gestión de Roles' },

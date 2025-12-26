@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Save, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, ScanBarcode } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -25,6 +25,7 @@ interface Product {
   gender?: string;
   season?: string;
   stock?: number;
+  barcode?: string;
 }
 
 interface ProductSize {
@@ -54,6 +55,7 @@ export function ProductsManager() {
     gender?: string;
     season?: string;
     stock?: number;
+    barcode?: string;
   }>({
     name: '',
     description: '',
@@ -173,8 +175,14 @@ export function ProductsManager() {
         material: newProduct.material,
         gender: newProduct.gender,
         season: newProduct.season,
-        stock: newProduct.stock
+        stock: newProduct.stock,
+        barcode: newProduct.barcode
       });
+
+      if (newProduct.barcode && newProduct.barcode.trim()) {
+        productData.barcode = newProduct.barcode.trim();
+        console.log('✅ Added barcode:', productData.barcode);
+      }
 
       if (newProduct.brand && newProduct.brand.trim()) {
         productData.brand = newProduct.brand.trim();
@@ -314,6 +322,7 @@ export function ProductsManager() {
         category_id: '',
         base_price: 0,
         available: true,
+        barcode: '',
       });
       setNewProductSizes([]);
       setNewProductImage(null);
@@ -344,6 +353,7 @@ export function ProductsManager() {
           category_id: editingProduct.category_id,
           base_price: editingProduct.base_price,
           available: editingProduct.available,
+          barcode: editingProduct.barcode,
         })
         .eq('id', editingProduct.id);
 
@@ -508,7 +518,7 @@ export function ProductsManager() {
 
       {showNewProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">{t('Nuevo Producto')}</h3>
             <div className="space-y-4">
               <div>
@@ -519,6 +529,21 @@ export function ProductsManager() {
                   onChange={e => setNewProduct({ ...newProduct, name: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Código de Barras')}</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <ScanBarcode className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={newProduct.barcode || ''}
+                    onChange={e => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono"
+                    placeholder={t('Escanear o ingresar código...')}
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Descripción')}</label>
@@ -746,6 +771,14 @@ export function ProductsManager() {
                           onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
                           className="w-full px-2 py-1 border border-gray-300 rounded"
                         />
+                        <input
+                          type="text"
+                          value={editingProduct.barcode || ''}
+                          onChange={e => setEditingProduct({ ...editingProduct, barcode: e.target.value })}
+                          className="w-full px-2 py-1 border border-gray-300 rounded font-mono text-xs mt-1"
+                          placeholder="Código de Barras"
+                        />
+
                         {/* Image edit controls... */}
                         <div className="mt-2 flex items-center gap-3">
                           {(editingImagePreviewUrl || product.image_url) && (

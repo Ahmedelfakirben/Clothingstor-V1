@@ -39,6 +39,7 @@ interface TicketProps {
   autoPrint?: boolean;
   hideButton?: boolean;
   forceRefresh?: boolean;
+  customerName?: string;
 }
 
 export function TicketPrinter({
@@ -277,15 +278,7 @@ export function TicketPrinter({
       `);
       doc.close();
 
-      // Fallback if onload doesn't trigger immediately
-      setTimeout(() => {
-        try {
-          if (iframe.contentWindow) {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-          }
-        } catch (e) { console.error('Print error:', e); }
-      }, 500);
+      // Fallback removed to prevent double printing as window.onload inside iframe handles it.
 
       // Clean up the iframe after a delay
       setTimeout(() => {

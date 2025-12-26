@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { Category, Product, ProductSize } from '../types/supabase';
-import { ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, Smartphone, CheckCircle, ShoppingBag } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, ChevronRight, Search, ScanBarcode, ShoppingBag, Users, CheckCircle } from 'lucide-react';
 import { TicketPrinter } from './TicketPrinter';
 import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
 import { toast } from 'react-hot-toast';
@@ -27,12 +27,15 @@ export function POS() {
     setServiceType,
     setTableId,
     activeOrderId,
-    setActiveOrderId
+    setActiveOrderId,
+    customerId,
+    setCustomerId
   } = useCart();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [sizes, setSizes] = useState<ProductSize[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
@@ -40,7 +43,11 @@ export function POS() {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState<string>(''); // For partial payments
   const [showValidationModal, setShowValidationModal] = useState(false);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [scannedProductForSizeSelection, setScannedProductForSizeSelection] = useState<Product | null>(null);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [pendingOrderData, setPendingOrderData] = useState<{
     orderDate: Date;
     orderNumber: string;
@@ -53,6 +60,9 @@ export function POS() {
   const [existingOrderTotal, setExistingOrderTotal] = useState<number>(0);
   const [existingOrderNumber, setExistingOrderNumber] = useState<number | null>(null);
   const [canConfirmOrder, setCanConfirmOrder] = useState(true);
+
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [ticket, setTicket] = useState<{
     orderDate: Date;
     orderNumber: string;
@@ -66,9 +76,24 @@ export function POS() {
     Promise.all([
       fetchCategories(),
       fetchInitialProducts(),
-      fetchSizes()
+      fetchSizes(),
+      fetchCustomers()
     ]).finally(() => setDataLoading(false));
   }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setCustomers(data || []);
+    } catch (err) {
+      console.error('Error fetching customers:', err);
+    }
+  };
 
   // Cargar permisos granulares para POS
   useEffect(() => {
@@ -255,70 +280,118 @@ export function POS() {
 
 
 
-  const handleCheckout = async () => {
-    if (cart.length === 0 || !user) {
-      console.log('Carrito vacío o usuario no autenticado:', { cartLength: cart.length, userId: user?.id });
+  const handleCheckout = () => {
+    if (cart.length === 0) {
+      toast.error(t('El carrito está vacío'));
       return;
     }
 
-    // Verificar permisos granulares
-    if (!canConfirmOrder) {
-      toast.error('No tienes permiso para confirmar pedidos');
+    // FINAL STOCK VALIDATION before Payment
+    for (const item of cart) {
+      if (!checkStock(item.product, item.size, 0)) {  // quantityToAdd=0 means check CURRENT state
+        return; // Stop checkout if any stock issue
+      }
+    }
+
+    // Default payment amount to total
+    setPaymentAmount(total.toString());
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentMethodSelection = (method: 'cash' | 'card' | 'digital') => {
+    // Validate amount
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error(t('Ingrese un monto válido'));
       return;
     }
 
-    console.log('✅ Preparando orden (SIN crear en BD aún):', {
-      employeeId: user.id,
-      total,
-      cartItems: cart.length,
-    });
+    if (amount > total) {
+      toast.error(t('El monto no puede ser mayor al total'));
+      return;
+    }
 
-    // SOLO preparar los datos, NO crear en BD aún
-    const ticketItems = cart.map(ci => ({
-      name: ci.product.name,
-      size: ci.size?.size_name,
-      quantity: ci.quantity,
-      price: ci.product.base_price + (ci.size?.price_modifier || 0),
-    }));
+    setPaymentMethod(method);
+    setShowPaymentModal(false);
+
+    // Prepare ticket data immediately for validation
+    // Calculate final payment status
+    const isPartial = amount < total;
+    const status = isPartial ? 'partial' : 'paid';
 
     const ticketData = {
       orderDate: new Date(),
-      orderNumber: 'PENDING', // Temporal hasta que se cree en BD
-      items: ticketItems,
-      total,
-      paymentMethod: 'Pendiente',
-      cashierName: (user.user_metadata as any)?.full_name || user.email || 'Usuario',
+      orderNumber: activeOrderId ? activeOrderId.slice(-8) : undefined, // Will be assigned by DB if new
+      items: cart.map(item => ({
+        name: item.product.name,
+        size: item.size?.size_name,
+        quantity: item.quantity,
+        price: item.product.base_price + (item.size?.price_modifier || 0)
+      })),
+      total: total,
+      amountPaid: amount,
+      paymentStatus: status,
+      paymentMethod: method === 'cash' ? 'Efectivo' : method === 'card' ? 'Tarjeta' : 'Digital',
+      cashierName: profile?.full_name || user?.email || 'Usuario',
+      customerName: customerId ? customers.find(c => c.id === customerId)?.name : undefined
     };
 
-    setPendingOrderData(ticketData);
-    setShowPaymentModal(true); // Mostrar modal de método de pago
+    setPendingOrderData(ticketData as any);
 
-    console.log('📋 Datos preparados, esperando selección de método de pago...');
-  };
-
-  const handlePaymentMethodSelection = async (selectedPaymentMethod: string) => {
-    if (!pendingOrderData) {
-      console.error('No hay orden pendiente');
-      return;
-    }
-
-    console.log('Método de pago seleccionado:', selectedPaymentMethod);
-
-    // Actualizar los datos pendientes con el método de pago seleccionado
-    const updatedTicketData = {
-      ...pendingOrderData,
-      paymentMethod: selectedPaymentMethod === 'cash' ? 'Efectivo' :
-        selectedPaymentMethod === 'card' ? 'Tarjeta' : 'Digital'
-    };
-
-    setPendingOrderData(updatedTicketData);
-
-    // Cerrar modal de pago y mostrar modal de validación
-    setShowPaymentModal(false);
     setShowValidationModal(true);
   };
 
-  const handleValidateAndPrint = async () => {
+  const checkStock = (product: Product, size?: ProductSize | null, quantityToAdd: number = 1): boolean => {
+    let limit = 0;
+    if (size) {
+      limit = size.stock;
+    } else {
+      limit = product.stock || 0;
+    }
+
+    // Find current quantity in cart for this specific item (product + size)
+    const currentItem = cart.find(item =>
+      item.product.id === product.id &&
+      (size ? item.size?.id === size.id : !item.size)
+    );
+
+    const currentQty = currentItem?.quantity || 0;
+
+    if (currentQty + quantityToAdd > limit) {
+      toast.error(t('No hay suficiente stock. Disponible: ') + limit);
+      return false;
+    }
+    return true;
+  };
+
+  const handleBarcodeScan = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!barcodeInput.trim()) return;
+
+    const scannedCode = barcodeInput.trim();
+    // Search exact match for barcode
+    const foundProduct = products.find(p => p.barcode === scannedCode);
+
+    if (foundProduct) {
+      // Check if size selection is needed
+      const sizes = productSizes(foundProduct.id);
+      if (sizes.length > 0) {
+        setScannedProductForSizeSelection(foundProduct);
+        setBarcodeInput('');
+      } else {
+        // Check stock logic
+        if (checkStock(foundProduct, undefined, 1)) {
+          addItem(foundProduct);
+          setBarcodeInput('');
+          toast.success(`${foundProduct.name} ${t('agregado')}`);
+        }
+      }
+    } else {
+      toast.error(t('Producto no encontrado'));
+    }
+  };
+
+  const processOrder = async (targetStatus: 'completed' | 'preparing' = 'completed', shouldPrint: boolean = true) => {
     if (!pendingOrderData || !user) {
       console.error('No hay orden pendiente o usuario no autenticado');
       return;
@@ -326,11 +399,16 @@ export function POS() {
 
     try {
       setLoading(true);
-      console.log('🔥 AHORA SÍ creando orden en BD con método de pago:', pendingOrderData.paymentMethod);
+      console.log('🔥 Procesando orden:', { targetStatus, shouldPrint, paymentMethod: pendingOrderData.paymentMethod });
 
       // Convertir el método de pago al formato de la BD
       const paymentMethodDB = pendingOrderData.paymentMethod === 'Efectivo' ? 'cash' :
         pendingOrderData.paymentMethod === 'Tarjeta' ? 'card' : 'digital';
+
+      // Access extra properties from ticketData that might be "hidden" by the type
+      const pData = pendingOrderData as any;
+      const amountPaid = pData.amountPaid !== undefined ? pData.amountPaid : pData.total;
+      const paymentStatus = pData.paymentStatus || 'paid';
 
       // Preparar items para la BD
       const orderItemsPayload = cart.map(item => ({
@@ -347,7 +425,10 @@ export function POS() {
         .from('orders')
         .insert({
           employee_id: user.id,
-          status: 'completed',
+          status: targetStatus,
+          payment_status: paymentStatus,
+          amount_paid: amountPaid,
+          customer_id: customerId, // Save the customer connection!
           total: pendingOrderData.total,
           payment_method: paymentMethodDB,
           service_type: 'takeaway',
@@ -385,23 +466,29 @@ export function POS() {
         orderDate: new Date(order.created_at),
       };
 
-      // Imprimir ticket
-      console.log('🖨️ Imprimiendo ticket:', finalTicketData);
-      setTicket(finalTicketData);
+      if (shouldPrint) {
+        // Imprimir ticket
+        console.log('🖨️ Imprimiendo ticket:', finalTicketData);
+        setTicket(finalTicketData);
+        toast.success(t('pos.order_created_printed'));
+      } else {
+        toast.success(targetStatus === 'preparing' ? t('pos.order_saved_pending') : t('pos.order_created_success'));
+      }
+
       setShowValidationModal(false);
       setPendingOrderData(null);
 
-      // Reset states after successful validation
+      // Reset states after successful processing
       setActiveOrderId(null);
       setTableId(null);
       setServiceType('takeaway');
       setPaymentMethod(null);
+      setCustomerId(null); // Clear customer too
       clearCart();
 
-      toast.success('¡Orden creada, validada e impresa correctamente!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('💥 Error creando orden:', error);
-      toast.error('Error al crear la orden. Intenta nuevamente.');
+      toast.error(`${t('pos.order_creation_error')}: ${error.message || t('Reintentar')}.`);
     } finally {
       setLoading(false);
     }
@@ -490,10 +577,8 @@ export function POS() {
                           key={size.id}
                           disabled={stockAvailable <= 0}
                           onClick={() => {
-                            if (stockAvailable > 0) {
+                            if (checkStock(product, size, 1)) {
                               addItem(product, size);
-                            } else {
-                              toast.error(t('No hay suficiente stock para esta talla'));
                             }
                           }}
                           className={`w-full py-2 px-3 rounded-lg text-sm font-medium flex justify-between items-center border border-gray-200 transition-colors
@@ -515,11 +600,8 @@ export function POS() {
                   <button
                     disabled={(product.stock || 0) <= (cart.find(item => item.product.id === product.id && !item.size)?.quantity || 0)}
                     onClick={() => {
-                      const currentInCart = cart.find(item => item.product.id === product.id && !item.size)?.quantity || 0;
-                      if ((product.stock || 0) > currentInCart) {
+                      if (checkStock(product, undefined, 1)) {
                         addItem(product);
-                      } else {
-                        toast.error(t('No hay suficiente stock'));
                       }
                     }}
                     className={`w-full py-2 px-4 rounded-lg font-semibold mt-2 text-sm transition-colors
@@ -673,6 +755,29 @@ export function POS() {
       {/* Vista Desktop */}
       <div className="hidden md:flex h-[calc(100vh-5rem)] bg-gray-50 overflow-hidden">
         <div className="flex-1 overflow-hidden flex flex-col">
+          {/* Search / Scan Bar */}
+          <div className="p-4 bg-white border-b border-gray-200">
+            <form onSubmit={handleBarcodeScan} className="flex gap-2 relative">
+              <div className="relative flex-1">
+                <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <input
+                  ref={barcodeInputRef}
+                  type="text"
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
+                  placeholder={t('Escanear código de barras o escribir...')}
+                  autoFocus
+                />
+              </div>
+              <button
+                type="submit"
+                className="bg-gray-900 text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-colors"
+              >
+                <Search className="w-5 h-5" />
+              </button>
+            </form>
+          </div>
           {/* Sección de Categorías - Diseño Minimalista Moderno */}
           <div className="bg-white border-b border-gray-200">
             <div className="max-w-7xl mx-auto px-8 py-6">
@@ -774,24 +879,22 @@ export function POS() {
                       </div>
 
                       {productSizesList.length > 0 ? (
-                        <div className="mt-4 space-y-2">
-                          {/* Dropdown-like or list for sizes if too many, but buttons are fine for POS */}
-                          <div className="grid grid-cols-2 gap-2">
-                            {productSizesList.map(size => (
-                              <button
-                                key={size.id}
-                                onClick={() => addItem(product, size)}
-                                className="px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-semibold rounded-lg border border-gray-200 transition-colors flex items-center justify-between group/size text-left"
-                              >
-                                <span className="truncate">{size.size_name}</span>
-                                <span className="text-gray-900 bg-white px-1.5 py-0.5 rounded shadow-sm">+{formatCurrency(size.price_modifier)}</span>
-                              </button>
-                            ))}
-                          </div>
+                        <div className="mt-4">
+                          <button
+                            onClick={() => setScannedProductForSizeSelection(product)}
+                            className="w-full py-2.5 px-4 bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg border border-gray-200 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <span>{t('pos.select_size')}</span>
+                            <ChevronRight className="w-4 h-4 text-gray-400" />
+                          </button>
                         </div>
                       ) : (
                         <button
-                          onClick={() => addItem(product)}
+                          onClick={() => {
+                            if (checkStock(product, undefined, 1)) {
+                              addItem(product);
+                            }
+                          }}
                           className="w-full mt-4 gradient-primary hover:gradient-primary-hover text-white font-medium py-2.5 px-4 rounded-lg shadow-sm hover:shadow transition-all active:transform active:scale-95 flex items-center justify-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
@@ -825,8 +928,29 @@ export function POS() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-800">{t('Carrito de Compras')}</h2>
-                <p className="text-sm text-gray-500">{cart.length} {cart.length === 1 ? 'producto' : 'productos'}</p>
+
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-gray-500">{cart.length} {cart.length === 1 ? 'producto' : 'productos'}</p>
+                </div>
               </div>
+            </div>
+
+            {/* Customer Selector in Cart Sidebar */}
+            <div className="px-5 py-2 border-b border-gray-100">
+              <button
+                onClick={() => setShowCustomerModal(true)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm border ${customerId ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-gray-50 border-gray-200 text-gray-600'} hover:border-amber-300 transition-colors`}
+              >
+                <span className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <span className="font-medium truncate max-w-[150px]">
+                    {customerId ? customers.find(c => c.id === customerId)?.name || t('pos.customer_selected') : t('pos.assign_customer')}
+                  </span>
+                </span>
+                <span className="text-xs font-bold text-amber-600">
+                  {customerId ? t('common.edit') : '+'}
+                </span>
+              </button>
             </div>
           </div>
 
@@ -931,7 +1055,11 @@ export function POS() {
                         </button>
                         <span className="w-9 text-center font-bold text-base text-gray-900">{item.quantity}</span>
                         <button
-                          onClick={() => updateQuantity(cart.length - 1 - index, 1)}
+                          onClick={() => {
+                            if (checkStock(item.product, item.size, 1)) {
+                              updateQuantity(cart.length - 1 - index, 1);
+                            }
+                          }}
                           className="w-7 h-7 rounded-md bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100 hover:border-gray-300 transition-all"
                         >
                           <Plus className="w-3.5 h-3.5 text-gray-600" />
@@ -1003,6 +1131,48 @@ export function POS() {
                   {t('Seleccionar Método de Pago')}
                 </h2>
                 <p className="text-sm text-gray-600 mt-2">{t('Elija cómo se realizará el pago')}</p>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('Monto a Pagar (Anticipo)')}
+                </label>
+                <div className="relative">
+                  {/* Currency symbol can be part of formatCurrency, but inside input we often just show number. 
+                      Ideally we show the symbol outside or use a specialized input. 
+                      For now, I will remove the hardcoded '$' and rely on placeholder or use currency context if available. 
+                      The user mentioned currency is selectable in system. 
+                      I will replace the hardcoded $ span with a dynamic one from useCurrency hook if possible, or just remove it if it conflicts.
+                  */}
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{formatCurrency(0).replace(/\d|[.,]/g, '').trim() || '$'}</span>
+                  <input
+                    type="number"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className="w-full pl-16 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none font-bold text-lg"
+                    placeholder="0.00"
+                  />
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2">
+                    <button
+                      onClick={() => setPaymentAmount(total.toString())}
+                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-bold text-gray-700 transition"
+                    >
+                      Total
+                    </button>
+                    <button
+                      onClick={() => setPaymentAmount((total / 2).toFixed(2))}
+                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-bold text-gray-700 transition"
+                    >
+                      50%
+                    </button>
+                  </div>
+                </div>
+                {parseFloat(paymentAmount) < total && parseFloat(paymentAmount) > 0 && (
+                  <p className="text-sm text-orange-600 font-bold mt-2 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                    Pendiente: {formatCurrency(total - parseFloat(paymentAmount || '0'))}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-4 mb-8">
@@ -1089,33 +1259,20 @@ export function POS() {
                 </div>
 
                 <p className="text-sm text-gray-600 mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <span className="font-bold text-blue-800">ℹ️ {t('Información:')}</span><br />
-                  {t('El pedido se ha procesado correctamente. ¿Desea validar e imprimir el ticket ahora?')}
+                  <span className="font-bold text-blue-800">ℹ️ {t('Información')}:</span><br />
+                  {t('pos.validation_prompt')}
                 </p>
               </div>
 
               <div className="flex justify-end gap-3">
                 <button
-                  onClick={() => {
-                    console.log('Order left pending - will be validated later');
-                    setShowValidationModal(false);
-                    setPendingOrderData(null);
-
-                    // Reset states after leaving order pending
-                    setActiveOrderId(null);
-                    setTableId(null);
-                    setServiceType('takeaway');
-                    setPaymentMethod(null);
-                    clearCart();
-
-                    toast.success('Pedido pendiente de validación');
-                  }}
+                  onClick={() => processOrder('preparing', false)}
                   className="px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all font-bold text-gray-700 shadow-md hover:shadow-lg"
                 >
                   {t('Después')}
                 </button>
                 <button
-                  onClick={handleValidateAndPrint}
+                  onClick={() => processOrder('completed', true)}
                   className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl transition-all font-bold shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5"
                 >
                   {t('Validar e Imprimir')}
@@ -1125,6 +1282,155 @@ export function POS() {
           </div>
         )}
       </div>
+
+      {/* Customer Selection Modal */}
+      {showCustomerModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 transform scale-100 transition-all flex flex-col max-h-[80vh]">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{t('Seleccionar Cliente')}</h2>
+                <p className="text-sm text-gray-500">{t('Asigne un cliente a este pedido')}</p>
+              </div>
+              <button
+                onClick={() => setShowCustomerModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <div className="w-6 h-6 text-gray-400">✕</div>
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <input
+                type="text"
+                placeholder={t('Buscar cliente por nombre o teléfono...')}
+                value={customerSearchTerm}
+                onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 mb-4 pr-1">
+              {customers
+                .filter(c =>
+                  c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+                  (c.phone && c.phone.includes(customerSearchTerm))
+                )
+                .map(customer => (
+                  <button
+                    key={customer.id}
+                    onClick={() => {
+                      setCustomerId(customer.id);
+                      setShowCustomerModal(false);
+                      toast.success(t('Cliente asignado correctamente'));
+                    }}
+                    className={`w-full text-left p-4 rounded-xl border transition-all hover:shadow-md ${customerId === customer.id
+                      ? 'bg-amber-50 border-amber-500 ring-1 ring-amber-500'
+                      : 'bg-white border-gray-200 hover:border-amber-300 hover:bg-amber-50/50'
+                      }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-bold text-gray-900">{customer.name}</p>
+                        {customer.phone && (
+                          <p className="text-sm text-gray-500 flex items-center gap-1">
+                            <Smartphone className="w-3 h-3" /> {customer.phone}
+                          </p>
+                        )}
+                      </div>
+                      {customerId === customer.id && (
+                        <CheckCircle className="w-5 h-5 text-amber-600" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+
+              {customers.filter(c =>
+                c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) ||
+                (c.phone && c.phone.includes(customerSearchTerm))
+              ).length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                    <p>{t('No se encontraron clientes')}</p>
+                  </div>
+                )}
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setCustomerId(null);
+                  setShowCustomerModal(false);
+                  toast.success(t('Cliente desasignado'));
+                }}
+                className="text-red-500 hover:text-red-700 text-sm font-medium px-4 py-2"
+              >
+                {t('Desasignar Cliente')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Size Selection Modal */}
+      {scannedProductForSizeSelection && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 transform scale-100 transition-all">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{t('pos.select_size')}</h2>
+                <p className="text-sm text-gray-500">{scannedProductForSizeSelection.name}</p>
+              </div>
+              <button
+                onClick={() => setScannedProductForSizeSelection(null)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <div className="w-6 h-6 text-gray-400">✕</div>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {productSizes(scannedProductForSizeSelection.id).map(size => {
+                const currentInCart = cart.find(item => item.product.id === scannedProductForSizeSelection.id && item.size?.id === size.id)?.quantity || 0;
+                const stockAvailable = size.stock - currentInCart;
+
+                return (
+                  <button
+                    key={size.id}
+                    disabled={stockAvailable <= 0}
+                    onClick={() => {
+                      if (checkStock(scannedProductForSizeSelection, size, 1)) {
+                        addItem(scannedProductForSizeSelection, size);
+                        setScannedProductForSizeSelection(null);
+                        setBarcodeInput(''); // Clear if it came from scanner
+                        toast.success(`${scannedProductForSizeSelection.name} (${size.size_name}) ${t('agregado')}`);
+                      }
+                    }}
+                    className={`w-full p-4 rounded-xl border-2 transition-all flex justify-between items-center group
+                      ${stockAvailable <= 0
+                        ? 'bg-gray-50 border-gray-200 opacity-60 cursor-not-allowed'
+                        : 'bg-white border-gray-200 hover:border-amber-500 hover:bg-amber-50 shadow-sm hover:shadow-md'
+                      }`}
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="font-bold text-lg text-gray-800 group-hover:text-amber-700 transition-colors">{size.size_name}</span>
+                      <span className={`text-xs font-medium ${stockAvailable <= 5 ? 'text-orange-500' : 'text-green-600'}`}>
+                        {stockAvailable <= 0 ? t('Agotado') : `${t('Stock')}: ${stockAvailable}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-gray-900 group-hover:text-amber-700 text-lg">
+                        +{formatCurrency(size.price_modifier)}
+                      </span>
+                      {stockAvailable > 0 && <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-amber-500" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

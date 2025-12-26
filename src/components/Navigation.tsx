@@ -69,8 +69,10 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         { id: 'cash', label: t('nav.cash'), icon: Calculator, roles: ['super_admin', 'admin', 'cashier'] },
         { id: 'time-tracking', label: t('nav.time-tracking'), icon: Clock, roles: ['super_admin', 'admin'] },
         { id: 'suppliers', label: t('nav.suppliers'), icon: Truck, roles: ['super_admin', 'admin'] },
+        { id: 'clients', label: t('nav.clients'), icon: Users, roles: ['super_admin', 'admin', 'cashier'] },
         { id: 'expenses', label: t('nav.expenses'), icon: DollarSign, roles: ['super_admin', 'admin'] },
         { id: 'analytics', label: t('nav.analytics'), icon: BarChart3, roles: ['super_admin', 'admin'] },
+        { id: 'stock-analytics', label: t('nav.stock-analytics'), icon: ClipboardList, roles: ['super_admin', 'admin'] },
       ]
     },
     {
