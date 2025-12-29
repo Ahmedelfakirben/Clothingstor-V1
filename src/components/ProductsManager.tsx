@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Save, X, ScanBarcode } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, ScanBarcode, Package } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { LoadingSpinner } from './LoadingSpinner';
+import IndividualUnitsManager from './IndividualUnitsManager';
 
 interface Category {
   id: string;
@@ -56,6 +57,7 @@ export function ProductsManager() {
     season?: string;
     stock?: number;
     barcode?: string;
+    image_url?: string;
   }>({
     name: '',
     description: '',
@@ -74,6 +76,9 @@ export function ProductsManager() {
   const [creatingProduct, setCreatingProduct] = useState(false);
   const [updatingProduct, setUpdatingProduct] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [searchingBarcode, setSearchingBarcode] = useState(false);
+  const [showUnitsModal, setShowUnitsModal] = useState(false);
+  const [selectedProductForUnits, setSelectedProductForUnits] = useState<Product | null>(null);
 
   useEffect(() => {
     fetchCategories();
@@ -136,6 +141,189 @@ export function ProductsManager() {
 
   const handleRemoveSize = (index: number) => {
     setNewProductSizes(newProductSizes.filter((_, i) => i !== index));
+  };
+
+  // Función para reparar imágenes rotas usando Google
+  const fixProductImage = async (barcode: string, productName: string, brand: string, currentImageUrl: string) => {
+    // Evitar bucles infinitos si ya intentamos reparar
+    if (currentImageUrl.includes('googleusercontent') || currentImageUrl.includes('gstatic')) {
+      return null;
+    }
+
+    try {
+      console.log(`🔧 Attempting to fix image for: ${productName}`);
+
+      const { data, error } = await supabase.functions.invoke('barcode-lookup', {
+        body: {
+          action: 'fix_image',
+          barcode: barcode,
+          productName: productName,
+          brand: brand
+        }
+      });
+
+      if (error || !data || !data.image_url) {
+        console.error('Failed to fix image:', error);
+        return null;
+      }
+
+      console.log('✅ Image fixed:', data.image_url);
+      return data.image_url;
+    } catch (err) {
+      console.error('Error fixing image:', err);
+      return null;
+    }
+  };
+
+  const handleBarcodeSearch = async () => {
+    const barcode = newProduct.barcode?.trim();
+    if (!barcode) {
+      toast.error(t('Ingresa un código de barras primero'));
+      return;
+    }
+
+    setSearchingBarcode(true);
+    try {
+      // 1. Buscar en PRODUCTOS EXISTENTES primero
+      const { data: existingProduct, error: productError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('barcode', barcode)
+        .maybeSingle();
+
+      if (existingProduct && !productError) {
+        setNewProduct({
+          ...newProduct,
+          name: existingProduct.name || newProduct.name,
+          description: existingProduct.description || newProduct.description,
+          brand: existingProduct.brand || newProduct.brand,
+          image_url: existingProduct.image_url || newProduct.image_url,
+          category_id: existingProduct.category_id || newProduct.category_id,
+          base_price: existingProduct.base_price || newProduct.base_price
+        });
+        toast.success(t('✅ Producto ya existente encontrado en tu inventario'));
+        return;
+      }
+
+      // 2. Buscar en caché local (búsquedas previas de API)
+      const { data: cached, error: cacheError } = await supabase
+        .from('barcode_cache')
+        .select('*')
+        .eq('barcode', barcode)
+        .maybeSingle();
+
+      if (cached && !cacheError) {
+        // Autocompletar desde caché
+        setNewProduct({
+          ...newProduct,
+          name: cached.product_name || newProduct.name,
+          description: cached.description || newProduct.description,
+          brand: cached.brand || newProduct.brand,
+          image_url: cached.image_url || newProduct.image_url,
+        });
+        toast.success(t('✅ Información cargada desde caché local'));
+        return;
+      }
+
+      // 2. Si no está en caché, consultar API externa
+      toast.loading(t('Buscando información del producto...'), { id: 'barcode-search' });
+
+      const productInfo = await fetchBarcodeFromAPI(barcode);
+
+      if (productInfo) {
+        // 3. Guardar en caché para futuras búsquedas
+        await supabase.from('barcode_cache').insert({
+          barcode: barcode,
+          product_name: productInfo.name,
+          brand: productInfo.brand,
+          description: productInfo.description,
+          category: productInfo.category,
+          image_url: productInfo.image,
+          api_source: productInfo.source || 'edge-function'
+        });
+
+        // 4. Autocompletar formulario
+        setNewProduct({
+          ...newProduct,
+          name: productInfo.name || newProduct.name,
+          description: productInfo.description || newProduct.description,
+          brand: productInfo.brand || newProduct.brand,
+          image_url: productInfo.image || newProduct.image_url,
+        });
+
+        // Si hay imagen, mostrar preview (el usuario puede cambiarla)
+        if (productInfo.image) {
+          toast.success(
+            t(`✅ Encontrado vía ${productInfo.source?.toUpperCase() || 'API'}. Imagen disponible.`),
+            { id: 'barcode-search', duration: 4000 }
+          );
+          // Nota: La imagen se guardará cuando el usuario cree el producto
+          // Por ahora solo mostramos que hay una imagen disponible en el caché
+        } else {
+          toast.success(
+            t('✅ Información del producto cargada. Puedes editarla antes de guardar.'),
+            { id: 'barcode-search' }
+          );
+        }
+      } else {
+        toast.error(
+          t('❌ No se encontró información para este código de barras. Completa manualmente.'),
+          { id: 'barcode-search' }
+        );
+      }
+    } catch (error: any) {
+      console.error('Error buscando código de barras:', error);
+      toast.error(
+        t('Error al buscar información del producto. Completa manualmente.'),
+        { id: 'barcode-search' }
+      );
+    } finally {
+      setSearchingBarcode(false);
+    }
+  };
+
+  const fetchBarcodeFromAPI = async (barcode: string) => {
+    try {
+      console.log('🔍 Buscando vía Supabase Edge Function:', barcode);
+
+      // Llamar a Supabase Edge Function (evita CORS)
+      const { data, error } = await supabase.functions.invoke('barcode-lookup', {
+        body: JSON.stringify({ barcode }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📡 Respuesta Edge Function:', data, error);
+
+      if (error) {
+        // El error ya viene manejado por supabase client si el status no es 2xx
+        console.warn('⚠️ No se encontró producto:', error);
+        return null;
+      }
+
+      if (data?.error) {
+        console.warn('⚠️ API Error:', data.error);
+        return null;
+      }
+
+
+      console.log('✅ Producto encontrado:', data.name);
+      console.log('🔍 Fuente:', data.source);
+
+      return {
+        name: data.name,
+        brand: data.brand,
+        description: data.description,
+        category: data.category,
+        image: data.image,
+        source: data.source
+      };
+
+    } catch (error) {
+      console.error('💥 Error:', error);
+      return null;
+    }
   };
 
 
@@ -211,6 +399,12 @@ export function ProductsManager() {
         console.log('✅ Added stock (calculated from sizes or input):', productData.stock);
       }
 
+      // Add image_url if available from barcode search
+      if (newProduct.image_url && newProduct.image_url.trim()) {
+        productData.image_url = newProduct.image_url.trim();
+        console.log('✅ Added image_url:', productData.image_url);
+      }
+
       console.log('📝 [PRODUCTS] Final product data to insert:', JSON.stringify(productData, null, 2));
 
       // Create product first
@@ -224,6 +418,8 @@ export function ProductsManager() {
         console.error('❌ [PRODUCTS] Error creating product:', error);
         if (error.code === '42501') {
           toast.error(t('No tienes permisos para crear productos. Solo admin y super_admin pueden hacerlo.'));
+        } else if (error.code === '23505' || error.message.includes('duplicate key value')) {
+          toast.error(t('Este código de barras ya existe. Busca el producto en la lista para editarlo.'));
         } else if (error.message.includes('violates check constraint')) {
           toast.error(t('Error: Verifica que los valores de género y temporada sean correctos.'));
         } else {
@@ -532,18 +728,75 @@ export function ProductsManager() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Código de Barras')}</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <ScanBarcode className="h-5 w-5 text-gray-400" />
+                <div className="flex gap-2">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      {t('Código de barras')}
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newProduct.barcode || ''}
+                        onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                        className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                        placeholder={t('Escanea o ingresa código')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Activar escáner de cámara
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.capture = 'environment';
+                          input.onchange = async (e: any) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              toast.info(t('📸 Procesando imagen...'));
+                              // Aquí se procesaría la imagen con una librería de detección de códigos
+                              // Por ahora, mostrar mensaje
+                              toast.warning(t('Función de cámara en desarrollo. Usa el campo de búsqueda.'));
+                            }
+                          };
+                          input.click();
+                        }}
+                        className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
+                        title={t('Escanear con cámara')}
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleBarcodeSearch}
+                        disabled={!newProduct.barcode || searchingBarcode}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                      >
+                        {searchingBarcode ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {t('Buscando...')}
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {t('Buscar')}
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    value={newProduct.barcode || ''}
-                    onChange={e => setNewProduct({ ...newProduct, barcode: e.target.value })}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 font-mono"
-                    placeholder={t('Escanear o ingresar código...')}
-                  />
                 </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {t('Escanea el código o escribe y presiona "Buscar" para autocompletar')}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Descripción')}</label>
@@ -705,7 +958,43 @@ export function ProductsManager() {
                 </div>
                 {newProductPreviewUrl && (
                   <div className="mt-2 relative">
-                    <img src={newProductPreviewUrl} alt={t('Vista previa')} className="h-24 w-24 object-cover rounded border" />
+                    <img
+                      src={newProductPreviewUrl}
+                      alt={t('Vista previa')}
+                      className="h-24 w-24 object-cover rounded border"
+                      onError={async (e) => {
+                        const img = e.currentTarget;
+                        // 1. Mostrar estado "Reparando..."
+                        if (img.parentElement) {
+                          const loading = document.createElement('div');
+                          loading.className = "absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-amber-600 animate-pulse";
+                          loading.innerText = "Reparando...";
+                          img.style.display = 'none';
+                          img.parentElement.appendChild(loading);
+                        }
+
+                        // 2. Intentar reparar
+                        const newUrl = await fixProductImage(
+                          newProduct.barcode || '',
+                          newProduct.name,
+                          newProduct.brand || '',
+                          newProductPreviewUrl
+                        );
+
+                        // 3. Resultado
+                        if (newUrl) {
+                          setNewProduct({ ...newProduct, image_url: newUrl });
+                        } else {
+                          if (img.parentElement) {
+                            img.parentElement.innerHTML = '';
+                            const fallback = document.createElement('div');
+                            fallback.className = "h-24 w-24 flex items-center justify-center bg-gray-100 text-gray-400 rounded border text-xs text-center p-1";
+                            fallback.innerText = "Sin Imagen";
+                            img.parentElement.appendChild(fallback);
+                          }
+                        }
+                      }}
+                    />
                     {uploadingImage && (
                       <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
                         <LoadingSpinner size="md" />
@@ -787,7 +1076,45 @@ export function ProductsManager() {
                                 src={editingImagePreviewUrl || product.image_url || ''}
                                 alt={t('Vista previa')}
                                 className="h-16 w-16 object-cover rounded border"
-                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                onError={async (e) => {
+                                  const img = e.currentTarget;
+                                  // 1. Mostrar estado "Reparando..."
+                                  if (img.parentElement) {
+                                    const loading = document.createElement('div');
+                                    loading.className = "absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-amber-600 animate-pulse";
+                                    loading.innerText = "Reparando...";
+                                    img.style.display = 'none';
+                                    img.parentElement.appendChild(loading);
+                                  }
+
+                                  // 2. Intentar reparar
+                                  const newUrl = await fixProductImage(
+                                    product.barcode || '',
+                                    product.name,
+                                    product.brand || '',
+                                    product.image_url || ''
+                                  );
+
+                                  // 3. Resultado
+                                  if (newUrl) {
+                                    // Actualizar en la lista local para reflejo inmediato
+                                    const updatedProducts = products.map(p =>
+                                      p.id === product.id ? { ...p, image_url: newUrl } : p
+                                    );
+                                    setProducts(updatedProducts);
+
+                                    // Actualizar en DB silenciosamente
+                                    await supabase.from('products').update({ image_url: newUrl }).eq('id', product.id);
+                                  } else {
+                                    if (img.parentElement) {
+                                      img.parentElement.innerHTML = '';
+                                      const fallback = document.createElement('div');
+                                      fallback.className = "h-16 w-16 flex items-center justify-center bg-gray-100 text-gray-400 rounded border text-xs text-center p-1";
+                                      fallback.innerText = "Sin Imagen";
+                                      img.parentElement.appendChild(fallback);
+                                    }
+                                  }
+                                }}
                               />
                               {uploadingImage && (
                                 <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
@@ -940,6 +1267,16 @@ export function ProductsManager() {
                   ) : (
                     <div className="flex justify-end gap-2">
                       <button
+                        onClick={() => {
+                          setSelectedProductForUnits(product);
+                          setShowUnitsModal(true);
+                        }}
+                        className="text-purple-600 hover:text-purple-800"
+                        title={t('Gestionar unidades individuales')}
+                      >
+                        <Package className="w-5 h-5" />
+                      </button>
+                      <button
                         onClick={() => setEditingProduct(product)}
                         className="text-blue-600 hover:text-blue-800"
                         title={t('Editar producto')}
@@ -961,6 +1298,57 @@ export function ProductsManager() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal for Individual Units Management */}
+      {showUnitsModal && selectedProductForUnits && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {t('Unidades Individuales')}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {selectedProductForUnits.name}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowUnitsModal(false);
+                  setSelectedProductForUnits(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <IndividualUnitsManager
+                productId={selectedProductForUnits.id}
+                productName={selectedProductForUnits.name}
+                totalStock={selectedProductForUnits.stock || 0}
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowUnitsModal(false);
+                  setSelectedProductForUnits(null);
+                  fetchProducts(); // Refresh products list
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                {t('Cerrar')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

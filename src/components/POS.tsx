@@ -341,6 +341,47 @@ export function POS() {
     setShowValidationModal(true);
   };
 
+  // Función para reparar imágenes rotas usando Google (POS version)
+  const fixProductImage = async (barcode: string, productName: string, brand: string, currentImageUrl: string, productId: string) => {
+    // Evitar bucles infinitos
+    if (currentImageUrl.includes('googleusercontent') || currentImageUrl.includes('gstatic')) {
+      return null;
+    }
+
+    try {
+      console.log(`🔧 POS: Attempting to fix image for: ${productName}`);
+
+      const { data, error } = await supabase.functions.invoke('barcode-lookup', {
+        body: {
+          action: 'fix_image',
+          barcode: barcode,
+          productName: productName,
+          brand: brand
+        }
+      });
+
+      if (error || !data || !data.image_url) {
+        console.error('Failed to fix image:', error);
+        return null;
+      }
+
+      console.log('✅ Image fixed:', data.image_url);
+
+      // Actualizar estado local inmediatamente
+      setProducts(prevProducts =>
+        prevProducts.map(p => p.id === productId ? { ...p, image_url: data.image_url } : p)
+      );
+
+      // Actualizar en DB silenciosamente
+      await supabase.from('products').update({ image_url: data.image_url }).eq('id', productId);
+
+      return data.image_url;
+    } catch (err) {
+      console.error('Error fixing image:', err);
+      return null;
+    }
+  };
+
   const checkStock = (product: Product, size?: ProductSize | null, quantityToAdd: number = 1): boolean => {
     let limit = 0;
     if (size) {
@@ -560,7 +601,37 @@ export function POS() {
                 <div className="flex gap-3">
                   {product.image_url && (
                     <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                      <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                      <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        onError={async (e) => {
+                          const img = e.currentTarget;
+                          if (img.parentElement) {
+                            const loading = document.createElement('div');
+                            loading.className = "absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-amber-600 animate-pulse";
+                            loading.innerText = "Fixing...";
+                            img.style.display = 'none';
+                            img.parentElement.appendChild(loading);
+                          }
+
+                          const newUrl = await fixProductImage(
+                            product.barcode || '',
+                            product.name,
+                            product.brand || '',
+                            product.image_url || '',
+                            product.id
+                          );
+
+                          if (!newUrl && img.parentElement) {
+                            img.parentElement.innerHTML = '';
+                            const fallbackIcon = document.createElement('div');
+                            fallbackIcon.className = "w-full h-full flex items-center justify-center text-gray-300";
+                            fallbackIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-bag"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
+                            img.parentElement.appendChild(fallbackIcon);
+                          }
+                        }}
+                      />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
@@ -828,7 +899,40 @@ export function POS() {
                           src={product.image_url}
                           alt={product.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          onError={async (e) => {
+                            const img = e.currentTarget;
+                            // 1. Mostrar estado "Reparando..."
+                            if (img.parentElement) {
+                              const loading = document.createElement('div');
+                              loading.className = "absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-amber-600 animate-pulse";
+                              loading.innerText = "Reparando...";
+                              img.style.display = 'none';
+                              img.parentElement.appendChild(loading);
+                            }
+
+                            // 2. Intentar reparar
+                            const newUrl = await fixProductImage(
+                              product.barcode || '',
+                              product.name,
+                              product.brand || '',
+                              product.image_url || '',
+                              product.id
+                            );
+
+                            // 3. Resultado
+                            if (newUrl) {
+                              // Estado actualizado por la función, no necesitamos hacer nada aquí
+                            } else {
+                              if (img.parentElement) {
+                                img.parentElement.innerHTML = '';
+                                const fallbackIcon = document.createElement('div');
+                                fallbackIcon.className = "w-full h-full flex items-center justify-center text-gray-300";
+                                // Usamos innerHTML para el icono SVG simple
+                                fallbackIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-bag"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
+                                img.parentElement.appendChild(fallbackIcon);
+                              }
+                            }
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-300">
