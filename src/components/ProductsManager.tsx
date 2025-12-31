@@ -27,6 +27,7 @@ interface Product {
   season?: string;
   stock?: number;
   barcode?: string;
+  purchase_price?: number;
 }
 
 interface ProductSize {
@@ -63,11 +64,15 @@ export function ProductsManager() {
     description: '',
     category_id: '',
     base_price: 0,
+    purchase_price: 0,
     available: true,
   });
   const [newProductSizes, setNewProductSizes] = useState<{ name: string; stock: number; price: number }[]>([]);
   const [newSizeName, setNewSizeName] = useState('');
   const [newSizeStock, setNewSizeStock] = useState('0');
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [newProductImage, setNewProductImage] = useState<File | null>(null);
   const [newProductPreviewUrl, setNewProductPreviewUrl] = useState<string | null>(null);
@@ -354,6 +359,7 @@ export function ProductsManager() {
         description: newProduct.description?.trim() || '',
         category_id: newProduct.category_id,
         base_price: newProduct.base_price,
+        purchase_price: newProduct.purchase_price,
         available: newProduct.available ?? true,
       };
 
@@ -517,6 +523,7 @@ export function ProductsManager() {
         description: '',
         category_id: '',
         base_price: 0,
+        purchase_price: 0,
         available: true,
         barcode: '',
       });
@@ -535,6 +542,167 @@ export function ProductsManager() {
 
   };
 
+  const startEditingProduct = (product: Product) => {
+    // 1. Cargar datos básicos
+    setNewProduct({
+      name: product.name,
+      description: product.description,
+      category_id: product.category_id || '',
+      base_price: product.base_price,
+      purchase_price: product.purchase_price || 0,
+      available: product.available,
+      barcode: product.barcode || '',
+      brand: product.brand || '',
+      material: product.material || '',
+      gender: product.gender || '',
+      season: product.season || '',
+      stock: product.stock || 0,
+      image_url: product.image_url
+    });
+
+    // 2. Cargar tallas
+    const productSizesList = sizes.filter(s => s.product_id === product.id).map(s => ({
+      name: s.size_name,
+      stock: s.stock,
+      price: s.price_modifier || 0
+    }));
+    setNewProductSizes(productSizesList);
+
+    // 3. Configurar estado de edición
+    setIsEditing(true);
+    setEditingId(product.id);
+    setShowNewProduct(true);
+    setNewProductPreviewUrl(product.image_url || null);
+
+    // 4. Scroll al formulario
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleFullUpdate = async () => {
+    if (!editingId) return;
+
+    setCreatingProduct(true);
+    try {
+      // 1. Prepare product data
+      const productData: any = {
+        name: newProduct.name.trim(),
+        description: newProduct.description?.trim() || '',
+        category_id: newProduct.category_id,
+        base_price: newProduct.base_price,
+        purchase_price: newProduct.purchase_price,
+        available: newProduct.available ?? true,
+        barcode: newProduct.barcode?.trim() || null,
+        brand: newProduct.brand?.trim() || null,
+        material: newProduct.material?.trim() || null,
+        gender: newProduct.gender || null,
+        season: newProduct.season || null,
+      };
+
+      // Handle stock logic
+      let totalStock = newProduct.stock || 0;
+      if (newProductSizes.length > 0) {
+        totalStock = newProductSizes.reduce((sum, s) => sum + s.stock, 0);
+      }
+      productData.stock = totalStock;
+
+      // 2. Update Product
+      const { error } = await supabase
+        .from('products')
+        .update(productData)
+        .eq('id', editingId);
+
+      if (error) throw error;
+
+      // 3. Update Sizes (Delete all and re-insert)
+      // First delete existing
+      const { error: deleteError } = await supabase
+        .from('product_sizes')
+        .delete()
+        .eq('product_id', editingId);
+
+      if (deleteError) throw deleteError;
+
+      // Then insert new ones
+      if (newProductSizes.length > 0) {
+        const sizesToInsert = newProductSizes.map(size => ({
+          product_id: editingId,
+          size_name: size.name,
+          stock: size.stock,
+          price_modifier: size.price
+        }));
+
+        const { error: sizesError } = await supabase
+          .from('product_sizes')
+          .insert(sizesToInsert);
+
+        if (sizesError) throw sizesError;
+      }
+
+      // 4. Handle Image Upload
+      if (newProductImage) {
+        setUploadingImage(true);
+        const fileExt = newProductImage.name.split('.').pop();
+        const filePath = `products/${editingId}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(filePath, newProductImage, { upsert: true });
+
+        if (!uploadError) {
+          const { data: publicData } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(filePath);
+
+          if (publicData?.publicUrl) {
+            await supabase
+              .from('products')
+              .update({ image_url: publicData.publicUrl })
+              .eq('id', editingId);
+          }
+        }
+      }
+
+      toast.success(t('Producto actualizado correctamente'));
+
+      // Cleanup
+      setIsEditing(false);
+      setEditingId(null);
+      setShowNewProduct(false);
+      resetForm();
+      fetchProducts();
+      fetchSizes();
+
+    } catch (err: any) {
+      console.error('Error updating product:', err);
+      toast.error(t('Error al actualizar producto: ') + err.message);
+    } finally {
+      setCreatingProduct(false);
+      setUploadingImage(false);
+    }
+  };
+
+  const resetForm = () => {
+    setNewProduct({
+      name: '',
+      description: '',
+      category_id: '',
+      base_price: 0,
+      purchase_price: 0,
+      available: true,
+      barcode: '',
+      stock: 0,
+      brand: '',
+      material: '',
+      gender: '',
+      season: ''
+    });
+    setNewProductSizes([]);
+    setNewProductImage(null);
+    setNewProductPreviewUrl(null);
+    setIsEditing(false);
+    setEditingId(null);
+  };
+
   const handleUpdateProduct = async () => {
     if (!editingProduct || updatingProduct) return;
 
@@ -548,6 +716,7 @@ export function ProductsManager() {
           description: editingProduct.description,
           category_id: editingProduct.category_id,
           base_price: editingProduct.base_price,
+          purchase_price: editingProduct.purchase_price,
           available: editingProduct.available,
           barcode: editingProduct.barcode,
         })
@@ -704,18 +873,37 @@ export function ProductsManager() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">{t('Gestión de Productos')}</h2>
         <button
-          onClick={() => setShowNewProduct(true)}
-          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          onClick={() => {
+            if (showNewProduct && isEditing) {
+              // Cancelar edición
+              resetForm();
+              setShowNewProduct(false);
+            } else {
+              setShowNewProduct(!showNewProduct);
+              if (!showNewProduct) resetForm();
+            }
+          }}
+          className={`bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${showNewProduct && isEditing ? 'bg-red-600 hover:bg-red-700' : ''
+            }`}
         >
-          <Plus className="w-5 h-5" />
-          {t('Nuevo Producto')}
+          {showNewProduct && isEditing ? (
+            <>
+              <X className="w-5 h-5" />
+              {t('Cancelar Edición')}
+            </>
+          ) : (
+            <>
+              <Plus className="w-5 h-5" />
+              {t('Nuevo Producto')}
+            </>
+          )}
         </button>
       </div>
 
       {showNewProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">{t('Nuevo Producto')}</h3>
+            <h3 className="text-xl font-bold mb-4">{isEditing ? t('Editar Producto') : t('Nuevo Producto')}</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Nombre')}</label>
@@ -820,15 +1008,27 @@ export function ProductsManager() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Precio Base')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={newProduct.base_price}
-                  onChange={e => setNewProduct({ ...newProduct, base_price: parseFloat(e.target.value) })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Costo (Compra)')}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newProduct.purchase_price || 0}
+                    onChange={e => setNewProduct({ ...newProduct, purchase_price: parseFloat(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Precio (Venta)')}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newProduct.base_price}
+                    onChange={e => setNewProduct({ ...newProduct, base_price: parseFloat(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Manejo de Tallas y Stock')}</label>
@@ -1005,17 +1205,17 @@ export function ProductsManager() {
               </div>
               <div className="flex gap-2">
                 <button
-                  onClick={handleCreateProduct}
+                  onClick={isEditing ? handleFullUpdate : handleCreateProduct}
                   disabled={creatingProduct || uploadingImage}
                   className="flex-1 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   {creatingProduct || uploadingImage ? (
                     <>
                       <LoadingSpinner size="sm" light />
-                      {uploadingImage ? t('Subiendo imagen...') : t('Creando...')}
+                      {uploadingImage ? t('Subiendo imagen...') : (isEditing ? t('Actualizando...') : t('Creando...'))}
                     </>
                   ) : (
-                    t('Crear')
+                    isEditing ? t('Actualizar') : t('Crear')
                   )}
                 </button>
                 <button
@@ -1277,7 +1477,7 @@ export function ProductsManager() {
                         <Package className="w-5 h-5" />
                       </button>
                       <button
-                        onClick={() => setEditingProduct(product)}
+                        onClick={() => startEditingProduct(product)}
                         className="text-blue-600 hover:text-blue-800"
                         title={t('Editar producto')}
                       >

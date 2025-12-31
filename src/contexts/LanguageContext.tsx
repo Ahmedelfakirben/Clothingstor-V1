@@ -40,12 +40,17 @@ const translations = {
 
     // Stock Analytics
     'stock.subtitle': 'Vista general del inventario, valoraciones y estado de productos',
+    'stock.total_cost': 'Costo Total Stock',
+    'stock.potential_profit': 'Beneficio Potencial',
     'stock.total_items': 'Total de Ítems',
     'stock.total_value': 'Valor Total (Estimado)',
     'stock.low_stock': 'Stock Bajo',
     'stock.out_of_stock': 'Agotado',
     'stock.inventory_status': 'Estado del Inventario',
     'stock.current_stock': 'Stock Actual',
+    'stock.estimated_cost': 'Costo Est.',
+    'stock.sales_value': 'Valor Venta',
+    'stock.estimated_profit': 'Beneficio Est.',
     'stock.best_sellers': 'Más Vendidos',
 
     // Acciones comunes
@@ -340,6 +345,9 @@ const translations = {
     'Nuevo Producto': 'Nuevo Producto',
     'Crear': 'Crear',
     'Nombre': 'Nombre',
+    'Costo (Compra)': 'Costo (Compra)',
+    'Precio (Venta)': 'Precio (Venta)',
+    'Manejo de Tallas y Stock': 'Manejo de Tallas y Stock',
     'Precio Base': 'Precio Base',
     'Imagen (opcional)': 'Imagen (opcional)',
     'Vista previa': 'Vista previa',
@@ -790,6 +798,9 @@ const translations = {
     'Ventas y gestión de caja': 'Ventas y gestión de caja',
     'Solo sección de ventas': 'Solo sección de ventas',
     'Sala y órdenes (sin validar pedidos)': 'Sala y órdenes (sin validar pedidos)',
+    'Editar Producto': 'Editar Producto',
+    'Cancelar Edición': 'Cancelar Edición',
+    'Actualizando...': 'Actualizando...',
 
     // App Settings
 
@@ -1467,12 +1478,17 @@ const translations = {
 
     // Stock Analytics
     'stock.subtitle': 'Aperçu de l\'inventaire, valorisation et état des produits',
+    'stock.total_cost': 'Coût Total Stock',
+    'stock.potential_profit': 'Bénéfice Potentiel',
     'stock.total_items': 'Total des Articles',
     'stock.total_value': 'Valeur Totale (Estimée)',
     'stock.low_stock': 'Stock Faible',
     'stock.out_of_stock': 'Épuisé',
     'stock.inventory_status': 'État de l\'Inventaire',
     'stock.current_stock': 'Stock Actuel',
+    'stock.estimated_cost': 'Coût Est.',
+    'stock.sales_value': 'Valeur Vente',
+    'stock.estimated_profit': 'Bénéfice Est.',
     'stock.best_sellers': 'Meilleures Ventes',
 
     // Cash History
@@ -1686,10 +1702,17 @@ const translations = {
 
     // Products Manager
     'Gestión de Productos': 'Gestion des Produits',
+    'Editar Producto': 'Modifier le Produit',
+    'Cancelar Edición': 'Annuler l\'édition',
+    'Actualizando...': 'Mise à jour en cours...',
+    'Actualizar': 'Mettre à jour',
     'Nuevo Producto': 'Nouveau Produit',
     'Crear': 'Créer',
     'Nombre': 'Nom',
-    'Precio Base': 'Prix de Base',
+    'Costo (Compra)': 'Coût (Achat)',
+    'Precio (Venta)': 'Prix (Vente)',
+    'Precio Base': 'Prix de base',
+    'Manejo de Tallas y Stock': 'Gestion des Tailles et Stock',
     'Imagen (opcional)': 'Image (optionnelle)',
     'Vista previa': 'Aperçu',
     'Producto': 'Produit',
@@ -1747,7 +1770,6 @@ const translations = {
     'Error al eliminar código': 'Erreur lors de la suppression du code',
     'Fecha:': 'Date :',
     // 'Empleado:': 'Employé :', // Duplicate (Line 1624)
-    'Manejo de Tallas y Stock': 'Gestion des Tailles et du Stock',
     'Marca': 'Marque',
     'Material': 'Matériau',
     'Género': 'Genre',
@@ -1776,7 +1798,6 @@ const translations = {
 
     // Category Manager
     'Gestión de Categorías': 'Gestion des Catégories',
-    'Actualizar': 'Actualiser',
     'Actualizar lista': 'Actualiser la liste',
     'Editando Categoría': 'Modification de la Catégorie',
     'Nueva Categoría': 'Nouvelle Catégorie',

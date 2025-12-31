@@ -12,6 +12,8 @@ interface StockItem {
     name: string;
     totalStock: number;
     value: number;
+    costValue: number;
+    estimatedProfit: number;
     imageUrl?: string;
     status: 'ok' | 'low' | 'out';
     sizes?: { name: string; stock: number }[];
@@ -35,6 +37,8 @@ export function StockAnalytics() {
     // KPIs
     const [totalItems, setTotalItems] = useState(0);
     const [totalValue, setTotalValue] = useState(0);
+    const [totalCost, setTotalCost] = useState(0);
+    const [totalPotentialProfit, setTotalPotentialProfit] = useState(0);
     const [lowStockCount, setLowStockCount] = useState(0);
     const [outStockCount, setOutStockCount] = useState(0);
 
@@ -49,7 +53,7 @@ export function StockAnalytics() {
             // 1. Fetch Products
             const { data: products, error: prodError } = await supabase
                 .from('products')
-                .select('id, name, base_price, stock, image_url')
+                .select('id, name, base_price, purchase_price, stock, image_url')
                 .eq('available', true);
 
             if (prodError) throw prodError;
@@ -78,11 +82,16 @@ export function StockAnalytics() {
                 if (currentStock === 0) status = 'out';
                 else if (currentStock < 5) status = 'low';
 
+                const costValue = currentStock * (product.purchase_price || 0);
+                const value = currentStock * product.base_price;
+
                 return {
                     id: product.id,
                     name: product.name,
                     totalStock: currentStock,
-                    value: currentStock * product.base_price,
+                    value: value,
+                    costValue: costValue,
+                    estimatedProfit: value - costValue,
                     imageUrl: product.image_url,
                     status,
                     sizes: sizesList.length > 0 ? sizesList : undefined
@@ -92,12 +101,15 @@ export function StockAnalytics() {
             // Calculate KPIs
             const tItems = processedItems.reduce((sum, item) => sum + item.totalStock, 0);
             const tValue = processedItems.reduce((sum, item) => sum + item.value, 0);
+            const tCost = processedItems.reduce((sum, item) => sum + item.costValue, 0);
             const lowCount = processedItems.filter(i => i.status === 'low').length;
             const outCount = processedItems.filter(i => i.status === 'out').length;
 
             setStockItems(processedItems);
             setTotalItems(tItems);
             setTotalValue(tValue);
+            setTotalCost(tCost);
+            setTotalPotentialProfit(tValue - tCost);
             setLowStockCount(lowCount);
             setOutStockCount(outCount);
 
@@ -161,7 +173,7 @@ export function StockAnalytics() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
                     <div className="p-3 bg-blue-100 rounded-xl">
                         <Package className="w-6 h-6 text-blue-600" />
@@ -199,6 +211,26 @@ export function StockAnalytics() {
                     <div>
                         <p className="text-sm font-medium text-gray-500">{t('stock.out_of_stock')}</p>
                         <h3 className="text-2xl font-black text-gray-900">{outStockCount}</h3>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                    <div className="p-3 bg-indigo-100 rounded-xl">
+                        <TrendingUp className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">{t('stock.total_cost')}</p>
+                        <h3 className="text-2xl font-black text-gray-900">{formatCurrency(totalCost)}</h3>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                    <div className="p-3 bg-emerald-100 rounded-xl">
+                        <TrendingUp className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">{t('stock.potential_profit')}</p>
+                        <h3 className="text-2xl font-black text-gray-900">{formatCurrency(totalPotentialProfit)}</h3>
                     </div>
                 </div>
             </div>
@@ -240,8 +272,10 @@ export function StockAnalytics() {
                             <thead className="bg-gray-50 border-b border-gray-100">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Producto')}</th>
-                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('stock.current_stock')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('Valor')}</th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Stock')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('stock.estimated_cost')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('stock.sales_value')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('stock.estimated_profit')}</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Estado')}</th>
                                 </tr>
                             </thead>
@@ -273,7 +307,14 @@ export function StockAnalytics() {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-center font-bold text-gray-700">{item.totalStock}</td>
+                                            <td className="px-4 py-3 text-right text-gray-500">{formatCurrency(item.costValue)}</td>
                                             <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(item.value)}</td>
+                                            <td className="px-4 py-3 text-right font-medium text-emerald-600">
+                                                {formatCurrency(item.estimatedProfit)}
+                                                <span className="block text-xs text-gray-400">
+                                                    {item.value > 0 ? Math.round((item.estimatedProfit / item.value) * 100) : 0}%
+                                                </span>
+                                            </td>
                                             <td className="px-4 py-3 text-center">
                                                 {item.status === 'out' && (
                                                     <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-200">
