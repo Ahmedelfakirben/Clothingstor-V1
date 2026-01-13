@@ -83,6 +83,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         { id: 'app-settings', label: t('nav.app-settings'), icon: Settings, roles: ['super_admin'] },
         { id: 'server', label: t('nav.server'), icon: Server, roles: ['super_admin'] },
         { id: 'backup', label: t('nav.backup'), icon: Database, roles: ['super_admin'] },
+        { id: 'online-store', label: t('nav.online_store'), icon: ShoppingCart, roles: ['super_admin'] },
       ]
     }
   ];
@@ -666,11 +667,11 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         <div className="w-full px-6">
           <div className="flex items-center justify-between h-20">
             <div className="flex-shrink-0 flex items-center gap-4">
-              <div className="w-16 h-16 gradient-primary rounded-3xl flex items-center justify-center shadow-elegant hover:shadow-elegant-hover transition-all duration-300 hover:scale-105 group cursor-pointer">
-                <Shirt className="w-9 h-9 text-white drop-shadow-lg group-hover:rotate-12 transition-transform duration-300" />
+              <div className="w-16 h-16 rounded-full flex items-center justify-center shadow-elegant hover:shadow-elegant-hover transition-all duration-300 hover:scale-105 group cursor-pointer overflow-hidden border-2 border-white">
+                <img src="/Shopingbylina.jpg" alt="Logo" className="w-full h-full object-cover" />
               </div>
               <div>
-                <h1 className="text-3xl font-black text-gradient-vibrant tracking-tight">LIN-Fashion</h1>
+                <h1 className="text-3xl font-black text-gradient-vibrant tracking-tight">Shoping by Lina</h1>
                 <p className="text-sm text-gray-600 font-semibold">{t('Sistema de Gestión')}</p>
               </div>
             </div>

@@ -41,7 +41,11 @@ export default defineConfig({
         clientsClaim: true,
         skipWaiting: true,
         cleanupOutdatedCaches: true
-      }
+      },
+      devOptions: {
+        enabled: true,
+        type: 'module',
+      },
     })
   ],
   optimizeDeps: {

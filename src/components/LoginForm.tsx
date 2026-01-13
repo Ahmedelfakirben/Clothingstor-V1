@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { Shirt, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { LoadingSpinner } from './LoadingSpinner';
+import { PWAInstallButton } from './PWAInstallButton';
 
 export function LoginForm() {
   const { t } = useLanguage();
@@ -70,19 +71,20 @@ export function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Animated Background Circles - Ultra Subtle */}
-      <div className="absolute top-20 left-20 w-96 h-96 bg-pink-50/10 rounded-full blur-3xl animate-float"></div>
-      <div className="absolute bottom-20 right-20 w-[500px] h-[500px] bg-purple-50/8 rounded-full blur-3xl animate-float" style={{animationDelay: '1.5s'}}></div>
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gray-50/15 rounded-full blur-3xl"></div>
+    <div
+      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: "url('/login_bg_vibrant.png')" }}
+    >
+      {/* Overlay para legibilidad */}
+      <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]"></div>
 
       <div className="glass rounded-3xl shadow-elegant w-full max-w-md p-10 relative z-10 animate-fadeIn border-2 border-white/40">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-24 h-24 gradient-primary rounded-3xl mb-6 shadow-elegant transform hover:scale-105 transition-all duration-300 hover:shadow-elegant-hover animate-float">
-            <Shirt className="w-12 h-12 text-white drop-shadow-lg" />
+          <div className="inline-flex items-center justify-center w-48 h-48 rounded-3xl mb-6 shadow-elegant transform hover:scale-105 transition-all duration-300 hover:shadow-elegant-hover animate-float overflow-hidden border-4 border-white">
+            <img src="/Shopingbylina.jpg" alt="Logo" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-5xl font-black text-gradient-vibrant mb-3 tracking-tight">
-            LIN-Fashion
+          <h1 className="text-4xl font-black text-gradient-vibrant mb-3 tracking-tight">
+            Shoping by Lina
           </h1>
           <p className="text-gray-600 font-semibold text-lg">{t('Sistema de Gestión')}</p>
           <div className="mt-3 h-1 w-24 mx-auto gradient-primary rounded-full"></div>
@@ -160,6 +162,8 @@ export function LoginForm() {
             <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
           </button>
         </form>
+
+        <PWAInstallButton />
 
       </div>
     </div>

@@ -37,6 +37,14 @@ const translations = {
     'nav.tables': 'Mesas',
     'nav.server': 'Servidor',
     'nav.backup': 'Backup',
+    'nav.online_store': 'Gestión Tienda Online',
+
+    // PWA Install
+    'install.title': '¿Quieres instalar la App?',
+    'install.instruction': 'Busca el icono ⊕ Instalar en tu barra de navegación',
+    'install.available_pc': 'Disponible para PC',
+    'install.button': 'Instalar App',
+    'install.installed': 'Aplicación Instalada',
 
     // Stock Analytics
     'stock.subtitle': 'Vista general del inventario, valoraciones y estado de productos',
@@ -785,6 +793,53 @@ const translations = {
     'Productos': 'Productos',
     'Categorías': 'Categorías',
     'Gestión de Roles': 'Gestión de Roles',
+    // Online Store Manager
+    'online.title': 'Gestión de Tienda Online',
+    'online.subtitle': 'Administra los pedidos y usuarios de tu e-commerce',
+    'online.orders': 'Pedidos',
+    'online.users': 'Usuarios',
+    'online.stats.pending': 'Pendientes',
+    'online.stats.processing': 'En Proceso',
+    'online.stats.shipped': 'Enviados',
+    'online.stats.delivered': 'Entregados',
+    'online.orders_list': 'Listado de Pedidos',
+    'online.filter.all': 'Todos los Estados',
+    'online.no_orders': 'No se encontraron pedidos',
+    'online.unknown_client': 'Cliente desconocido',
+    'online.items': 'items',
+    'online.customer_data': 'Datos del Cliente',
+    'online.email': 'Email',
+    'online.phone': 'Teléfono',
+    'online.address': 'Dirección de Entrega',
+    'online.note': 'Nota del cliente',
+    'online.products': 'Productos',
+    'online.table.product': 'Producto',
+    'online.table.qty': 'Cant',
+    'online.table.price': 'Precio',
+    'online.table.total': 'Total',
+    'online.total_order': 'Total Orden',
+    'online.users_db': 'Base de Datos de Usuarios',
+    'online.no_users': 'No hay clientes registrados',
+    'online.table.customer': 'Cliente',
+    'online.table.contact': 'Contacto',
+    'online.table.registered': 'Registro',
+    'online.table.address': 'Dirección',
+    'online.table.action': 'Acción',
+    'online.history_details': 'Historial de Pedidos y Detalles',
+    'online.personal_info': 'Información Personal',
+    'online.total_orders': 'Total Pedidos',
+    'online.total_spent': 'Gasto Total',
+    'online.order_history': 'Historial de Pedidos',
+    'online.no_history': 'Este cliente no ha realizado pedidos aún',
+    'online.status.pending': 'Pendiente',
+    'online.status.confirmed': 'Confirmado',
+    'online.status.preparing': 'En Preparación',
+    'online.status.ready': 'Listo para Envío',
+    'online.status.shipped': 'Enviado',
+    'online.status.delivered': 'Entregado',
+    'online.status.cancelled': 'Cancelado',
+
+    // Permissions
     'habilitadas': 'habilitadas',
     'Acceso completo': 'Acceso completo',
     'Acceso parcial': 'Acceso parcial',
@@ -1065,6 +1120,46 @@ const translations = {
     'time_tracking.hours': 'Horas',
     'time_tracking.no_records': 'No hay registros de trabajo para este empleado en el mes seleccionado',
     'time_tracking.select_employee': 'Seleccione un empleado para ver sus estadísticas',
+
+    // Product Gallery
+    'Imagen Principal': 'Imagen Principal',
+    'Esta es la imagen principal. Aparecerá en listas y ventas.': 'Esta es la imagen principal. Aparecerá en listas y ventas.',
+    'Galería de Imágenes': 'Galería de Imágenes',
+    'Selecciona múltiples imágenes para la galería': 'Selecciona múltiples imágenes para la galería',
+    'Quitar imagen': 'Quitar imagen',
+    'Subiendo galería...': 'Subiendo galería...',
+    'Galería subida correctamente': 'Galería subida correctamente',
+    'Error al subir algunas imágenes de la galería': 'Error al subir algunas imágenes de la galería',
+    'Error al eliminar algunas imágenes de la galería': 'Error al eliminar algunas imágenes de la galería',
+    'Subiendo nuevas imágenes...': 'Subiendo nuevas imágenes...',
+    'Galería actualizada correctamente': 'Galería actualizada correctamente',
+    'Error al subir nuevas imágenes a la galería': 'Error al subir nuevas imágenes a la galería',
+    'Reparando...': 'Reparando...',
+    'Sin Imagen': 'Sin Imagen',
+    'Función de cámara en desarrollo. Usa el campo de búsqueda.': 'Función de cámara en desarrollo. Usa el campo de búsqueda.',
+    '📸 Procesando imagen...': '📸 Procesando imagen...',
+    'Escanea o ingresa código': 'Escanea o ingresa código',
+    'Escanear con cámara': 'Escanear con cámara',
+    'Buscando...': 'Buscando...',
+    'Buscar': 'Buscar',
+    'Escanea el código o escribe y presiona "Buscar" para autocompletar': 'Escanea el código o escribe y presiona "Buscar" para autocompletar',
+    'Nombre Talla (ej: XL, 42)': 'Nombre Talla (ej: XL, 42)',
+    'Stock': 'Stock',
+    'O ingresa el stock total si no hay tallas:': 'O ingresa el stock total si no hay tallas:',
+    'Marca': 'Marca',
+    'Material': 'Material',
+    'Género': 'Género',
+    'Temporada': 'Temporada',
+    'Seleccionar': 'Seleccionar',
+    'Buscar productos...': 'Buscar productos...',
+    'Escáner de Cámara': 'Escáner de Cámara',
+    'Apunta la cámara al código de barras o QR': 'Apunta la cámara al código de barras o QR',
+    'Iniciando cámara...': 'Iniciando cámara...',
+    '(Permite el acceso si se solicita)': '(Permite el acceso si se solicita)',
+    'Cámara activa. Escaneando...': 'Cámara activa. Escaneando...',
+    'No se detectaron cámaras.': 'No se detectaron cámaras.',
+    'Error al iniciar cámara:': 'Error al iniciar cámara:',
+    'Analizando imagen...': 'Analizando imagen...',
   },
   fr: {
     // Navigation
@@ -1090,8 +1185,16 @@ const translations = {
     'nav.tables': 'Tables',
     'nav.server': 'Serveur',
     'nav.backup': 'Sauvegarde',
+    'nav.online_store': 'Gestion Boutique En Ligne',
 
-    // Actions communes
+    // PWA Install
+    'install.title': 'Voulez-vous installer l\'application ?',
+    'install.instruction': 'Recherchez l\'icône ⊕ Installer dans votre barre de navigation',
+    'install.available_pc': 'Disponible pour PC',
+    'install.button': 'Installer l\'application',
+    'install.installed': 'Application Installée',
+
+    // Stock Analyticsons communes
     'common.save': 'Enregistrer',
     'common.cancel': 'Annuler',
     'common.edit': 'Modifier',
@@ -1536,6 +1639,52 @@ const translations = {
     'pos.select_size': 'Sélectionner Taille',
     'Contacto': 'Contact',
 
+    // Online Store Manager
+    'online.title': 'Gestion Boutique En Ligne',
+    'online.subtitle': 'Gérez les commandes et les utilisateurs de votre e-commerce',
+    'online.orders': 'Commandes',
+    'online.users': 'Utilisateurs',
+    'online.stats.pending': 'En attente',
+    'online.stats.processing': 'En cours',
+    'online.stats.shipped': 'Expédiés',
+    'online.stats.delivered': 'Livrés',
+    'online.orders_list': 'Liste des Commandes',
+    'online.filter.all': 'Tous les états',
+    'online.no_orders': 'Aucune commande trouvée',
+    'online.unknown_client': 'Client inconnu',
+    'online.items': 'articles',
+    'online.customer_data': 'Données Client',
+    'online.email': 'Email',
+    'online.phone': 'Téléphone',
+    'online.address': 'Adresse de livraison',
+    'online.note': 'Note du client',
+    'online.products': 'Produits',
+    'online.table.product': 'Produit',
+    'online.table.qty': 'Qté',
+    'online.table.price': 'Prix',
+    'online.table.total': 'Total',
+    'online.total_order': 'Total Commande',
+    'online.users_db': 'Base de données utilisateurs',
+    'online.no_users': 'Aucun client enregistré',
+    'online.table.customer': 'Client',
+    'online.table.contact': 'Contact',
+    'online.table.registered': 'Inscription',
+    'online.table.address': 'Adresse',
+    'online.table.action': 'Action',
+    'online.history_details': 'Historique des Commandes et Détails',
+    'online.personal_info': 'Informations Personnelles',
+    'online.total_orders': 'Total Commandes',
+    'online.total_spent': 'Dépenses Totales',
+    'online.order_history': 'Historique des Commandes',
+    'online.no_history': 'Ce client n\'a pas encore passé de commande',
+    'online.status.pending': 'En attente',
+    'online.status.confirmed': 'Confirmé',
+    'online.status.preparing': 'En préparation',
+    'online.status.ready': 'Prêt pour envoi',
+    'online.status.shipped': 'Expédié',
+    'online.status.delivered': 'Livré',
+    'online.status.cancelled': 'Annulé',
+
     // Employee Time Tracking
     'Error al cargar empleados': 'Erreur lors du chargement des employés',
     'Error al cargar estadísticas': 'Erreur lors du chargement des statistiques',
@@ -1779,6 +1928,7 @@ const translations = {
     'Stock': 'Stock',
     'Código de Barras': 'Code-barres',
     'Seleccionar': 'Sélectionner',
+    'Buscar productos...': 'Rechercher des produits...',
     // 'Cancelar': 'Annuler', // Removed duplicate (Line 1226)
     'Escanear o ingresar código...': 'Scanner ou saisir le code...',
     'Nombre Talla (ej: XL, 42)': 'Nom Taille (ex: XL, 42)',
@@ -2176,11 +2326,46 @@ const translations = {
     'time_tracking.hours': 'Heures',
     'time_tracking.no_records': 'Aucun enregistrement de travail pour cet employé dans le mois sélectionné',
     'time_tracking.select_employee': 'Sélectionnez un employé pour voir ses statistiques',
+
+    // Galerie de Produits
+    'Imagen Principal': 'Image Principale',
+    'Esta es la imagen principal. Aparecerá en listas y ventas.': 'Ceci est l\'image principale. Elle apparaîtra dans les listes et les ventes.',
+    'Galería de Imágenes': 'Galerie d\'Images',
+    'Selecciona múltiples imágenes para la galería': 'Sélectionnez plusieurs images pour la galerie',
+    'Quitar imagen': 'Supprimer l\'image',
+    'Subiendo galería...': 'Téléchargement de la galerie...',
+    'Galería subida correctamente': 'Galerie téléchargée avec succès',
+    'Error al subir algunas imágenes de la galería': 'Erreur lors du téléchargement de certaines images de la galerie',
+    'Error al eliminar algunas imágenes de la galería': 'Erreur lors de la suppression de certaines images de la galerie',
+    'Subiendo nuevas imágenes...': 'Téléchargement de nouvelles images...',
+    'Galería actualizada correctamente': 'Galerie mise à jour avec succès',
+    'Error al subir nuevas imágenes a la galería': 'Erreur lors du téléchargement de nouvelles images dans la galerie',
+    'Reparando...': 'Réparation...',
+    'Sin Imagen': 'Sans Image',
+    'Función de cámara en desarrollo. Usa el campo de búsqueda.': 'Fonction caméra en développement. Utilisez le champ de recherche.',
+    '📸 Procesando imagen...': '📸 Traitement de l\'image...',
+    'Código de barras': 'Code-barres',
+    'Categoría': 'Catégorie',
+    'Escanea o ingresa código': 'Scannez ou saisissez le code',
+    'Escanear con cámara': 'Scanner avec la caméra',
+    'Buscando...': 'Recherche...',
+    'Buscar': 'Rechercher',
+    'Escanea el código o escribe y presiona "Buscar" para autocompletar': 'Scannez le code ou écrivez et appuyez sur "Rechercher" pour autocompléter',
+    'Descripcion': 'Description',
+
+    'Escáner de Cámara': 'Scanner de caméra',
+    'Apunta la cámara al código de barras o QR': 'Pointez la caméra vers le code-barres ou le QR code',
+    'Iniciando cámara...': 'Démarrage de la caméra...',
+    '(Permite el acceso si se solicita)': '(Autorisez l\'accès si demandé)',
+    'Cámara activa. Escaneando...': 'Caméra active. Scan en cours...',
+    'No se detectaron cámaras.': 'Aucune caméra détectée.',
+    'Error al iniciar cámara:': 'Erreur lors du démarrage de la caméra :',
+    'Analizando imagen...': 'Analyse de l\'image...',
   }
 };
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [currentLanguage, setCurrentLanguage] = useState<Language>('es');
+  const [currentLanguage, setCurrentLanguage] = useState<Language>('fr');
   const [isLoading, setIsLoading] = useState(true);
 
   // Cargar idioma desde la base de datos al iniciar
@@ -2196,20 +2381,20 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           console.error('❌ [LANGUAGE] Error loading language from DB:', error);
           // Si hay error, usar idioma por defecto
-          setCurrentLanguage('es');
+          setCurrentLanguage('fr');
 
         } else if (data && data.language) {
           console.log(`✅ [LANGUAGE] Loaded language from DB: ${data.language}`);
           setCurrentLanguage(data.language as Language);
           document.documentElement.lang = data.language;
         } else {
-          // Si no hay idioma configurado, usar español por defecto
-          console.log('⚠️ [LANGUAGE] No language configured, using default: es');
-          setCurrentLanguage('es');
+          // Si no hay idioma configurado, usar francés por defecto
+          console.log('⚠️ [LANGUAGE] No language configured, using default: fr');
+          setCurrentLanguage('fr');
         }
       } catch (error) {
         console.error('💥 [LANGUAGE] Error loading language:', error);
-        setCurrentLanguage('es');
+        setCurrentLanguage('fr');
       } finally {
         setIsLoading(false);
       }

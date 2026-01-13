@@ -3,7 +3,9 @@
 @tailwind utilities;
 
 @layer base {
-  html, body {
+
+  html,
+  body {
     @apply h-full overflow-hidden;
   }
 
@@ -14,6 +16,7 @@
 
 /* Theme System - Dynamic color overrides */
 @layer components {
+
   /* Tema Amber (Default) */
   [data-theme="amber"] {
     /* Amber/Orange colors remain as default */
@@ -22,102 +25,178 @@
   /* Tema Oscuro (Dark) */
   [data-theme="dark"] .bg-amber-500,
   [data-theme="dark"] .from-amber-500,
-  [data-theme="dark"] .to-amber-600 { background-color: #4b5563 !important; }
+  [data-theme="dark"] .to-amber-600 {
+    background-color: #4b5563 !important;
+  }
 
   [data-theme="dark"] .bg-amber-600,
-  [data-theme="dark"] .hover\:bg-amber-600:hover { background-color: #374151 !important; }
+  [data-theme="dark"] .hover\:bg-amber-600:hover {
+    background-color: #374151 !important;
+  }
 
-  [data-theme="dark"] .bg-amber-100 { background-color: #f3f4f6 !important; }
+  [data-theme="dark"] .bg-amber-100 {
+    background-color: #f3f4f6 !important;
+  }
 
   [data-theme="dark"] .text-amber-600,
-  [data-theme="dark"] .text-amber-700 { color: #6b7280 !important; }
+  [data-theme="dark"] .text-amber-700 {
+    color: #6b7280 !important;
+  }
 
   [data-theme="dark"] .border-amber-200,
-  [data-theme="dark"] .border-amber-500 { border-color: #6b7280 !important; }
+  [data-theme="dark"] .border-amber-500 {
+    border-color: #6b7280 !important;
+  }
 
   [data-theme="dark"] .bg-orange-500,
-  [data-theme="dark"] .from-orange-500 { background-color: #6b7280 !important; }
+  [data-theme="dark"] .from-orange-500 {
+    background-color: #6b7280 !important;
+  }
 
   [data-theme="dark"] .bg-orange-600,
-  [data-theme="dark"] .hover\:bg-orange-600:hover { background-color: #4b5563 !important; }
+  [data-theme="dark"] .hover\:bg-orange-600:hover {
+    background-color: #4b5563 !important;
+  }
 
-  [data-theme="dark"] .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #4b5563, #374151) !important; }
-  [data-theme="dark"] .bg-gradient-to-r { background-image: linear-gradient(to right, #4b5563, #374151) !important; }
+  [data-theme="dark"] .bg-gradient-to-br {
+    background-image: linear-gradient(to bottom right, #4b5563, #374151) !important;
+  }
+
+  [data-theme="dark"] .bg-gradient-to-r {
+    background-image: linear-gradient(to right, #4b5563, #374151) !important;
+  }
 
   /* Tema Azul (Blue) */
   [data-theme="blue"] .bg-amber-500,
   [data-theme="blue"] .from-amber-500,
-  [data-theme="blue"] .to-amber-600 { background-color: #3b82f6 !important; }
+  [data-theme="blue"] .to-amber-600 {
+    background-color: #3b82f6 !important;
+  }
 
   [data-theme="blue"] .bg-amber-600,
-  [data-theme="blue"] .hover\:bg-amber-600:hover { background-color: #2563eb !important; }
+  [data-theme="blue"] .hover\:bg-amber-600:hover {
+    background-color: #2563eb !important;
+  }
 
-  [data-theme="blue"] .bg-amber-100 { background-color: #dbeafe !important; }
+  [data-theme="blue"] .bg-amber-100 {
+    background-color: #dbeafe !important;
+  }
 
   [data-theme="blue"] .text-amber-600,
-  [data-theme="blue"] .text-amber-700 { color: #2563eb !important; }
+  [data-theme="blue"] .text-amber-700 {
+    color: #2563eb !important;
+  }
 
   [data-theme="blue"] .border-amber-200,
-  [data-theme="blue"] .border-amber-500 { border-color: #3b82f6 !important; }
+  [data-theme="blue"] .border-amber-500 {
+    border-color: #3b82f6 !important;
+  }
 
   [data-theme="blue"] .bg-orange-500,
-  [data-theme="blue"] .from-orange-500 { background-color: #0ea5e9 !important; }
+  [data-theme="blue"] .from-orange-500 {
+    background-color: #0ea5e9 !important;
+  }
 
   [data-theme="blue"] .bg-orange-600,
-  [data-theme="blue"] .hover\:bg-orange-600:hover { background-color: #0284c7 !important; }
+  [data-theme="blue"] .hover\:bg-orange-600:hover {
+    background-color: #0284c7 !important;
+  }
 
-  [data-theme="blue"] .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #3b82f6, #2563eb) !important; }
-  [data-theme="blue"] .bg-gradient-to-r { background-image: linear-gradient(to right, #3b82f6, #0ea5e9) !important; }
+  [data-theme="blue"] .bg-gradient-to-br {
+    background-image: linear-gradient(to bottom right, #3b82f6, #2563eb) !important;
+  }
+
+  [data-theme="blue"] .bg-gradient-to-r {
+    background-image: linear-gradient(to right, #3b82f6, #0ea5e9) !important;
+  }
 
   /* Tema Verde (Green) */
   [data-theme="green"] .bg-amber-500,
   [data-theme="green"] .from-amber-500,
-  [data-theme="green"] .to-amber-600 { background-color: #10b981 !important; }
+  [data-theme="green"] .to-amber-600 {
+    background-color: #10b981 !important;
+  }
 
   [data-theme="green"] .bg-amber-600,
-  [data-theme="green"] .hover\:bg-amber-600:hover { background-color: #059669 !important; }
+  [data-theme="green"] .hover\:bg-amber-600:hover {
+    background-color: #059669 !important;
+  }
 
-  [data-theme="green"] .bg-amber-100 { background-color: #d1fae5 !important; }
+  [data-theme="green"] .bg-amber-100 {
+    background-color: #d1fae5 !important;
+  }
 
   [data-theme="green"] .text-amber-600,
-  [data-theme="green"] .text-amber-700 { color: #059669 !important; }
+  [data-theme="green"] .text-amber-700 {
+    color: #059669 !important;
+  }
 
   [data-theme="green"] .border-amber-200,
-  [data-theme="green"] .border-amber-500 { border-color: #10b981 !important; }
+  [data-theme="green"] .border-amber-500 {
+    border-color: #10b981 !important;
+  }
 
   [data-theme="green"] .bg-orange-500,
-  [data-theme="green"] .from-orange-500 { background-color: #14b8a6 !important; }
+  [data-theme="green"] .from-orange-500 {
+    background-color: #14b8a6 !important;
+  }
 
   [data-theme="green"] .bg-orange-600,
-  [data-theme="green"] .hover\:bg-orange-600:hover { background-color: #0d9488 !important; }
+  [data-theme="green"] .hover\:bg-orange-600:hover {
+    background-color: #0d9488 !important;
+  }
 
-  [data-theme="green"] .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #10b981, #059669) !important; }
-  [data-theme="green"] .bg-gradient-to-r { background-image: linear-gradient(to right, #10b981, #14b8a6) !important; }
+  [data-theme="green"] .bg-gradient-to-br {
+    background-image: linear-gradient(to bottom right, #10b981, #059669) !important;
+  }
+
+  [data-theme="green"] .bg-gradient-to-r {
+    background-image: linear-gradient(to right, #10b981, #14b8a6) !important;
+  }
 
   /* Tema Fashion (Pink/Purple Pastel) - Para tienda de ropa */
   [data-theme="fashion"] .bg-amber-500,
   [data-theme="fashion"] .from-amber-500,
-  [data-theme="fashion"] .to-amber-600 { background-color: #f9a8d4 !important; }
+  [data-theme="fashion"] .to-amber-600 {
+    background-color: #f9a8d4 !important;
+  }
 
   [data-theme="fashion"] .bg-amber-600,
-  [data-theme="fashion"] .hover\:bg-amber-600:hover { background-color: #f472b6 !important; }
+  [data-theme="fashion"] .hover\:bg-amber-600:hover {
+    background-color: #f472b6 !important;
+  }
 
-  [data-theme="fashion"] .bg-amber-100 { background-color: #fce7f3 !important; }
+  [data-theme="fashion"] .bg-amber-100 {
+    background-color: #fce7f3 !important;
+  }
 
   [data-theme="fashion"] .text-amber-600,
-  [data-theme="fashion"] .text-amber-700 { color: #f472b6 !important; }
+  [data-theme="fashion"] .text-amber-700 {
+    color: #f472b6 !important;
+  }
 
   [data-theme="fashion"] .border-amber-200,
-  [data-theme="fashion"] .border-amber-500 { border-color: #f9a8d4 !important; }
+  [data-theme="fashion"] .border-amber-500 {
+    border-color: #f9a8d4 !important;
+  }
 
   [data-theme="fashion"] .bg-orange-500,
-  [data-theme="fashion"] .from-orange-500 { background-color: #d8b4fe !important; }
+  [data-theme="fashion"] .from-orange-500 {
+    background-color: #d8b4fe !important;
+  }
 
   [data-theme="fashion"] .bg-orange-600,
-  [data-theme="fashion"] .hover\:bg-orange-600:hover { background-color: #c084fc !important; }
+  [data-theme="fashion"] .hover\:bg-orange-600:hover {
+    background-color: #c084fc !important;
+  }
 
-  [data-theme="fashion"] .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #f9a8d4, #f472b6) !important; }
-  [data-theme="fashion"] .bg-gradient-to-r { background-image: linear-gradient(to right, #f9a8d4, #d8b4fe) !important; }
+  [data-theme="fashion"] .bg-gradient-to-br {
+    background-image: linear-gradient(to bottom right, #f9a8d4, #f472b6) !important;
+  }
+
+  [data-theme="fashion"] .bg-gradient-to-r {
+    background-image: linear-gradient(to right, #f9a8d4, #d8b4fe) !important;
+  }
 }
 
 @layer utilities {
@@ -125,6 +204,7 @@
     from {
       transform: translateX(-100%);
     }
+
     to {
       transform: translateX(0);
     }
@@ -134,25 +214,55 @@
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
   }
 
   @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-    20%, 40%, 60%, 80% { transform: translateX(4px); }
+
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+      transform: translateX(-4px);
+    }
+
+    20%,
+    40%,
+    60%,
+    80% {
+      transform: translateX(4px);
+    }
   }
 
   @keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
+
+    0%,
+    100% {
+      transform: translateY(0px);
+    }
+
+    50% {
+      transform: translateY(-10px);
+    }
   }
 
   @keyframes shimmer {
-    0% { background-position: -1000px 0; }
-    100% { background-position: 1000px 0; }
+    0% {
+      background-position: -1000px 0;
+    }
+
+    100% {
+      background-position: 1000px 0;
+    }
   }
 
   .animate-slideInLeft {

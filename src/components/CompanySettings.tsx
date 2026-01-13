@@ -132,73 +132,7 @@ export function CompanySettings() {
     }
   };
 
-  const restoreAllPermissions = async () => {
-    try {
-      toast.loading(t('Restaurando permisos...'), { id: 'restore' });
 
-      // All permissions for super_admin
-      const allPermissions = [
-        { role: 'super_admin', section: 'Ventas', page_id: 'pos', can_access: true },
-        { role: 'super_admin', section: 'Ventas', page_id: 'orders', can_access: true },
-        { role: 'super_admin', section: 'Inventario', page_id: 'products', can_access: true },
-        { role: 'super_admin', section: 'Inventario', page_id: 'categories', can_access: true },
-        { role: 'super_admin', section: 'Inventario', page_id: 'users', can_access: true },
-        { role: 'super_admin', section: 'Finanzas', page_id: 'cash', can_access: true },
-        { role: 'super_admin', section: 'Finanzas', page_id: 'time-tracking', can_access: true },
-        { role: 'super_admin', section: 'Finanzas', page_id: 'suppliers', can_access: true },
-        { role: 'super_admin', section: 'Finanzas', page_id: 'expenses', can_access: true },
-        { role: 'super_admin', section: 'Finanzas', page_id: 'analytics', can_access: true },
-        { role: 'super_admin', section: 'Sistema', page_id: 'role-management', can_access: true },
-        { role: 'super_admin', section: 'Sistema', page_id: 'company-settings', can_access: true }
-      ];
-
-      for (const perm of allPermissions) {
-        const { error } = await supabase
-          .from('role_permissions')
-          .upsert(perm, {
-            onConflict: 'role,section,page_id'
-          });
-
-        if (error) {
-          console.error('Error restoring permissions:', error);
-        }
-      }
-
-      toast.success(t('Todos los permisos restaurados para super_admin'), { id: 'restore' });
-    } catch (error) {
-      console.error('Error restoring permissions:', error);
-      toast.error(t('Error al restaurar permisos'), { id: 'restore' });
-    }
-  };
-
-  const forceRefreshTickets = () => {
-    console.log('🔄 COMPANY SETTINGS: Force refreshing all ticket printers...');
-    window.dispatchEvent(new CustomEvent('companySettingsUpdated', {
-      detail: settings
-    }));
-    toast.success(t('Impresoras de tickets actualizadas'));
-  };
-
-  const checkDatabaseDirectly = async () => {
-    try {
-      console.log('🔍 COMPANY SETTINGS: Checking database directly...');
-      const { data, error } = await supabase
-        .from('company_settings')
-        .select('*');
-
-      if (error) {
-        console.error('❌ COMPANY SETTINGS: Database query error:', error);
-        toast.error(t('Error consultando la base de datos'));
-        return;
-      }
-
-      console.log('📋 COMPANY SETTINGS: Direct database query result:', data);
-      toast.success(t('Revisa la consola para el contenido de la base de datos'));
-    } catch (error) {
-      console.error('💥 COMPANY SETTINGS: Error checking database:', error);
-      toast.error(t('Error verificando la base de datos'));
-    }
-  };
 
   const handleSave = async () => {
     if (!settings.company_name.trim()) {
@@ -365,64 +299,9 @@ export function CompanySettings() {
         </div>
       </div>
 
-      {/* Emergency permissions restore for super_admin */}
-      <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-        <div className="flex gap-3">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-red-800">
-            <p className="font-semibold mb-2">{t('¿Problemas con permisos?')}</p>
-            <p className="mb-3">{t('Si no puedes acceder a esta página o a la gestión de roles, usa el botón de emergencia para restaurar todos los permisos del super_admin.')}</p>
-            <button
-              onClick={restoreAllPermissions}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm font-medium"
-            >
-              {t('Restaurar Todos los Permisos (Super Admin)')}
-            </button>
-          </div>
-        </div>
-      </div>
 
-      {/* Debug information and testing tools */}
-      <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
-        <div className="flex gap-3">
-          <AlertCircle className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-gray-800 w-full">
-            <p className="font-semibold mb-2">🔧 {t('Información de Depuración:')}</p>
-            <div className="space-y-1 text-xs mb-3">
-              <p><strong>{t('Nombre Actual de Empresa:')}</strong> {settings.company_name || t('No establecido')}</p>
-              <p><strong>{t('Dirección Actual:')}</strong> {settings.address || t('No establecido')}</p>
-              <p><strong>{t('Teléfono Actual:')}</strong> {settings.phone || t('No establecido')}</p>
-              <p><strong>{t('ID de Configuración:')}</strong> {settings.id || t('Sin ID (nuevo registro)')}</p>
-              <p><strong>{t('Tiene Cambios:')}</strong> {hasChanges ? t('Sí') : t('No')}</p>
-            </div>
 
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={checkDatabaseDirectly}
-                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs"
-              >
-                🔍 {t('Verificar Base de Datos')}
-              </button>
-              <button
-                onClick={forceRefreshTickets}
-                className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-xs"
-              >
-                🔄 {t('Forzar Actualización de Tickets')}
-              </button>
-              <button
-                onClick={restoreAllPermissions}
-                className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs"
-              >
-                🔐 {t('Restaurar Permisos')}
-              </button>
-            </div>
 
-            <p className="mt-2 text-xs text-gray-600">
-              💡 {t('Usa estos botones para depurar el problema. Revisa la consola del navegador para logs detallados.')}
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* Formulario */}
       <div className="bg-white rounded-xl shadow-sm p-6 max-w-2xl">

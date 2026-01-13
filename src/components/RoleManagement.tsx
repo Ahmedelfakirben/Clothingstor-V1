@@ -55,6 +55,7 @@ const SECTIONS = {
     { id: 'app-settings', label: 'nav.app-settings' },
     { id: 'server', label: 'nav.server' },
     { id: 'backup', label: 'nav.backup' },
+    { id: 'online-store', label: 'nav.online_store' },
   ],
 };
 

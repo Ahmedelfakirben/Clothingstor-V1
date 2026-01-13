@@ -227,6 +227,8 @@ export function POS() {
         .from('products')
         .select('*')
         .eq('available', true)
+        .eq('available', true)
+        // .gt('stock', 0) // ELIMINADO para ver productos con stock en tallas
         .order('name');
 
       if (selectedCategory !== 'all') {
@@ -267,7 +269,10 @@ export function POS() {
     }
   };
 
+  // Cargar productos y categorías iniciales
   useEffect(() => {
+    fetchCategories();
+    fetchSizes(); // Asegurar carga de tallas para calcular stock correcto
     fetchInitialProducts();
   }, [selectedCategory]);
 
@@ -278,8 +283,7 @@ export function POS() {
 
   const productSizes = (productId: string) => sizes.filter(s => s.product_id === productId);
 
-
-
+  // ... (handleCheckout logic remains) - RESTORING
   const handleCheckout = () => {
     if (cart.length === 0) {
       toast.error(t('El carrito está vacío'));
@@ -499,6 +503,107 @@ export function POS() {
       }
 
       console.log('✅ Items insertados correctamente');
+
+      // ---------------------------------------------------------
+      // ACTUALIZAR STOCK DE PRODUCTOS
+      // ---------------------------------------------------------
+      console.log('🔄 Actualizando stock...');
+      const stockUpdatePromises = cart.map(async (item) => {
+        try {
+          if (item.size) {
+            // --- LÓGICA CON TALLAS ---
+            // 1. Intentar RPC
+            const { error: sizeError } = await supabase.rpc('decrement_product_size_stock', {
+              p_size_id: item.size.id,
+              p_quantity: item.quantity
+            });
+
+            if (sizeError) {
+              console.warn(`⚠️ RPC talla falló (${sizeError.code}), intentando manual...`);
+
+              // 2. Fallback Manual Seguro: Leer stock actual -> Restar -> Actualizar
+              const { data: currentData, error: fetchError } = await supabase
+                .from('product_sizes')
+                .select('stock')
+                .eq('id', item.size.id)
+                .single();
+
+              if (fetchError || !currentData) {
+                console.error('❌ Error leyendo stock actual (Talla):', fetchError);
+                return;
+              }
+
+              const newStock = (currentData.stock || 0) - item.quantity;
+
+              const { data: updateData, error: updateError } = await supabase
+                .from('product_sizes')
+                .update({ stock: newStock })
+                .eq('id', item.size.id)
+                .select();
+
+              if (updateError) {
+                console.error('❌ Error actualizando stock (Talla):', updateError);
+              } else if (!updateData || updateData.length === 0) {
+                console.error('❌ Actualización silenciosa (Talla): No se actualizó ninguna fila. ¿Permisos RLS?');
+                toast.error(`Error de permisos actualizando stock: ${item.product.name}`);
+              } else {
+                console.log(`✅ Stock Talla actualizado: ${currentData.stock} -> ${newStock}`);
+              }
+            }
+          } else {
+            // --- LÓGICA SIN TALLAS (PRODUCTO SIMPLE) ---
+            // 1. Intentar RPC
+            const { error: productError } = await supabase.rpc('decrement_product_stock', {
+              p_product_id: item.product.id,
+              p_quantity: item.quantity
+            });
+
+            if (productError) {
+              console.warn(`⚠️ RPC producto falló (${productError.code}), intentando manual...`);
+
+              // 2. Fallback Manual Seguro
+              const { data: currentData, error: fetchError } = await supabase
+                .from('products')
+                .select('stock')
+                .eq('id', item.product.id)
+                .single();
+
+              if (fetchError || !currentData) {
+                console.error('❌ Error leyendo stock actual (Producto):', fetchError);
+                return;
+              }
+
+              const newStock = (currentData.stock || 0) - item.quantity;
+
+              const { data: updateData, error: updateError } = await supabase
+                .from('products')
+                .update({ stock: newStock })
+                .eq('id', item.product.id)
+                .select();
+
+              if (updateError) {
+                console.error('❌ Error actualizando stock (Producto):', updateError);
+              } else if (!updateData || updateData.length === 0) {
+                console.error('❌ Actualización silenciosa (Producto): No se actualizó ninguna fila. ¿Permisos RLS?');
+                toast.error(`Error de permisos actualizando stock: ${item.product.name}`);
+              } else {
+                console.log(`✅ Stock Producto actualizado: ${currentData.stock} -> ${newStock}`);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('💥 Excepción en actualización de stock:', err);
+        }
+      });
+
+      await Promise.all(stockUpdatePromises);
+      console.log('🏁 Proceso de actualización de stock finalizado');
+
+      // Notificar localmente (para feedback inmediato)
+      const formattedAmount = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(order.total);
+      window.dispatchEvent(new CustomEvent('dispatch-sale-notification', {
+        detail: { amount: formattedAmount }
+      }));
 
       // Actualizar datos del ticket con el número de orden real
       const finalTicketData = {
@@ -890,6 +995,8 @@ export function POS() {
                 const displayStock = productSizesList.length > 0
                   ? productSizesList.reduce((acc, s) => acc + s.stock, 0)
                   : (product.stock || 0);
+
+                if (displayStock <= 0) return null;
 
                 return (
                   <div key={product.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-200 overflow-hidden flex flex-col h-full group">

@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Save, X, ScanBarcode, Package } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, ScanBarcode, Package, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { LoadingSpinner } from './LoadingSpinner';
 import IndividualUnitsManager from './IndividualUnitsManager';
+import { BarcodeScanner } from './BarcodeScanner';
+
 
 interface Category {
   id: string;
@@ -38,6 +40,14 @@ interface ProductSize {
   stock: number;
 }
 
+
+interface ProductImage {
+  id: string;
+  product_id: string;
+  image_url: string;
+  display_order: number;
+}
+
 export function ProductsManager() {
   const { t } = useLanguage();
   const { formatCurrency } = useCurrency();
@@ -59,12 +69,12 @@ export function ProductsManager() {
     stock?: number;
     barcode?: string;
     image_url?: string;
+    color?: string;
   }>({
     name: '',
     description: '',
     category_id: '',
     base_price: 0,
-    purchase_price: 0,
     available: true,
   });
   const [newProductSizes, setNewProductSizes] = useState<{ name: string; stock: number; price: number }[]>([]);
@@ -82,25 +92,71 @@ export function ProductsManager() {
   const [updatingProduct, setUpdatingProduct] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [searchingBarcode, setSearchingBarcode] = useState(false);
+  const [showNotFoundModal, setShowNotFoundModal] = useState(false);
+  const analyzeImageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [showScanner, setShowScanner] = useState(false);
   const [showUnitsModal, setShowUnitsModal] = useState(false);
   const [selectedProductForUnits, setSelectedProductForUnits] = useState<Product | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Estados para galería de imágenes
+  const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
+  const [existingGalleryImages, setExistingGalleryImages] = useState<ProductImage[]>([]);
+  const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
+
 
   useEffect(() => {
     fetchCategories();
     fetchProducts();
     fetchSizes();
+
+    // Suscripción Realtime para Productos y Tallas
+    const productsChannel = supabase
+      .channel('products-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        (payload) => {
+          console.log('🔄 Cambio en Productos recibido:', payload);
+          fetchProducts(); // Refetch completo para simplicidad y consistencia
+        }
+      )
+      .subscribe();
+
+    const sizesChannel = supabase
+      .channel('sizes-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'product_sizes' },
+        (payload) => {
+          console.log('🔄 Cambio en Tallas recibido:', payload);
+          fetchSizes();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(productsChannel);
+      supabase.removeChannel(sizesChannel);
+    };
   }, []);
 
   // Vista previa para nueva imagen de producto
   useEffect(() => {
     if (!newProductImage) {
-      setNewProductPreviewUrl(null);
+      if (newProduct.image_url) {
+        setNewProductPreviewUrl(newProduct.image_url);
+      } else {
+        setNewProductPreviewUrl(null);
+      }
       return;
     }
     const url = URL.createObjectURL(newProductImage);
     setNewProductPreviewUrl(url);
     return () => URL.revokeObjectURL(url);
-  }, [newProductImage]);
+  }, [newProductImage, newProduct.image_url]);
 
   // Vista previa para imagen en edición
   useEffect(() => {
@@ -112,6 +168,51 @@ export function ProductsManager() {
     setEditingImagePreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [editingImage]);
+
+  // Vista previa para galería de imágenes
+  useEffect(() => {
+    if (galleryFiles.length === 0) {
+      setGalleryPreviews([]);
+      return;
+    }
+
+    const newPreviews = galleryFiles.map(file => URL.createObjectURL(file));
+    setGalleryPreviews(newPreviews);
+
+    return () => {
+      newPreviews.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [galleryFiles]);
+
+  const handleGalleryFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setGalleryFiles(prev => [...prev, ...newFiles]);
+    }
+  };
+
+  const handleRemoveNewGalleryImage = (index: number) => {
+    setGalleryFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveExistingGalleryImage = (id: string) => {
+    setExistingGalleryImages(prev => prev.filter(img => img.id !== id));
+    setImagesToDelete(prev => [...prev, id]);
+  };
+
+  const fetchGalleryImages = async (productId: string) => {
+    const { data, error } = await supabase
+      .from('product_images')
+      .select('*')
+      .eq('product_id', productId)
+      .order('display_order', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching gallery images:', error);
+    } else {
+      setExistingGalleryImages(data || []);
+    }
+  };
 
   const fetchCategories = async () => {
     const { data } = await supabase.from('categories').select('*').order('name');
@@ -271,10 +372,9 @@ export function ProductsManager() {
           );
         }
       } else {
-        toast.error(
-          t('❌ No se encontró información para este código de barras. Completa manualmente.'),
-          { id: 'barcode-search' }
-        );
+        // Fallback: Mostrar Modal de "No encontrado"
+        setSearchingBarcode(false); // Stop spinner
+        setShowNotFoundModal(true);
       }
     } catch (error: any) {
       console.error('Error buscando código de barras:', error);
@@ -284,6 +384,136 @@ export function ProductsManager() {
       );
     } finally {
       setSearchingBarcode(false);
+    }
+  };
+
+  // Referencias para inputs de imagen
+  // const analyzeImageInputRef = useRef... (moved up)
+
+  const handleImageAnalyze = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input
+    e.target.value = '';
+
+    const toastId = toast.loading(t('Analizando imagen...'));
+
+    // Helper para redimensionar imagen
+    const resizeImage = (file: File): Promise<string> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7)); // JPG calidad 0.7
+          };
+          img.onerror = reject;
+          img.src = event.target?.result as string;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    };
+
+    try {
+      // 1. Redimensionar y convertir a Base64
+      const base64String = await resizeImage(file);
+
+      // 2. Enviar a Edge Function
+      const { data, error } = await supabase.functions.invoke('barcode-lookup', {
+        body: JSON.stringify({
+          action: 'analyze_image',
+          image: base64String
+        }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (error || data?.error) {
+        console.error('AI Analysis Error:', error, data?.error);
+        toast.error(t('No se pudo identificar el producto por imagen'), { id: toastId });
+        return;
+      }
+
+      // 3. Rellenar formulario
+      if (data) {
+        console.log('🤖 Datos Recibidos IA:', data); // Log para depurar
+
+        const googleImage = data.image;
+
+        if (googleImage) {
+          // Estrategia 1: Si hay imagen de Google, usamos ESA como principal.
+          console.log('📸 Usando imagen de Google:', googleImage);
+          setNewProductImage(null);
+          setGalleryFiles([]);
+          setGalleryPreviews([]);
+
+          setNewProductPreviewUrl(googleImage);
+          setNewProduct({
+            ...newProduct,
+            name: data.name || newProduct.name,
+            description: data.description || newProduct.description,
+            brand: data.brand || newProduct.brand,
+            category_id: newProduct.category_id,
+            image_url: googleImage,
+            color: data.color || newProduct.color,
+            material: data.material || newProduct.material,
+            gender: data.gender || newProduct.gender,
+            season: data.season || newProduct.season
+          });
+
+          toast.success(t('✅ ¡Producto identificado + Foto Google!'), { id: toastId });
+
+        } else {
+          // Estrategia 2: Fallback a foto subida
+          console.log('📸 Usando foto subida (Fallback)');
+          setGalleryFiles([file]);
+          setGalleryPreviews([base64String]);
+          setNewProductImage(file);
+          setNewProductPreviewUrl(base64String);
+
+          setNewProduct({
+            ...newProduct,
+            name: data.name || newProduct.name,
+            description: data.description || newProduct.description,
+            brand: data.brand || newProduct.brand,
+            category_id: newProduct.category_id,
+            color: data.color || newProduct.color,
+            material: data.material || newProduct.material,
+            gender: data.gender || newProduct.gender,
+            season: data.season || newProduct.season
+          });
+
+          toast.success(t('✅ ¡Producto identificado!'), { id: toastId });
+        }
+      }
+
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      toast.error(t('Error al procesar la imagen'), { id: toastId });
     }
   };
 
@@ -302,8 +532,13 @@ export function ProductsManager() {
       console.log('📡 Respuesta Edge Function:', data, error);
 
       if (error) {
-        // El error ya viene manejado por supabase client si el status no es 2xx
-        console.warn('⚠️ No se encontró producto:', error);
+        // Ignorar 404 (Producto no encontrado es normal en búsqueda)
+        // @ts-ignore
+        if (error.code === '404' || error.status === 404 || error.message?.includes('FunctionsHttpError')) {
+          console.log('ℹ️ Producto no encontrado en API (404 Normal)');
+        } else {
+          console.warn('⚠️ Error API búsqueda:', error);
+        }
         return null;
       }
 
@@ -312,10 +547,7 @@ export function ProductsManager() {
         return null;
       }
 
-
       console.log('✅ Producto encontrado:', data.name);
-      console.log('🔍 Fuente:', data.source);
-
       return {
         name: data.name,
         brand: data.brand,
@@ -331,6 +563,11 @@ export function ProductsManager() {
     }
   };
 
+  const handleScanSuccess = (decodedText: string) => {
+    setNewProduct(prev => ({ ...prev, barcode: decodedText }));
+    setShowScanner(false);
+    toast.success(`${t('Código escaneado')}: ${decodedText}`);
+  };
 
   const handleCreateProduct = async () => {
     if (creatingProduct) return;
@@ -354,9 +591,14 @@ export function ProductsManager() {
     setCreatingProduct(true);
     try {
       // Preparar datos para insertar (eliminar campos vacíos opcionales)
+      let finalDescription = newProduct.description?.trim() || '';
+      if (newProduct.color && newProduct.color.trim()) {
+        finalDescription = `[Color: ${newProduct.color.trim()}] ${finalDescription}`;
+      }
+
       const productData: any = {
         name: newProduct.name.trim(),
-        description: newProduct.description?.trim() || '',
+        description: finalDescription,
         category_id: newProduct.category_id,
         base_price: newProduct.base_price,
         purchase_price: newProduct.purchase_price,
@@ -454,6 +696,53 @@ export function ProductsManager() {
           toast.error(t('Producto creado pero hubo error al guardar las tallas'));
         } else {
           console.log('✅ [PRODUCTS] Sizes created successfully');
+        }
+      }
+
+      // Upload gallery images
+      if (created && galleryFiles.length > 0) {
+        setUploadingImage(true);
+        try {
+          toast.loading(t('Subiendo galería...'), { id: 'gallery-upload' });
+          const uploadPromises = galleryFiles.map(async (file, index) => {
+            const fileExt = file.name.split('.').pop();
+            const filePath = `products/${created.id}/gallery_${Date.now()}_${index}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from('product-images')
+              .upload(filePath, file, {
+                upsert: true,
+                contentType: file.type,
+              });
+
+            if (uploadError) throw uploadError;
+
+            const { data: publicData } = supabase.storage
+              .from('product-images')
+              .getPublicUrl(filePath);
+
+            if (publicData?.publicUrl) {
+              return {
+                product_id: created.id,
+                image_url: publicData.publicUrl,
+                display_order: index
+              };
+            }
+            return null;
+          });
+
+          const results = await Promise.all(uploadPromises);
+          const validImages = results.filter(img => img !== null);
+
+          if (validImages.length > 0) {
+            await supabase.from('product_images').insert(validImages);
+            toast.success(t('Galería subida correctamente'), { id: 'gallery-upload' });
+          }
+        } catch (galleryErr) {
+          console.error('Error uploading gallery:', galleryErr);
+          toast.error(t('Error al subir algunas imágenes de la galería'), { id: 'gallery-upload' });
+        } finally {
+          setUploadingImage(false);
         }
       }
 
@@ -574,7 +863,10 @@ export function ProductsManager() {
     setShowNewProduct(true);
     setNewProductPreviewUrl(product.image_url || null);
 
-    // 4. Scroll al formulario
+    // 4. Cargar galería
+    fetchGalleryImages(product.id);
+
+    // 5. Scroll al formulario
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -638,7 +930,69 @@ export function ProductsManager() {
         if (sizesError) throw sizesError;
       }
 
-      // 4. Handle Image Upload
+      // 4. Handle Deletions of Gallery Images
+      if (imagesToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('product_images')
+          .delete()
+          .in('id', imagesToDelete);
+
+        if (deleteError) {
+          console.error('Error deleting gallery images:', deleteError);
+          toast.error(t('Error al eliminar algunas imágenes de la galería'));
+        }
+      }
+
+      // 5. Handle New Gallery Images Upload
+      if (galleryFiles.length > 0) {
+        setUploadingImage(true);
+        try {
+          toast.loading(t('Subiendo nuevas imágenes...'), { id: 'gallery-update' });
+          const currentCount = existingGalleryImages.length;
+
+          const uploadPromises = galleryFiles.map(async (file, index) => {
+            const fileExt = file.name.split('.').pop();
+            const filePath = `products/${editingId}/gallery_${Date.now()}_${index}.${fileExt}`;
+
+            const { error: uploadError } = await supabase.storage
+              .from('product-images')
+              .upload(filePath, file, {
+                upsert: true,
+                contentType: file.type,
+              });
+
+            if (uploadError) throw uploadError;
+
+            const { data: publicData } = supabase.storage
+              .from('product-images')
+              .getPublicUrl(filePath);
+
+            if (publicData?.publicUrl) {
+              return {
+                product_id: editingId,
+                image_url: publicData.publicUrl,
+                display_order: currentCount + index
+              };
+            }
+            return null;
+          });
+
+          const results = await Promise.all(uploadPromises);
+          const validImages = results.filter(img => img !== null);
+
+          if (validImages.length > 0) {
+            await supabase.from('product_images').insert(validImages);
+            toast.success(t('Galería actualizada correctamente'), { id: 'gallery-update' });
+          }
+        } catch (galleryErr) {
+          console.error('Error uploading gallery:', galleryErr);
+          toast.error(t('Error al subir nuevas imágenes a la galería'), { id: 'gallery-update' });
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
+      // 6. Handle Main Image Upload
       if (newProductImage) {
         setUploadingImage(true);
         const fileExt = newProductImage.name.split('.').pop();
@@ -701,6 +1055,10 @@ export function ProductsManager() {
     setNewProductPreviewUrl(null);
     setIsEditing(false);
     setEditingId(null);
+    setGalleryFiles([]);
+    setGalleryPreviews([]);
+    setExistingGalleryImages([]);
+    setImagesToDelete([]);
   };
 
   const handleUpdateProduct = async () => {
@@ -868,6 +1226,16 @@ export function ProductsManager() {
     return sizes.filter(s => s.product_id === productId);
   };
 
+  const filteredProducts = products.filter(product => {
+    const search = searchTerm.toLowerCase();
+    if (!search) return true;
+    return (
+      product.name.toLowerCase().includes(search) ||
+      (product.barcode && product.barcode.toLowerCase().includes(search)) ||
+      (product.brand && product.brand.toLowerCase().includes(search))
+    );
+  });
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -905,6 +1273,77 @@ export function ProductsManager() {
           <div className="bg-white rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">{isEditing ? t('Editar Producto') : t('Nuevo Producto')}</h3>
             <div className="space-y-4">
+              {/* Bloque Imagen Principal (Movido arriba) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Imagen Principal')}</label>
+                <div className="flex items-start gap-4">
+                  <div className="relative">
+                    {(newProductPreviewUrl || newProduct.image_url) ? (
+                      <div className="relative">
+                        <img
+                          src={newProductPreviewUrl || newProduct.image_url}
+                          alt={t('Vista previa')}
+                          className="h-24 w-24 object-cover rounded-lg border-2 border-gray-200"
+                          onError={async (e) => {
+                            // Reutilizando lógica de reparación de imagen
+                            const img = e.currentTarget;
+                            if (img.parentElement) {
+                              const loading = document.createElement('div');
+                              loading.className = "absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-amber-600 animate-pulse";
+                              loading.innerText = t("Reparando...");
+                              img.style.display = 'none';
+                              img.parentElement.appendChild(loading);
+                            }
+                            const currentUrl = newProductPreviewUrl || newProduct.image_url || '';
+                            const newUrl = await fixProductImage(newProduct.barcode || '', newProduct.name, newProduct.brand || '', currentUrl);
+                            if (newUrl) {
+                              setNewProduct({ ...newProduct, image_url: newUrl });
+                            } else {
+                              if (img.parentElement) {
+                                img.parentElement.innerHTML = '';
+                                const fallback = document.createElement('div');
+                                fallback.className = "h-24 w-24 flex items-center justify-center bg-gray-100 text-gray-400 rounded border text-xs text-center p-1";
+                                fallback.innerText = t("Sin Imagen");
+                                img.parentElement.appendChild(fallback);
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewProductImage(null);
+                            setNewProduct({ ...newProduct, image_url: '' });
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-sm z-10"
+                          title={t('Quitar imagen')}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="h-24 w-24 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400">
+                        <Package className="w-8 h-8 opacity-50" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => setNewProductImage(e.target.files?.[0] || null)}
+                      disabled={uploadingImage}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
+                    />
+                    <p className="mt-2 text-xs text-gray-500">
+                      {t('Esta es la imagen principal. Aparecerá en listas y ventas.')}
+                    </p>
+                    {uploadingImage && <div className="text-amber-600 text-xs mt-1 animate-pulse">{t('Subiendo...')}</div>}
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Nombre')}</label>
                 <input
@@ -915,12 +1354,10 @@ export function ProductsManager() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Código de Barras')}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Código de barras')}</label>
                 <div className="flex gap-2">
                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
-                      {t('Código de barras')}
-                    </label>
+
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -931,23 +1368,7 @@ export function ProductsManager() {
                       />
                       <button
                         type="button"
-                        onClick={() => {
-                          // Activar escáner de cámara
-                          const input = document.createElement('input');
-                          input.type = 'file';
-                          input.accept = 'image/*';
-                          input.capture = 'environment';
-                          input.onchange = async (e: any) => {
-                            const file = e.target.files[0];
-                            if (file) {
-                              toast.info(t('📸 Procesando imagen...'));
-                              // Aquí se procesaría la imagen con una librería de detección de códigos
-                              // Por ahora, mostrar mensaje
-                              toast.warning(t('Función de cámara en desarrollo. Usa el campo de búsqueda.'));
-                            }
-                          };
-                          input.click();
-                        }}
+                        onClick={() => setShowScanner(true)}
                         className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
                         title={t('Escanear con cámara')}
                       >
@@ -994,6 +1415,69 @@ export function ProductsManager() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                   rows={3}
                 />
+              </div>
+
+              {/* Nuevos Campos IA: Color, Material, Género, Temporada */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Marca')}</label>
+                  <input
+                    type="text"
+                    value={newProduct.brand || ''}
+                    onChange={e => setNewProduct({ ...newProduct, brand: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    placeholder="Adidas, Nike..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Color')}</label>
+                  <input
+                    type="text"
+                    value={newProduct.color || ''}
+                    onChange={e => setNewProduct({ ...newProduct, color: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    placeholder="Rojo, Azul..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Material')}</label>
+                  <input
+                    type="text"
+                    value={newProduct.material || ''}
+                    onChange={e => setNewProduct({ ...newProduct, material: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    placeholder="Algodón, Poliéster..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Género')}</label>
+                  <select
+                    value={newProduct.gender || ''}
+                    onChange={e => setNewProduct({ ...newProduct, gender: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="">{t('Seleccionar...')}</option>
+                    <option value="Male">{t('Hombre')}</option>
+                    <option value="Female">{t('Mujer')}</option>
+                    <option value="Unisex">{t('Unisex')}</option>
+                    <option value="Kids">{t('Niños')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Temporada')}</label>
+                  <select
+                    value={newProduct.season || ''}
+                    onChange={e => setNewProduct({ ...newProduct, season: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                  >
+                    <option value="">{t('Seleccionar...')}</option>
+                    <option value="Summer">{t('Verano')}</option>
+                    <option value="Winter">{t('Invierno')}</option>
+                    <option value="Spring">{t('Primavera')}</option>
+                    <option value="Autumn">{t('Otoño')}</option>
+                    <option value="All Season">{t('Todo el año')}</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Categoría')}</label>
@@ -1088,120 +1572,50 @@ export function ProductsManager() {
                   )}
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Marca')}</label>
-                  <input
-                    type="text"
-                    value={newProduct.brand}
-                    onChange={e => setNewProduct({ ...newProduct, brand: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                    placeholder="Nike, Adidas..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Material')}</label>
-                  <input
-                    type="text"
-                    value={newProduct.material}
-                    onChange={e => setNewProduct({ ...newProduct, material: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                    placeholder="Algodón, Poliéster..."
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Género')}</label>
-                  <select
-                    value={newProduct.gender}
-                    onChange={e => setNewProduct({ ...newProduct, gender: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="">{t('Seleccionar')}</option>
-                    <option value="hombre">{t('gender.hombre')}</option>
-                    <option value="mujer">{t('gender.mujer')}</option>
-                    <option value="unisex">{t('gender.unisex')}</option>
-                    <option value="niño">{t('gender.niño')}</option>
-                    <option value="niña">{t('gender.niña')}</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Temporada')}</label>
-                  <select
-                    value={newProduct.season}
-                    onChange={e => setNewProduct({ ...newProduct, season: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
-                  >
-                    <option value="">{t('Seleccionar')}</option>
-                    <option value="primavera_verano">{t('season.primavera_verano')}</option>
-                    <option value="otoño_invierno">{t('season.otoño_invierno')}</option>
-                    <option value="todo_el_año">{t('season.todo_el_año')}</option>
-                  </select>
-                </div>
-              </div>
+
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Imagen (opcional)')}</label>
-                <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Galería de Imágenes')}</label>
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={e => setNewProductImage(e.target.files?.[0] || null)}
+                    multiple
+                    onChange={handleGalleryFilesSelect}
                     disabled={uploadingImage}
-                    className={`w-full ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className="w-full mb-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
                   />
-                  {uploadingImage && (
-                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                      <LoadingSpinner size="sm" />
+
+                  {(existingGalleryImages.length > 0 || galleryPreviews.length > 0) ? (
+                    <div className="grid grid-cols-4 gap-2 mt-2">
+                      {existingGalleryImages.map((img) => (
+                        <div key={img.id} className="relative aspect-square border rounded-lg overflow-hidden group">
+                          <img src={img.image_url} alt="Gallery" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExistingGalleryImage(img.id)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                      {galleryPreviews.map((url, idx) => (
+                        <div key={`new-${idx}`} className="relative aspect-square border rounded-lg overflow-hidden group">
+                          <img src={url} alt="New Preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNewGalleryImage(idx)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
+                  ) : (
+                    <p className="text-xs text-center text-gray-400 mt-2">{t('Selecciona múltiples imágenes para la galería')}</p>
                   )}
                 </div>
-                {newProductPreviewUrl && (
-                  <div className="mt-2 relative">
-                    <img
-                      src={newProductPreviewUrl}
-                      alt={t('Vista previa')}
-                      className="h-24 w-24 object-cover rounded border"
-                      onError={async (e) => {
-                        const img = e.currentTarget;
-                        // 1. Mostrar estado "Reparando..."
-                        if (img.parentElement) {
-                          const loading = document.createElement('div');
-                          loading.className = "absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-amber-600 animate-pulse";
-                          loading.innerText = "Reparando...";
-                          img.style.display = 'none';
-                          img.parentElement.appendChild(loading);
-                        }
-
-                        // 2. Intentar reparar
-                        const newUrl = await fixProductImage(
-                          newProduct.barcode || '',
-                          newProduct.name,
-                          newProduct.brand || '',
-                          newProductPreviewUrl
-                        );
-
-                        // 3. Resultado
-                        if (newUrl) {
-                          setNewProduct({ ...newProduct, image_url: newUrl });
-                        } else {
-                          if (img.parentElement) {
-                            img.parentElement.innerHTML = '';
-                            const fallback = document.createElement('div');
-                            fallback.className = "h-24 w-24 flex items-center justify-center bg-gray-100 text-gray-400 rounded border text-xs text-center p-1";
-                            fallback.innerText = "Sin Imagen";
-                            img.parentElement.appendChild(fallback);
-                          }
-                        }
-                      }}
-                    />
-                    {uploadingImage && (
-                      <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
-                        <LoadingSpinner size="md" />
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
               <div className="flex gap-2">
                 <button
@@ -1231,7 +1645,26 @@ export function ProductsManager() {
         </div>
       )}
 
+      {showScanner && (
+        <BarcodeScanner
+          onScanSuccess={handleScanSuccess}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex gap-4 bg-gray-50/50">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder={t('Buscar productos...')}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white shadow-sm"
+            />
+          </div>
+        </div>
         <table className="w-full">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
@@ -1246,7 +1679,7 @@ export function ProductsManager() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {products.map(product => (
+            {filteredProducts.map(product => (
               <tr key={product.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
                   {/* Show sizes badge if available */}
@@ -1427,17 +1860,23 @@ export function ProductsManager() {
                       className="w-20 px-2 py-1 border border-gray-300 rounded"
                     />
                   ) : (
-                    <span className={`font-medium ${(product.stock || 0) < 5 ? 'text-red-600' : 'text-gray-900'}`}>
-                      {product.stock || 0}
+                    <span className={`font-medium ${(getProductSizes(product.id).length > 0
+                      ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
+                      : (product.stock || 0)) < 5 ? 'text-red-600' : 'text-gray-900'
+                      }`}>
+                      {getProductSizes(product.id).length > 0
+                        ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
+                        : (product.stock || 0)
+                      }
                     </span>
                   )}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${product.available
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${product.available && (product.stock || 0) > 0
                     ? 'bg-green-100 text-green-800'
                     : 'bg-red-100 text-red-800'
                     }`}>
-                    {product.available ? t('Disponible') : t('No disponible')}
+                    {product.available && (product.stock || 0) > 0 ? t('Disponible') : t('No disponible')}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">
@@ -1549,6 +1988,76 @@ export function ProductsManager() {
           </div>
         </div>
       )}
+      {showNotFoundModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-2xl transform transition-all scale-100">
+            <div className="text-center mb-6">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-amber-100 mb-4">
+                <svg className="h-6 w-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg leading-6 font-bold text-gray-900 mb-2">
+                Produit non trouvé
+              </h3>
+              <p className="text-sm text-gray-500">
+                Nous n&apos;avons trouvé aucune information pour ce code. Voulez-vous identifier le produit avec une photo ?
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setShowNotFoundModal(false);
+                  cameraInputRef.current?.click();
+                }}
+                className="w-full flex justify-center items-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm"
+              >
+                <svg className="mr-2 -ml-1 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Prendre une photo
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowNotFoundModal(false);
+                  analyzeImageInputRef.current?.click();
+                }}
+                className="w-full flex justify-center items-center px-4 py-3 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm"
+              >
+                <svg className="mr-2 -ml-1 h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Charger une photo
+              </button>
+
+              <button
+                onClick={() => setShowNotFoundModal(false)}
+                className="w-full mt-2 flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium text-gray-500 hover:text-gray-700"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <input
+        type="file"
+        ref={analyzeImageInputRef}
+        className="hidden"
+        accept="image/*"
+        onChange={handleImageAnalyze}
+      />
+      <input
+        type="file"
+        ref={cameraInputRef}
+        className="hidden"
+        accept="image/*"
+        capture="environment" // Fuerza cámara trasera
+        onChange={handleImageAnalyze}
+      />
     </div>
   );
 }

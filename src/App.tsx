@@ -24,6 +24,8 @@ const ServerManager = lazy(() => import('./components/ServerManager').then(modul
 const BackupManager = lazy(() => import('./components/BackupManager').then(module => ({ default: module.BackupManager })));
 const ClientsManager = lazy(() => import('./components/ClientsManager').then(module => ({ default: module.ClientsManager })));
 const StockAnalytics = lazy(() => import('./components/StockAnalytics').then(module => ({ default: module.StockAnalytics })));
+const OnlineStoreManager = lazy(() => import('./components/OnlineStoreManager').then(module => ({ default: module.OnlineStoreManager })));
+import { NotificationListener } from './components/NotificationListener';
 import { supabase } from './lib/supabase';
 
 function AppContent() {
@@ -231,6 +233,7 @@ function AppContent() {
           {currentView === 'backup' && userPermissions['backup'] && <BackupManager />}
           {currentView === 'clients' && userPermissions['clients'] && <ClientsManager />}
           {currentView === 'stock-analytics' && userPermissions['stock-analytics'] && <StockAnalytics />}
+          {currentView === 'online-store' && <OnlineStoreManager />}
         </Suspense>
       </div>
 
@@ -294,6 +297,7 @@ function AppContent() {
           },
         }}
       />
+      <NotificationListener />
     </div>
   );
 }
