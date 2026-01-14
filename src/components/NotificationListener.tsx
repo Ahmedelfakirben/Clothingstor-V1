@@ -162,6 +162,13 @@ export function NotificationListener() {
                     // Filtrar manualmente aquí por ahora
                     if (payload.eventType === 'INSERT' && (payload.new as any).status === 'completed') {
                         const newOrder = payload.new as any;
+
+                        // IGNORE OWN SALES (Already notified via local event)
+                        if (profile && newOrder.employee_id === profile.id) {
+                            console.log('👤 Venta propia detectada en Realtime, ignorando notificación duplicada.');
+                            return;
+                        }
+
                         const amount = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(newOrder.total);
 
                         // 1. Sonido

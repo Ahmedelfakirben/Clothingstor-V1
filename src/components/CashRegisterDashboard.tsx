@@ -231,7 +231,51 @@ export function CashRegisterDashboard() {
 
   const fetchCurrentCashStatus = async () => {
     try {
-      // Get the most recent session for the current user (or all for admin)
+      // 1. GLOBAL VIEW FOR ADMINS
+      if (profile?.role === 'admin' || profile?.role === 'super_admin') {
+        const todayCommon = new Date().toISOString().split('T')[0];
+
+        // A. Total Openings Today
+        const { data: todaySessions } = await supabase
+          .from('cash_register_sessions')
+          .select('opening_amount, id')
+          .gte('opened_at', todayCommon)
+          .lte('opened_at', todayCommon + 'T23:59:59');
+
+        const totalOpenings = (todaySessions || []).reduce((sum, s) => sum + Number(s.opening_amount), 0);
+
+        // B. Total Sales Today (Global)
+        const { data: todayOrders } = await supabase
+          .from('orders')
+          .select('total')
+          .eq('status', 'completed')
+          .gte('created_at', todayCommon)
+          .lte('created_at', todayCommon + 'T23:59:59');
+
+        const totalSales = (todayOrders || []).reduce((sum, o) => sum + Number(o.total), 0);
+
+        // C. Total Withdrawals Today (Linked to today's sessions or just globally today?)
+        // Ideally linked to sessions opened today, or created_at today. 
+        // Let's use created_at for global consistency.
+        const { data: todayWithdrawals } = await supabase
+          .from('cash_withdrawals')
+          .select('amount')
+          .gte('created_at', todayCommon)
+          .lte('created_at', todayCommon + 'T23:59:59');
+
+        const totalWithdrawals = (todayWithdrawals || []).reduce((sum, w) => sum + Number(w.amount), 0);
+
+        const globalDailyBalance = totalOpenings + totalSales - totalWithdrawals;
+
+        setCurrentCashStatus({
+          currentAmount: globalDailyBalance,
+          lastSessionStatus: (todaySessions && todaySessions.length > 0) ? 'open' : 'closed', // Simplification
+          lastSessionTime: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // 2. PERSONAL VIEW FOR CASHIERS (Existing Logic)
       let query = supabase
         .from('cash_register_sessions')
         .select('*')
@@ -247,11 +291,59 @@ export function CashRegisterDashboard() {
 
       if (data && data.length > 0) {
         const latestSession = data[0];
+
+        // CHECK IF SESSION IS FROM TODAY
+        const sessionDate = new Date(latestSession.opened_at).toDateString();
+        const todayDate = new Date().toDateString();
+
+        if (sessionDate !== todayDate) {
+          // If the latest session is NOT from today, show 0 (New Day)
+          setCurrentCashStatus({
+            currentAmount: 0,
+            lastSessionStatus: 'closed', // Assume closed if it's a new day
+            lastSessionTime: '',
+          });
+          return;
+        }
+
+        // If session is closed, just show closing amount
+        if (latestSession.status === 'closed') {
+          setCurrentCashStatus({
+            currentAmount: latestSession.closing_amount || 0,
+            lastSessionStatus: 'closed',
+            lastSessionTime: latestSession.closed_at || latestSession.opened_at,
+          });
+          return;
+        }
+
+        // If session is OPEN, calculate real-time balance: Opening + Sales - Withdrawals
+
+        // 1. Fetch sales (orders) since opening
+        const { data: orders } = await supabase
+          .from('orders')
+          .select('total')
+          .eq('employee_id', latestSession.employee_id)
+          .eq('status', 'completed')
+          .gte('created_at', latestSession.opened_at);
+
+        const currentSales = (orders || []).reduce((sum, order) => sum + order.total, 0);
+
+        // 2. Fetch withdrawals for this session
+        const { data: withdrawals } = await supabase
+          .from('cash_withdrawals')
+          .select('amount')
+          .eq('session_id', latestSession.id);
+
+        const currentWithdrawals = (withdrawals || []).reduce((sum, w) => sum + w.amount, 0);
+
+        const realTimeBalance = (latestSession.opening_amount || 0) + currentSales - currentWithdrawals;
+
         setCurrentCashStatus({
-          currentAmount: latestSession.closing_amount || latestSession.opening_amount,
-          lastSessionStatus: latestSession.status,
-          lastSessionTime: latestSession.status === 'open' ? latestSession.opened_at : (latestSession.closed_at || latestSession.opened_at),
+          currentAmount: realTimeBalance,
+          lastSessionStatus: 'open',
+          lastSessionTime: latestSession.opened_at,
         });
+
       } else {
         // No sessions found
         setCurrentCashStatus({

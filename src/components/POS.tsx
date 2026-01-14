@@ -436,9 +436,18 @@ export function POS() {
     }
   };
 
+  const isProcessingRef = useRef(false);
+
   const processOrder = async (targetStatus: 'completed' | 'preparing' = 'completed', shouldPrint: boolean = true) => {
+    if (loading || isProcessingRef.current) return; // Strict double execution guard
+
+    isProcessingRef.current = true;
+    setLoading(true);
+
     if (!pendingOrderData || !user) {
       console.error('No hay orden pendiente o usuario no autenticado');
+      isProcessingRef.current = false;
+      setLoading(false);
       return;
     }
 
@@ -511,84 +520,32 @@ export function POS() {
       const stockUpdatePromises = cart.map(async (item) => {
         try {
           if (item.size) {
-            // --- LÓGICA CON TALLAS ---
-            // 1. Intentar RPC
+            // --- LÓGICA CON TALLAS (SOLO RPC) ---
             const { error: sizeError } = await supabase.rpc('decrement_product_size_stock', {
               p_size_id: item.size.id,
               p_quantity: item.quantity
             });
 
             if (sizeError) {
-              console.warn(`⚠️ RPC talla falló (${sizeError.code}), intentando manual...`);
-
-              // 2. Fallback Manual Seguro: Leer stock actual -> Restar -> Actualizar
-              const { data: currentData, error: fetchError } = await supabase
-                .from('product_sizes')
-                .select('stock')
-                .eq('id', item.size.id)
-                .single();
-
-              if (fetchError || !currentData) {
-                console.error('❌ Error leyendo stock actual (Talla):', fetchError);
-                return;
-              }
-
-              const newStock = (currentData.stock || 0) - item.quantity;
-
-              const { data: updateData, error: updateError } = await supabase
-                .from('product_sizes')
-                .update({ stock: newStock })
-                .eq('id', item.size.id)
-                .select();
-
-              if (updateError) {
-                console.error('❌ Error actualizando stock (Talla):', updateError);
-              } else if (!updateData || updateData.length === 0) {
-                console.error('❌ Actualización silenciosa (Talla): No se actualizó ninguna fila. ¿Permisos RLS?');
-                toast.error(`Error de permisos actualizando stock: ${item.product.name}`);
-              } else {
-                console.log(`✅ Stock Talla actualizado: ${currentData.stock} -> ${newStock}`);
-              }
+              console.error(`❌ RPC talla falló (${sizeError.code}):`, sizeError.message);
+              toast.error(`Error actualizando stock (Talla): ${sizeError.message}`);
+              // No fallback manual para evitar doble descuento
+            } else {
+              console.log(`✅ Stock Talla actualizado via RPC: ${item.size.size_name}`);
             }
           } else {
-            // --- LÓGICA SIN TALLAS (PRODUCTO SIMPLE) ---
-            // 1. Intentar RPC
+            // --- LÓGICA SIN TALLAS (SOLO RPC) ---
             const { error: productError } = await supabase.rpc('decrement_product_stock', {
               p_product_id: item.product.id,
               p_quantity: item.quantity
             });
 
             if (productError) {
-              console.warn(`⚠️ RPC producto falló (${productError.code}), intentando manual...`);
-
-              // 2. Fallback Manual Seguro
-              const { data: currentData, error: fetchError } = await supabase
-                .from('products')
-                .select('stock')
-                .eq('id', item.product.id)
-                .single();
-
-              if (fetchError || !currentData) {
-                console.error('❌ Error leyendo stock actual (Producto):', fetchError);
-                return;
-              }
-
-              const newStock = (currentData.stock || 0) - item.quantity;
-
-              const { data: updateData, error: updateError } = await supabase
-                .from('products')
-                .update({ stock: newStock })
-                .eq('id', item.product.id)
-                .select();
-
-              if (updateError) {
-                console.error('❌ Error actualizando stock (Producto):', updateError);
-              } else if (!updateData || updateData.length === 0) {
-                console.error('❌ Actualización silenciosa (Producto): No se actualizó ninguna fila. ¿Permisos RLS?');
-                toast.error(`Error de permisos actualizando stock: ${item.product.name}`);
-              } else {
-                console.log(`✅ Stock Producto actualizado: ${currentData.stock} -> ${newStock}`);
-              }
+              console.error(`❌ RPC producto falló (${productError.code}):`, productError.message);
+              toast.error(`Error actualizando stock (Producto): ${productError.message}`);
+              // No fallback manual para evitar doble descuento
+            } else {
+              console.log(`✅ Stock Producto actualizado via RPC: ${item.product.name}`);
             }
           }
         } catch (err) {
@@ -641,6 +598,10 @@ export function POS() {
       toast.error(`${t('pos.order_creation_error')}: ${error.message || t('Reintentar')}.`);
     } finally {
       setLoading(false);
+      // Small delay to release the lock to prevent immediate re-clicks if UI hasn't updated
+      setTimeout(() => {
+        isProcessingRef.current = false;
+      }, 500);
     }
   };
 
@@ -1486,15 +1447,22 @@ export function POS() {
               <div className="flex justify-end gap-3">
                 <button
                   onClick={() => processOrder('preparing', false)}
-                  className="px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all font-bold text-gray-700 shadow-md hover:shadow-lg"
+                  disabled={loading}
+                  className="px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all font-bold text-gray-700 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {t('Después')}
+                  {loading ? '...' : t('Después')}
                 </button>
                 <button
                   onClick={() => processOrder('completed', true)}
-                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl transition-all font-bold shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5"
+                  disabled={loading}
+                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl transition-all font-bold shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  {t('Validar e Imprimir')}
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <LoadingSpinner size="sm" light />
+                      {t('Procesando...')}
+                    </span>
+                  ) : t('Validar e Imprimir')}
                 </button>
               </div>
             </div>
