@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'LIN-Fashion - Sistema de Gestión',
-        short_name: 'LIN-Fashion',
+        name: 'Shopping by Lina - Sistema de Gestión',
+        short_name: 'Shopping by Lina',
         description: 'Sistema de Gestión de Moda y Punto de Venta',
         theme_color: '#ec4899',
         background_color: '#ffffff',

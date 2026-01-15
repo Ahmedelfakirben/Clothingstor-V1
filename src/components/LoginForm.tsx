@@ -84,7 +84,7 @@ export function LoginForm() {
             <img src="/Shopingbylina.jpg" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-4xl font-black text-gradient-vibrant mb-3 tracking-tight">
-            Shoping by Lina
+            Shopping by Lina
           </h1>
           <p className="text-gray-600 font-semibold text-lg">{t('Sistema de Gestión')}</p>
           <div className="mt-3 h-1 w-24 mx-auto gradient-primary rounded-full"></div>

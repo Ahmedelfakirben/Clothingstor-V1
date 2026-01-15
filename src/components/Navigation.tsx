@@ -671,7 +671,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                 <img src="/Shopingbylina.jpg" alt="Logo" className="w-full h-full object-cover" />
               </div>
               <div>
-                <h1 className="text-3xl font-black text-gradient-vibrant tracking-tight">Shoping by Lina</h1>
+                <h1 className="text-3xl font-black text-gradient-vibrant tracking-tight">Shopping by Lina</h1>
                 <p className="text-sm text-gray-600 font-semibold">{t('Sistema de Gestión')}</p>
               </div>
             </div>
