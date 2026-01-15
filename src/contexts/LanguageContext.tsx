@@ -242,6 +242,12 @@ const translations = {
     'pos.items': 'Items',
     'pos.cart_modal_title': 'Carrito',
     'pos.close': 'Cerrar',
+    'scan.found_via': '✅ Encontrado vía',
+    'scan.image_available': 'Imagen disponible.',
+    'scan.scanned_code': 'Código escaneado',
+    'scan.info_loaded_cache': '✅ Información cargada desde caché local',
+    'scan.product_identified_google': '✅ ¡Producto identificado + Foto Google!',
+    'scan.product_identified': '✅ ¡Producto identificado!',
 
     // Sala - Room Management
     'Gestión de Sala': 'Gestión de Sala',
@@ -1387,6 +1393,12 @@ const translations = {
     'pos.items': 'Articles',
     'pos.cart_modal_title': 'Panier',
     'pos.close': 'Fermer',
+    'scan.found_via': '✅ Trouvé via',
+    'scan.image_available': 'Image disponible.',
+    'scan.scanned_code': 'Code scanné',
+    'scan.info_loaded_cache': '✅ Informations chargées depuis le cache local',
+    'scan.product_identified_google': '✅ Produit identifié + Photo Google !',
+    'scan.product_identified': '✅ Produit identifié !',
 
     // Login Form
 

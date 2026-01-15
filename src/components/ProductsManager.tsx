@@ -327,7 +327,7 @@ export function ProductsManager() {
           brand: cached.brand || newProduct.brand,
           image_url: cached.image_url || newProduct.image_url,
         });
-        toast.success(t('✅ Información cargada desde caché local'));
+        toast.success(t('scan.info_loaded_cache'), { duration: 3000 });
         return;
       }
 
@@ -360,8 +360,8 @@ export function ProductsManager() {
         // Si hay imagen, mostrar preview (el usuario puede cambiarla)
         if (productInfo.image) {
           toast.success(
-            t(`✅ Encontrado vía ${productInfo.source?.toUpperCase() || 'API'}. Imagen disponible.`),
-            { id: 'barcode-search', duration: 4000 }
+            `${t('scan.found_via')} ${productInfo.source?.toUpperCase() || 'API'}. ${t('scan.image_available')}`,
+            { id: 'barcode-search', duration: 3000 }
           );
           // Nota: La imagen se guardará cuando el usuario cree el producto
           // Por ahora solo mostramos que hay una imagen disponible en el caché
@@ -485,7 +485,7 @@ export function ProductsManager() {
             season: data.season || newProduct.season
           });
 
-          toast.success(t('✅ ¡Producto identificado + Foto Google!'), { id: toastId });
+          toast.success(t('scan.product_identified_google'), { id: toastId, duration: 3000 });
 
         } else {
           // Estrategia 2: Fallback a foto subida
@@ -507,7 +507,7 @@ export function ProductsManager() {
             season: data.season || newProduct.season
           });
 
-          toast.success(t('✅ ¡Producto identificado!'), { id: toastId });
+          toast.success(t('scan.product_identified'), { id: toastId, duration: 3000 });
         }
       }
 
@@ -566,7 +566,7 @@ export function ProductsManager() {
   const handleScanSuccess = (decodedText: string) => {
     setNewProduct(prev => ({ ...prev, barcode: decodedText }));
     setShowScanner(false);
-    toast.success(`${t('Código escaneado')}: ${decodedText}`);
+    toast.success(`${t('scan.scanned_code')}: ${decodedText}`, { duration: 3000 });
   };
 
   const handleCreateProduct = async () => {
@@ -1696,10 +1696,10 @@ export function ProductsManager() {
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-lg font-bold text-amber-600">{formatCurrency(product.base_price)}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${(getProductSizes(product.id).length > 0
-                        ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
-                        : (product.stock || 0)) > 0
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
+                      ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
+                      : (product.stock || 0)) > 0
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
                       }`}>
                       Stock: {getProductSizes(product.id).length > 0
                         ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
