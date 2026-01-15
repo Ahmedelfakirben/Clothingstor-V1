@@ -662,6 +662,13 @@ export function POS() {
         <div className="space-y-2">
           {products.map(product => {
             const productSizesList = productSizes(product.id);
+
+            const displayStock = productSizesList.length > 0
+              ? productSizesList.reduce((acc, s) => acc + s.stock, 0)
+              : (product.stock || 0);
+
+            if (displayStock <= 0) return null;
+
             return (
               <div key={product.id} className="bg-white rounded-lg p-3 shadow-sm border">
                 <div className="flex gap-3">
