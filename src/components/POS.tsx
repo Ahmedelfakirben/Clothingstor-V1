@@ -714,53 +714,32 @@ export function POS() {
                   </div>
                 </div>
 
-                {productSizesList.length > 0 ? (
-                  <div className="mt-2 space-y-1">
-                    {productSizesList.map(size => {
-                      const currentInCart = cart.find(item => item.product.id === product.id && item.size?.id === size.id)?.quantity || 0;
-                      const stockAvailable = size.stock - currentInCart;
-
-                      return (
-                        <button
-                          key={size.id}
-                          disabled={stockAvailable <= 0}
-                          onClick={() => {
-                            if (checkStock(product, size, 1)) {
-                              addItem(product, size);
-                            }
-                          }}
-                          className={`w-full py-2 px-3 rounded-lg text-sm font-medium flex justify-between items-center border border-gray-200 transition-colors
-                          ${stockAvailable <= 0
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-gray-50 hover:bg-gray-100 text-gray-800'
-                            }`}
-                        >
-                          <div className="flex flex-col items-start">
-                            <span>{size.size_name}</span>
-                            <span className="text-xs text-gray-500">{t('Stock')}: {size.stock}</span>
-                          </div>
-                          <span className="font-bold">+{formatCurrency(size.price_modifier)}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
+                <div className="mt-2">
                   <button
-                    disabled={(product.stock || 0) <= (cart.find(item => item.product.id === product.id && !item.size)?.quantity || 0)}
                     onClick={() => {
-                      if (checkStock(product, undefined, 1)) {
-                        addItem(product);
+                      if (productSizesList.length > 0) {
+                        setScannedProductForSizeSelection(product);
+                      } else {
+                        const currentQty = cart.find(item => item.product.id === product.id && !item.size)?.quantity || 0;
+                        if ((product.stock || 0) > currentQty) {
+                          if (checkStock(product, null, 1)) {
+                            addItem(product);
+                          }
+                        }
                       }
                     }}
-                    className={`w-full py-2 px-4 rounded-lg font-semibold mt-2 text-sm transition-colors
-                      ${(product.stock || 0) <= (cart.find(item => item.product.id === product.id && !item.size)?.quantity || 0)
-                        ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                        : 'gradient-primary hover:gradient-primary-hover text-white'
+                    disabled={productSizesList.length === 0 && (product.stock || 0) <= (cart.find(item => item.product.id === product.id && !item.size)?.quantity || 0)}
+                    className={`w-full py-2.5 px-3 rounded-lg text-sm font-bold flex justify-center items-center gap-2 transition-colors
+                      ${(productSizesList.length > 0 || (product.stock || 0) > 0)
+                        ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 active:bg-amber-300'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       }`}
                   >
-                    {t('Agregar')}
+                    <Plus className="w-4 h-4" />
+                    {productSizesList.length > 0 ? t('Seleccionar Talla') : t('Agregar')}
                   </button>
-                )}
+                </div>
+
               </div>
             );
           })}
@@ -1306,175 +1285,7 @@ export function POS() {
           </div>
         </div>
 
-        {/* Payment Method Modal */}
-        {showPaymentModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 transform scale-100 transition-all">
-              <div className="text-center mb-8">
-                <div className="inline-block p-4 bg-gray-100 rounded-2xl mb-4">
-                  <CreditCard className="w-12 h-12 text-gray-700" />
-                </div>
-                <h2 className="text-3xl font-black text-gray-900">
-                  {t('Seleccionar Método de Pago')}
-                </h2>
-                <p className="text-sm text-gray-600 mt-2">{t('Elija cómo se realizará el pago')}</p>
-              </div>
 
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('Monto a Pagar (Anticipo)')}
-                </label>
-                <div className="relative">
-                  {/* Currency symbol can be part of formatCurrency, but inside input we often just show number. 
-                      Ideally we show the symbol outside or use a specialized input. 
-                      For now, I will remove the hardcoded '$' and rely on placeholder or use currency context if available. 
-                      The user mentioned currency is selectable in system. 
-                      I will replace the hardcoded $ span with a dynamic one from useCurrency hook if possible, or just remove it if it conflicts.
-                  */}
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{formatCurrency(0).replace(/\d|[.,]/g, '').trim() || '$'}</span>
-                  <input
-                    type="number"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                    className="w-full pl-16 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none font-bold text-lg"
-                    placeholder="0.00"
-                  />
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2">
-                    <button
-                      onClick={() => setPaymentAmount(total.toString())}
-                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-bold text-gray-700 transition"
-                    >
-                      Total
-                    </button>
-                    <button
-                      onClick={() => setPaymentAmount((total / 2).toFixed(2))}
-                      className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-bold text-gray-700 transition"
-                    >
-                      50%
-                    </button>
-                  </div>
-                </div>
-                {parseFloat(paymentAmount) < total && parseFloat(paymentAmount) > 0 && (
-                  <p className="text-sm text-orange-600 font-bold mt-2 flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                    Pendiente: {formatCurrency(total - parseFloat(paymentAmount || '0'))}
-                  </p>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 mb-8">
-                <button
-                  onClick={() => handlePaymentMethodSelection('cash')}
-                  className="group flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all shadow-sm hover:shadow-md"
-                >
-                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center group-hover:bg-green-200 transition-colors">
-                    <Banknote className="w-6 h-6 text-green-700" />
-                  </div>
-                  <div className="text-left flex-1">
-                    <div className="font-bold text-gray-900">{t('Efectivo')}</div>
-                    <div className="text-xs text-gray-500">{t('Pago en efectivo')}</div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => handlePaymentMethodSelection('card')}
-                  className="group flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all shadow-sm hover:shadow-md"
-                >
-                  <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                    <CreditCard className="w-6 h-6 text-blue-700" />
-                  </div>
-                  <div className="text-left flex-1">
-                    <div className="font-bold text-gray-900">{t('Tarjeta')}</div>
-                    <div className="text-xs text-gray-500">{t('Pago con tarjeta')}</div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => handlePaymentMethodSelection('digital')}
-                  className="group flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all shadow-sm hover:shadow-md"
-                >
-                  <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                    <Smartphone className="w-6 h-6 text-purple-700" />
-                  </div>
-                  <div className="text-left flex-1">
-                    <div className="font-bold text-gray-900">{t('Digital')}</div>
-                    <div className="text-xs text-gray-500">{t('Pago digital')}</div>
-                  </div>
-                </button>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all font-bold text-gray-700 shadow-md hover:shadow-lg"
-                >
-                  {t('Cancelar')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Validation Modal */}
-        {showValidationModal && pendingOrderData && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-[60] p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 transform scale-100 transition-all">
-              <div className="text-center mb-6">
-                <div className="inline-block p-4 bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl mb-4">
-                  <CheckCircle className="w-12 h-12 text-green-600" />
-                </div>
-                <h2 className="text-3xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-2">
-                  {t('Confirmar Pedido')}
-                </h2>
-                <p className="text-sm text-gray-600">{t('Pedido creado exitosamente')}</p>
-              </div>
-
-              <div className="mb-6">
-                <div className="bg-gray-50 border-2 border-gray-300 rounded-2xl p-6 mb-4 shadow-sm">
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="font-bold text-gray-800 text-sm">{t('Total del Pedido:')}</span>
-                    <span className="font-black text-3xl text-gray-900">
-                      {formatCurrency(pendingOrderData.total)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-3 border-t-2 border-gray-300">
-                    <span className="font-bold text-gray-800 text-sm">{t('Método de Pago:')}</span>
-                    <span className="font-bold text-gray-900 bg-white px-3 py-1 rounded-lg border border-gray-300">
-                      {pendingOrderData.paymentMethod}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-sm text-gray-600 mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
-                  <span className="font-bold text-blue-800">ℹ️ {t('Información')}:</span><br />
-                  {t('pos.validation_prompt')}
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => processOrder('preparing', false)}
-                  disabled={loading}
-                  className="px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all font-bold text-gray-700 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? '...' : t('Después')}
-                </button>
-                <button
-                  onClick={() => processOrder('completed', true)}
-                  disabled={loading}
-                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl transition-all font-bold shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <LoadingSpinner size="sm" light />
-                      {t('Procesando...')}
-                    </span>
-                  ) : t('Validar e Imprimir')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Customer Selection Modal */}
@@ -1621,6 +1432,176 @@ export function POS() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Method Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 transform scale-100 transition-all">
+            <div className="text-center mb-8">
+              <div className="inline-block p-4 bg-gray-100 rounded-2xl mb-4">
+                <CreditCard className="w-12 h-12 text-gray-700" />
+              </div>
+              <h2 className="text-3xl font-black text-gray-900">
+                {t('Seleccionar Método de Pago')}
+              </h2>
+              <p className="text-sm text-gray-600 mt-2">{t('Elija cómo se realizará el pago')}</p>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {t('Monto a Pagar (Anticipo)')}
+              </label>
+              <div className="relative">
+                {/* Currency symbol can be part of formatCurrency, but inside input we often just show number. 
+                      Ideally we show the symbol outside or use a specialized input. 
+                      For now, I will remove the hardcoded '$' and rely on placeholder or use currency context if available. 
+                      The user mentioned currency is selectable in system. 
+                      I will replace the hardcoded $ span with a dynamic one from useCurrency hook if possible, or just remove it if it conflicts.
+                  */}
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{formatCurrency(0).replace(/\d|[.,]/g, '').trim() || '$'}</span>
+                <input
+                  type="number"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  className="w-full pl-16 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none font-bold text-lg"
+                  placeholder="0.00"
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2">
+                  <button
+                    onClick={() => setPaymentAmount(total.toString())}
+                    className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-bold text-gray-700 transition"
+                  >
+                    Total
+                  </button>
+                  <button
+                    onClick={() => setPaymentAmount((total / 2).toFixed(2))}
+                    className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-bold text-gray-700 transition"
+                  >
+                    50%
+                  </button>
+                </div>
+              </div>
+              {parseFloat(paymentAmount) < total && parseFloat(paymentAmount) > 0 && (
+                <p className="text-sm text-orange-600 font-bold mt-2 flex items-center gap-1">
+                  <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                  Pendiente: {formatCurrency(total - parseFloat(paymentAmount || '0'))}
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 mb-8">
+              <button
+                onClick={() => handlePaymentMethodSelection('cash')}
+                className="group flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-green-500 hover:bg-green-50 transition-all shadow-sm hover:shadow-md"
+              >
+                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                  <Banknote className="w-6 h-6 text-green-700" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="font-bold text-gray-900">{t('Efectivo')}</div>
+                  <div className="text-xs text-gray-500">{t('Pago en efectivo')}</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handlePaymentMethodSelection('card')}
+                className="group flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all shadow-sm hover:shadow-md"
+              >
+                <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                  <CreditCard className="w-6 h-6 text-blue-700" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="font-bold text-gray-900">{t('Tarjeta')}</div>
+                  <div className="text-xs text-gray-500">{t('Pago con tarjeta')}</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => handlePaymentMethodSelection('digital')}
+                className="group flex items-center gap-4 p-4 rounded-xl border border-gray-200 hover:border-purple-500 hover:bg-purple-50 transition-all shadow-sm hover:shadow-md"
+              >
+                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                  <Smartphone className="w-6 h-6 text-purple-700" />
+                </div>
+                <div className="text-left flex-1">
+                  <div className="font-bold text-gray-900">{t('Digital')}</div>
+                  <div className="text-xs text-gray-500">{t('Pago digital')}</div>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                className="px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all font-bold text-gray-700 shadow-md hover:shadow-lg"
+              >
+                {t('Cancelar')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Validation Modal */}
+      {showValidationModal && pendingOrderData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-lg flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-8 transform scale-100 transition-all">
+            <div className="text-center mb-6">
+              <div className="inline-block p-4 bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl mb-4">
+                <CheckCircle className="w-12 h-12 text-green-600" />
+              </div>
+              <h2 className="text-3xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-2">
+                {t('Confirmar Pedido')}
+              </h2>
+              <p className="text-sm text-gray-600">{t('Pedido creado exitosamente')}</p>
+            </div>
+
+            <div className="mb-6">
+              <div className="bg-gray-50 border-2 border-gray-300 rounded-2xl p-6 mb-4 shadow-sm">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="font-bold text-gray-800 text-sm">{t('Total del Pedido:')}</span>
+                  <span className="font-black text-3xl text-gray-900">
+                    {formatCurrency(pendingOrderData.total)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-3 border-t-2 border-gray-300">
+                  <span className="font-bold text-gray-800 text-sm">{t('Método de Pago:')}</span>
+                  <span className="font-bold text-gray-900 bg-white px-3 py-1 rounded-lg border border-gray-300">
+                    {pendingOrderData.paymentMethod}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <span className="font-bold text-blue-800">ℹ️ {t('Información')}:</span><br />
+                {t('pos.validation_prompt')}
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => processOrder('preparing', false)}
+                disabled={loading}
+                className="px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all font-bold text-gray-700 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? '...' : t('Después')}
+              </button>
+              <button
+                onClick={() => processOrder('completed', true)}
+                disabled={loading}
+                className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl transition-all font-bold shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <LoadingSpinner size="sm" light />
+                    {t('Procesando...')}
+                  </span>
+                ) : t('Validar e Imprimir')}
+              </button>
             </div>
           </div>
         </div>
