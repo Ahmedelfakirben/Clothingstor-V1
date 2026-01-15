@@ -751,11 +751,11 @@ export function POS() {
         {/* Total y cantidad de items */}
         <div className="flex justify-between items-center">
           <div>
-            <p className="text-xs text-gray-600">Total del pedido</p>
+            <p className="text-xs text-gray-600">{t('pos.total_order')}</p>
             <p className="text-2xl font-bold text-gray-900">{formatCurrency(total)}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-600">Items</p>
+            <p className="text-xs text-gray-600">{t('pos.items')}</p>
             <p className="text-xl font-bold text-gray-900">{cart.length}</p>
           </div>
         </div>
@@ -771,7 +771,7 @@ export function POS() {
           disabled={cart.length === 0 || loading}
           className="w-full gradient-primary hover:gradient-primary-hover text-white font-bold py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {loading ? 'Procesando...' : 'Confirmar Pedido'}
+          {loading ? t('Procesando...') : t('Confirmar Pedido')}
         </button>
 
         {/* Ver carrito */}
@@ -790,7 +790,7 @@ export function POS() {
               // Header
               const header = document.createElement('h3');
               header.className = 'text-lg font-bold mb-4';
-              header.textContent = `Carrito (${cart.length} items)`;
+              header.textContent = `${t('pos.cart_modal_title')} (${cart.length} ${t('pos.items')})`;
 
               // Cart items
               cart.forEach((item) => {
@@ -826,7 +826,7 @@ export function POS() {
 
               const totalLabel = document.createElement('span');
               totalLabel.className = 'font-bold';
-              totalLabel.textContent = 'Total:';
+              totalLabel.textContent = `${t('Total')}:`;
 
               const totalAmount = document.createElement('span');
               totalAmount.className = 'font-bold text-gray-900 text-xl';
@@ -838,7 +838,7 @@ export function POS() {
               // Close button
               const closeButton = document.createElement('button');
               closeButton.className = 'w-full mt-4 bg-gray-200 py-2 rounded-lg';
-              closeButton.textContent = 'Cerrar';
+              closeButton.textContent = t('pos.close');
               closeButton.onclick = () => modal.remove();
 
               modalContent.appendChild(header);
@@ -849,7 +849,7 @@ export function POS() {
             }}
             className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium"
           >
-            Ver Carrito Detallado
+            {t('pos.view_cart_details')}
           </button>
         )}
       </div>

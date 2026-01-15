@@ -325,7 +325,7 @@ export function OrdersDashboard() {
         query = query.or(`created_at.gte.${last2AM},status.eq.preparing,payment_status.neq.paid`);
       }
 
-      query = query.limit(50);
+      query = query.limit(1000);
 
       const { data, error } = await query;
 
@@ -775,7 +775,7 @@ export function OrdersDashboard() {
                         {order.payment_status !== 'paid' && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-orange-100 text-orange-800">
                             <AlertCircle className="w-3 h-3" />
-                            {order.payment_status === 'partial' ? 'Pago Parcial' : 'Pendiente de Pago'}
+                            {order.payment_status === 'partial' ? t('orders.partial_payment') : t('orders.pending_payment')}
                           </span>
                         )}
                       </div>
