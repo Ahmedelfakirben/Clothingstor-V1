@@ -1665,7 +1665,81 @@ export function ProductsManager() {
             />
           </div>
         </div>
-        <table className="w-full">
+        {/* Vista Móvil (Tarjetas) */}
+        <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+          {filteredProducts.map(product => (
+            <div key={product.id} className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex gap-4">
+              {/* Imagen */}
+              <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+                {product.image_url ? (
+                  <img
+                    src={product.image_url}
+                    alt={product.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center');
+                      e.currentTarget.parentElement!.innerHTML = '<svg class="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400">
+                    <Package className="w-8 h-8 opacity-50" />
+                  </div>
+                )}
+              </div>
+
+              {/* Info y Acciones */}
+              <div className="flex-1 min-w-0 flex flex-col justify-between">
+                <div>
+                  <h3 className="font-bold text-gray-900 truncate">{product.name}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-lg font-bold text-amber-600">{formatCurrency(product.base_price)}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${(getProductSizes(product.id).length > 0
+                        ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
+                        : (product.stock || 0)) > 0
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                      }`}>
+                      Stock: {getProductSizes(product.id).length > 0
+                        ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
+                        : (product.stock || 0)
+                      }
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 truncate">{product.brand || t('Sin marca')}</p>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-2">
+                  <button
+                    onClick={() => {
+                      setSelectedProductForUnits(product);
+                      setShowUnitsModal(true);
+                    }}
+                    className="p-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors"
+                  >
+                    <Package className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => startEditingProduct(product)}
+                    className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <Edit2 className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProduct(product.id)}
+                    className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Vista Desktop (Tabla) */}
+        <table className="w-full hidden md:table">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Producto')}</th>
