@@ -163,18 +163,34 @@ export function UserManager() {
   // Acciones de administración existentes (contraseña y borrado lógico)
   const handleResetPassword = async (employee: EmployeeProfile) => {
     try {
-      if (!employee.email) {
-        toast.error(t('Este usuario no tiene correo guardado'));
+      // 1. Pedir nueva contraseña
+      const newPassword = window.prompt(t('Ingrese la nueva contraseña para') + ` ${employee.full_name}:`);
+
+      if (newPassword === null) return; // Cancelado
+
+      if (!newPassword || newPassword.length < 6) {
+        toast.error(t('La contraseña debe tener al menos 6 caracteres'));
         return;
       }
-      const { error } = await supabase.auth.resetPasswordForEmail(employee.email, {
-        redirectTo: window.location.origin,
-      } as any);
+
+      const toastId = toast.loading(t('Actualizando contraseña...'));
+
+      // 2. Llamar a Edge Function
+      const { data, error } = await supabase.functions.invoke('admin-actions', {
+        body: {
+          action: 'reset_password',
+          userId: employee.id,
+          newPassword: newPassword
+        }
+      });
+
       if (error) throw error;
-      toast.success(t('Email de restablecimiento enviado'));
-    } catch (err) {
-      console.error('Error enviando reset de contraseña:', err);
-      toast.error(t('No se pudo enviar el email de restablecimiento'));
+      if (data?.error) throw new Error(data.error);
+
+      toast.success(t('Contraseña actualizada exitosamente'), { id: toastId });
+    } catch (err: any) {
+      console.error('Error reset password:', err);
+      toast.error(t('Error al actualizar: ') + (err.message || err.error_description || 'Unknown error'));
     }
   };
 
@@ -440,13 +456,12 @@ export function UserManager() {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    employee.deleted_at
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${employee.deleted_at
                       ? 'bg-gray-200 text-gray-800'
                       : employee.active
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-red-100 text-red-800'
-                  }`}>
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
                     {employee.deleted_at ? t('Eliminado') : employee.active ? t('Activo') : t('Inactivo')}
                   </span>
                 </td>
@@ -462,8 +477,8 @@ export function UserManager() {
                     <button
                       onClick={() => handleResetPassword(employee)}
                       className="text-amber-600 hover:text-amber-900 flex items-center gap-1"
-                      disabled={!employee.email}
-                      title={employee.email ? t('Enviar reset de contraseña') : t('Sin correo')}
+                      disabled={false}
+                      title={t('Cambiar contraseña directamente')}
                     >
                       <KeyRound className="w-4 h-4" /> {t('Reset')}
                     </button>

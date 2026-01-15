@@ -248,6 +248,11 @@ const translations = {
     'scan.info_loaded_cache': '✅ Información cargada desde caché local',
     'scan.product_identified_google': '✅ ¡Producto identificado + Foto Google!',
     'scan.product_identified': '✅ ¡Producto identificado!',
+    'Cambiar contraseña directamente': 'Cambiar contraseña directamente',
+    'Ingrese la nueva contraseña para': 'Ingrese la nueva contraseña para',
+    'Actualizando contraseña...': 'Actualizando contraseña...',
+    'Contraseña actualizada exitosamente': 'Contraseña actualizada exitosamente',
+    'La contraseña debe tener al menos 6 caracteres': 'La contraseña debe tener al menos 6 caracteres',
 
     // Sala - Room Management
     'Gestión de Sala': 'Gestión de Sala',
@@ -1399,6 +1404,11 @@ const translations = {
     'scan.info_loaded_cache': '✅ Informations chargées depuis le cache local',
     'scan.product_identified_google': '✅ Produit identifié + Photo Google !',
     'scan.product_identified': '✅ Produit identifié !',
+    'Cambiar contraseña directamente': 'Changer le mot de passe directement',
+    'Ingrese la nueva contraseña para': 'Entrez le nouveau mot de passe pour',
+    'Actualizando contraseña...': 'Mise à jour du mot de passe...',
+    'Contraseña actualizada exitosamente': 'Mot de passe mis à jour avec succès',
+    'La contraseña debe tener al menos 6 caracteres': 'Le mot de passe doit comporter au moins 6 caractères',
 
     // Login Form
 
