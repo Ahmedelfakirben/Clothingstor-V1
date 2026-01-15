@@ -708,6 +708,37 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                         <p className="text-xs text-pink-600 capitalize font-medium mt-1">{profile.role}</p>
                       </div>
 
+                      {/* Mobile Navigation (Only visible on mobile) */}
+                      <div className="lg:hidden px-2 py-2 border-b border-gray-200 max-h-[60vh] overflow-y-auto">
+                        {navGroups.map(group => {
+                          const visibleItems = group.items.filter(item => userPermissions[item.id] === true);
+                          if (visibleItems.length === 0) return null;
+
+                          return (
+                            <div key={group.name} className="mb-3">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-1">{group.name}</p>
+                              {visibleItems.map(item => {
+                                const Icon = item.icon;
+                                return (
+                                  <button
+                                    key={item.id}
+                                    onClick={() => {
+                                      onViewChange(item.id);
+                                      setShowUserMenu(false);
+                                    }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${currentView === item.id ? 'bg-amber-100 text-amber-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
+                                      }`}
+                                  >
+                                    <Icon className="w-4 h-4" />
+                                    <span>{item.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                      </div>
+
                       <div className="px-2 py-2">
                         <div className="px-3 py-2">
                           <OnlineStatusToggle />
@@ -734,161 +765,9 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
 
           </div>
         </div>
-
-        {/* Navegación móvil simplificada */}
-        <div className="lg:hidden border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-around px-4 py-2">
-            {profile?.role === 'cashier' || profile?.role === 'barista' || profile?.role === 'waiter' ? (
-              // Vista simplificada para cajeros, baristas y camareros - basado en permisos
-              <>
-                {userPermissions['pos'] && (
-                  <button
-                    onClick={() => onViewChange('pos')}
-                    className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${currentView === 'pos'
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                  >
-                    <ShoppingCart className="w-5 h-5" />
-                    <span className="text-xs font-medium">{t('Punto de Venta')}</span>
-                  </button>
-                )}
-                {userPermissions['orders'] && (
-                  <button
-                    onClick={() => onViewChange('orders')}
-                    className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg transition-colors ${currentView === 'orders'
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                  >
-                    <ClipboardList className="w-5 h-5" />
-                    <span className="text-xs font-medium">{t('Pedidos')}</span>
-                  </button>
-                )}
-              </>
-            ) : (
-              // Vista para admin - Botón de menú hamburguesa centrado
-              <div className="w-full flex justify-center">
-                <button
-                  onClick={() => setMobileMenuOpen(true)}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors shadow-md"
-                >
-                  <Menu className="w-5 h-5" />
-                  <span className="font-medium">{t('Menú de Navegación')}</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
       </nav>
 
-      {/* Menú lateral móvil para admin y super_admin */}
-      {mobileMenuOpen && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
-        <>
-          {/* Overlay */}
-          <div
-            className="fixed inset-0 bg-black/50 z-[60] lg:hidden animate-fadeIn"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-
-          {/* Sidebar */}
-          <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-2xl z-[70] lg:hidden animate-slideInLeft">
-            <div className="flex flex-col h-full">
-              {/* Header del menú */}
-              <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-amber-500 to-orange-500">
-                <div className="flex items-center gap-2 text-white">
-                  <Coffee className="w-6 h-6" />
-                  <span className="font-bold text-lg">{t('Menú Admin')}</span>
-                </div>
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-1 hover:bg-white/20 rounded-lg transition-colors"
-                >
-                  <X className="w-6 h-6 text-white" />
-                </button>
-              </div>
-
-              {/* Install PWA Button Mobile */}
-              <div className="p-4 bg-gray-50 border-b border-gray-100 flex justify-center">
-                <InstallPWA />
-              </div>
-
-              {/* Contenido del menú */}
-              <div className="flex-1 overflow-y-auto p-4">
-                {navGroups.map(group => {
-                  const visibleItems = group.items.filter(item =>
-                    userPermissions[item.id] === true
-                  );
-
-                  if (visibleItems.length === 0) return null;
-
-                  return (
-                    <div key={group.name} className="mb-6">
-                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 px-2">
-                        {group.name}
-                      </h3>
-                      <div className="space-y-1">
-                        {visibleItems.map(item => {
-                          const Icon = item.icon;
-                          const isActive = currentView === item.id;
-
-                          return (
-                            <button
-                              key={item.id}
-                              onClick={() => {
-                                onViewChange(item.id);
-                                setMobileMenuOpen(false);
-                              }}
-                              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${isActive
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'text-gray-700 hover:bg-gray-100'
-                                }`}
-                            >
-                              <Icon className="w-5 h-5" />
-                              <span>{item.label}</span>
-                              {isActive && (
-                                <div className="w-2 h-2 rounded-full bg-amber-500 ml-auto" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Footer del menú */}
-              <div className="p-4 border-t bg-gray-50">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-amber-600 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">
-                      {profile?.full_name?.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">{profile?.full_name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{profile?.role}</p>
-                  </div>
-                </div>
-                <div className="mb-3">
-                  <OnlineStatusToggle />
-                </div>
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    handleLogoutClick();
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
-                >
-                  <LogOut className="w-5 h-5" />
-                  <span>{t('Cerrar Sesión')}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Navegación móvil ELIMINADA (Integrada en menú usuario) */}
 
       {showCloseCashModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
