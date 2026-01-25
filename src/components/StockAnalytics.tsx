@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search } from 'lucide-react';
+import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X } from 'lucide-react';
+import IndividualUnitsManager from './IndividualUnitsManager';
 
 
 
@@ -16,6 +17,7 @@ interface StockItem {
     estimatedProfit: number;
     imageUrl?: string;
     status: 'ok' | 'low' | 'out';
+    sold: number;
     sizes?: { name: string; stock: number }[];
 }
 
@@ -33,6 +35,7 @@ export function StockAnalytics() {
     const [bestSellers, setBestSellers] = useState<BestSeller[]>([]);
     const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all');
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
 
     // KPIs
     const [totalItems, setTotalItems] = useState(0);
@@ -98,14 +101,35 @@ export function StockAnalytics() {
                 };
             });
 
-            // Calculate KPIs
-            const tItems = processedItems.reduce((sum, item) => sum + item.totalStock, 0);
-            const tValue = processedItems.reduce((sum, item) => sum + item.value, 0);
-            const tCost = processedItems.reduce((sum, item) => sum + item.costValue, 0);
-            const lowCount = processedItems.filter(i => i.status === 'low').length;
-            const outCount = processedItems.filter(i => i.status === 'out').length;
 
-            setStockItems(processedItems);
+
+            // 5. Fetch ALL-TIME Sold Counts per Product
+            const { data: allSalesData } = await supabase
+                .from('order_items')
+                .select('product_id, quantity');
+
+            const salesMap: Record<string, number> = {};
+            if (allSalesData) {
+                allSalesData.forEach((item: any) => {
+                    const pid = item.product_id;
+                    salesMap[pid] = (salesMap[pid] || 0) + item.quantity;
+                });
+            }
+
+            // Update processedItems with sold count
+            const finalItems = processedItems.map(item => ({
+                ...item,
+                sold: salesMap[item.id] || 0
+            }));
+
+            // Calculate KPIs
+            const tItems = finalItems.reduce((sum, item) => sum + item.totalStock, 0);
+            const tValue = finalItems.reduce((sum, item) => sum + item.value, 0);
+            const tCost = finalItems.reduce((sum, item) => sum + item.costValue, 0);
+            const lowCount = finalItems.filter(i => i.status === 'low').length;
+            const outCount = finalItems.filter(i => i.status === 'out').length;
+
+            setStockItems(finalItems);
             setTotalItems(tItems);
             setTotalValue(tValue);
             setTotalCost(tCost);
@@ -273,9 +297,8 @@ export function StockAnalytics() {
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Producto')}</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Stock')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('stock.estimated_cost')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('stock.sales_value')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('stock.estimated_profit')}</th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Vendidos')}</th>
+                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('Valor Venta')}</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Estado')}</th>
                                 </tr>
                             </thead>
@@ -286,7 +309,11 @@ export function StockAnalytics() {
                                     <tr><td colSpan={4} className="text-center py-8 text-gray-500">{t('No se encontraron productos')}</td></tr>
                                 ) : (
                                     filteredItems.map(item => (
-                                        <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                                        <tr
+                                            key={item.id}
+                                            className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                                            onClick={() => setSelectedItem(item)}
+                                        >
                                             <td className="px-4 py-3 flex items-center gap-3">
                                                 {item.imageUrl ? (
                                                     <img src={item.imageUrl} alt={item.name} className="w-10 h-10 object-cover rounded-lg" />
@@ -307,14 +334,8 @@ export function StockAnalytics() {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-center font-bold text-gray-700">{item.totalStock}</td>
-                                            <td className="px-4 py-3 text-right text-gray-500">{formatCurrency(item.costValue)}</td>
+                                            <td className="px-4 py-3 text-center font-medium text-blue-600">{item.sold}</td>
                                             <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(item.value)}</td>
-                                            <td className="px-4 py-3 text-right font-medium text-emerald-600">
-                                                {formatCurrency(item.estimatedProfit)}
-                                                <span className="block text-xs text-gray-400">
-                                                    {item.value > 0 ? Math.round((item.estimatedProfit / item.value) * 100) : 0}%
-                                                </span>
-                                            </td>
                                             <td className="px-4 py-3 text-center">
                                                 {item.status === 'out' && (
                                                     <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-200">
@@ -371,6 +392,31 @@ export function StockAnalytics() {
                     </div>
                 </div>
             </div>
+
+            {selectedItem && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl animate-fadeIn">
+                        <div className="p-4 border-b flex justify-between items-center sticky top-0 bg-white z-10">
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                <Archive className="w-5 h-5 text-purple-600" />
+                                {selectedItem.name}
+                            </h3>
+                            <button
+                                onClick={() => setSelectedItem(null)}
+                                className="p-2 hover:bg-gray-100 rounded-full"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <IndividualUnitsManager
+                                productId={selectedItem.id}
+                                productName={selectedItem.name}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -38,6 +38,7 @@ interface ProductSize {
   size_name: string;
   price_modifier: number;
   stock: number;
+  barcode?: string;
 }
 
 
@@ -77,9 +78,10 @@ export function ProductsManager() {
     base_price: 0,
     available: true,
   });
-  const [newProductSizes, setNewProductSizes] = useState<{ name: string; stock: number; price: number }[]>([]);
+  const [newProductSizes, setNewProductSizes] = useState<{ name: string; stock: number; price: number; barcode?: string }[]>([]);
   const [newSizeName, setNewSizeName] = useState('');
   const [newSizeStock, setNewSizeStock] = useState('0');
+  const [newSizeBarcode, setNewSizeBarcode] = useState('');
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -98,6 +100,7 @@ export function ProductsManager() {
   const [showScanner, setShowScanner] = useState(false);
   const [showUnitsModal, setShowUnitsModal] = useState(false);
   const [selectedProductForUnits, setSelectedProductForUnits] = useState<Product | null>(null);
+  const [scanTarget, setScanTarget] = useState<'main' | 'size'>('main');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Estados para galería de imágenes
@@ -240,9 +243,15 @@ export function ProductsManager() {
       return;
     }
 
-    setNewProductSizes([...newProductSizes, { name: newSizeName.trim(), stock, price: 0 }]);
+    setNewProductSizes([...newProductSizes, {
+      name: newSizeName.trim(),
+      stock,
+      price: 0,
+      barcode: newSizeBarcode.trim() || undefined
+    }]);
     setNewSizeName('');
     setNewSizeStock('0');
+    setNewSizeBarcode('');
   };
 
   const handleRemoveSize = (index: number) => {
@@ -563,10 +572,14 @@ export function ProductsManager() {
     }
   };
 
-  const handleScanSuccess = (decodedText: string) => {
-    setNewProduct(prev => ({ ...prev, barcode: decodedText }));
+  const handleScanSuccess = (code: string) => {
+    if (scanTarget === 'main') {
+      setNewProduct({ ...newProduct, barcode: code });
+    } else {
+      setNewSizeBarcode(code);
+    }
     setShowScanner(false);
-    toast.success(`${t('scan.scanned_code')}: ${decodedText}`, { duration: 3000 });
+    toast.success(t('Código escaneado: ') + code);
   };
 
   const handleCreateProduct = async () => {
@@ -684,7 +697,8 @@ export function ProductsManager() {
           product_id: created.id,
           size_name: size.name,
           stock: size.stock,
-          price_modifier: size.price
+          price_modifier: size.price,
+          barcode: size.barcode
         }));
 
         const { error: sizesError } = await supabase
@@ -853,7 +867,8 @@ export function ProductsManager() {
     const productSizesList = sizes.filter(s => s.product_id === product.id).map(s => ({
       name: s.size_name,
       stock: s.stock,
-      price: s.price_modifier || 0
+      price: s.price_modifier || 0,
+      barcode: s.barcode
     }));
     setNewProductSizes(productSizesList);
 
@@ -920,7 +935,8 @@ export function ProductsManager() {
           product_id: editingId,
           size_name: size.name,
           stock: size.stock,
-          price_modifier: size.price
+          price_modifier: size.price,
+          barcode: size.barcode
         }));
 
         const { error: sizesError } = await supabase
@@ -1270,7 +1286,7 @@ export function ProductsManager() {
 
       {showNewProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">{isEditing ? t('Editar Producto') : t('Nuevo Producto')}</h3>
             <div className="space-y-4">
               {/* Bloque Imagen Principal (Movido arriba) */}
@@ -1368,7 +1384,10 @@ export function ProductsManager() {
                       />
                       <button
                         type="button"
-                        onClick={() => setShowScanner(true)}
+                        onClick={() => {
+                          setScanTarget('main');
+                          setShowScanner(true);
+                        }}
                         className="px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
                         title={t('Escanear con cámara')}
                       >
@@ -1532,6 +1551,24 @@ export function ProductsManager() {
                       onChange={e => setNewSizeStock(e.target.value)}
                       className="w-24 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-amber-500 text-sm"
                     />
+                    <input
+                      type="text"
+                      placeholder={t('Código (Opcional)')}
+                      value={newSizeBarcode}
+                      onChange={e => setNewSizeBarcode(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-amber-500 text-sm font-mono"
+                    />
+                    <button
+                      type="button"
+                      className="p-2 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                      title={t('Escanear')}
+                      onClick={() => {
+                        setScanTarget('size');
+                        setShowScanner(true);
+                      }}
+                    >
+                      <ScanBarcode className="w-4 h-4" />
+                    </button>
                     <button
                       type="button"
                       onClick={handleAddSize}
@@ -1545,7 +1582,10 @@ export function ProductsManager() {
                     <div className="space-y-2 mt-3 p-2 bg-white rounded border border-gray-100">
                       {newProductSizes.map((size, idx) => (
                         <div key={idx} className="flex justify-between items-center text-sm p-1 border-b last:border-0 border-gray-100">
-                          <span>{size.name}</span>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{size.name}</span>
+                            {size.barcode && <span className="text-xs text-gray-500 font-mono">{size.barcode}</span>}
+                          </div>
                           <div className="flex items-center gap-3">
                             <span className="font-semibold">{size.stock} u.</span>
                             <button onClick={() => handleRemoveSize(idx)} className="text-red-500 hover:text-red-700">

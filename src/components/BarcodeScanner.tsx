@@ -13,50 +13,67 @@ export const BarcodeScanner = ({ onScanSuccess, onClose }: BarcodeScannerProps) 
     const scannerRef = useRef<Html5Qrcode | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const isHandlingClose = useRef(false);
 
     useEffect(() => {
         let isMounted = true;
+        const elementId = "reader";
 
         const startScanner = async () => {
             try {
+                // Pequeña pausa para asegurar que el DOM esté listo
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                if (!document.getElementById(elementId)) {
+                    console.warn("Scanner element not found");
+                    return;
+                }
+
                 setLoading(true);
-                // Obtener cámaras disponibles
-                const devices = await Html5Qrcode.getCameras();
+                const devices = await Html5Qrcode.getCameras().catch(err => {
+                    console.warn("Error getting cameras:", err);
+                    return [];
+                });
 
-                if (devices && devices.length) {
-                    // const cameraId = devices[0].id;
-
-                    const scanner = new Html5Qrcode("reader");
+                if (isMounted) {
+                    // Instanciamos siempre, incluso si no hay cámaras detectadas por getCameras (a veces falla pero start funciona)
+                    // Usamos verbose false para menos ruido
+                    const scanner = new Html5Qrcode(elementId, { verbose: false });
                     scannerRef.current = scanner;
 
                     await scanner.start(
-                        // Intentar usar cámara trasera ('environment') si es posible, si no la primera disponible
                         { facingMode: "environment" },
                         {
                             fps: 10,
                             qrbox: { width: 250, height: 250 },
-                            aspectRatio: 1.0
+                            aspectRatio: 1.0,
+                            disableFlip: false // A veces ayuda con la orientación
                         },
                         (decodedText, decodedResult) => {
-                            // Éxito
-                            if (isMounted) {
-                                // Detener scanner antes de llamar al callback para evitar múltiples lecturas
-                                scanner.stop().then(() => {
-                                    scanner.clear();
-                                    onScanSuccess(decodedText, decodedResult);
-                                }).catch(err => console.error("Error stopping scanner", err));
+                            if (isMounted && !isHandlingClose.current) {
+                                isHandlingClose.current = true;
+                                // Detener y luego notificar éxito
+                                scanner.stop()
+                                    .then(() => {
+                                        scanner.clear();
+                                        onScanSuccess(decodedText, decodedResult);
+                                    })
+                                    .catch(err => {
+                                        console.error("Error al detener tras escaneo:", err);
+                                        // Aún así intentamos notificar éxito
+                                        onScanSuccess(decodedText, decodedResult);
+                                    });
                             }
                         },
-                        () => {
-                            // Error de lectura (frame vacío), ignorar
-                        }
+                        () => { } // Ignorar errores de frame vacío
                     );
-                } else {
-                    setError(t("No se detectaron cámaras."));
                 }
             } catch (err: any) {
-                console.error("Error starting scanner:", err);
-                if (isMounted) setError(`${t('Error al iniciar cámara:')} ${err?.message || t('Permisos denegados o error desconocido')}`);
+                console.error("Error general iniciando scanner:", err);
+                if (isMounted) {
+                    // No mostramos error bloqueante inmediato para no asustar, solo log
+                    setError(t('No se pudo acceder a la cámara. Verifique permisos.'));
+                }
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -66,34 +83,47 @@ export const BarcodeScanner = ({ onScanSuccess, onClose }: BarcodeScannerProps) 
 
         return () => {
             isMounted = false;
+            // Limpieza robusta al desmontar
             if (scannerRef.current) {
-                if (scannerRef.current.isScanning) {
-                    // Detener asíncronamente y luego limpiar
-                    scannerRef.current.stop()
-                        .then(() => {
-                            // Verifica si scannerRef.current aún existe antes de limpiar
-                            scannerRef.current?.clear();
-                        })
-                        .catch(err => {
-                            console.error("Error stopping scanner during cleanup:", err);
-                        });
-                } else {
-                    try {
-                        scannerRef.current.clear();
-                    } catch (e) {
-                        console.error("Error clearing scanner:", e);
+                const scanner = scannerRef.current;
+                try {
+                    if (scanner.isScanning) {
+                        scanner.stop()
+                            .then(() => scanner.clear())
+                            .catch(e => console.warn("Error in cleanup stop:", e));
+                    } else {
+                        scanner.clear();
                     }
+                } catch (e) {
+                    console.warn("Error in cleanup catch:", e);
                 }
             }
         };
-    }, []); // onScanSuccess y onClose no deben ser dependencias para evitar reinicios
+    }, []);
+
+    const handleClose = async () => {
+        if (isHandlingClose.current) return;
+        isHandlingClose.current = true;
+
+        // Intentar detener limpiamente antes de llamar a onClose (que desmontará el componente)
+        if (scannerRef.current && scannerRef.current.isScanning) {
+            try {
+                await scannerRef.current.stop();
+                scannerRef.current.clear();
+            } catch (e) {
+                console.warn("Error manual stop:", e);
+            }
+        }
+        onClose();
+    };
 
     return (
         <div className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex flex-col items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-xl overflow-hidden shadow-2xl relative">
                 <button
-                    onClick={onClose}
+                    onClick={handleClose}
                     className="absolute top-2 right-2 z-10 bg-white/80 hover:bg-white rounded-full p-2 transition-colors shadow-sm"
+                    disabled={loading} // Evitar cerrar mientras inicia para prevenir condiciones de carrera
                 >
                     <X className="w-6 h-6 text-gray-700" />
                 </button>
@@ -104,9 +134,6 @@ export const BarcodeScanner = ({ onScanSuccess, onClose }: BarcodeScannerProps) 
                 </div>
 
                 <div className="relative bg-black aspect-square max-h-[400px]">
-                    {/* Contenedor específico para html5-qrcode. 
-                       Estilos inline para asegurar que el video ocupe todo el espacio correctamente 
-                   */}
                     <style>{`
                     #reader video {
                       object-fit: cover !important;

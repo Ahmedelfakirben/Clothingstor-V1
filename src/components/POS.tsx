@@ -403,17 +403,47 @@ export function POS() {
     if (!barcodeInput.trim()) return;
 
     const scannedCode = barcodeInput.trim();
+
+    // 1. Busqueda PRIORITARIA: Código de barra de TALLA específica
+    // Buscamos si el código corresponde exactamente a una talla
+    const specificSize = sizes.find(s => s.barcode === scannedCode);
+
+    if (specificSize) {
+      // Encontramos una talla específica!
+      const parentProduct = products.find(p => p.id === specificSize.product_id);
+
+      if (parentProduct) {
+        // Validación de stock específica para esta talla
+        if (checkStock(parentProduct, specificSize, 1)) {
+          // Añadir directamente al carrito con la talla pre-seleccionada
+          addItem(parentProduct, specificSize);
+          setBarcodeInput('');
+          toast.success(`${parentProduct.name} (${specificSize.size_name}) ${t('agregado')}`);
+          return; // Éxito, salimos.
+        } else {
+          // Stock insuficiente
+          return;
+        }
+      }
+      // Si tenemos la talla pero falta el producto padre en la lista local 
+      // (caso raro si fetchProducts filtra algo, pero posible)
+    }
+
+    // 2. Búsqueda SECUNDARIA: Código de barra de PRODUCTO (Padre)
     // Search exact match for barcode
     const foundProduct = products.find(p => p.barcode === scannedCode);
 
     if (foundProduct) {
       // Check if size selection is needed
-      const sizes = productSizes(foundProduct.id);
-      if (sizes.length > 0) {
+      const productSizesList = sizes.filter(s => s.product_id === foundProduct.id);
+
+      if (productSizesList.length > 0) {
+        // Tiene tallas, pero escaneamos el código GENERÍCO.
+        // Debemos preguntar qué talla quiere el cliente.
         setScannedProductForSizeSelection(foundProduct);
         setBarcodeInput('');
       } else {
-        // Check stock logic
+        // No tiene tallas (producto único), añadir directamente.
         if (checkStock(foundProduct, undefined, 1)) {
           addItem(foundProduct);
           setBarcodeInput('');

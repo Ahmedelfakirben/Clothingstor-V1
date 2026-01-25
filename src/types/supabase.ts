@@ -28,6 +28,7 @@ export interface ProductSize {
   size_name: string;
   price_modifier: number;
   stock: number;
+  barcode?: string;
   created_at: string;
 }
 
