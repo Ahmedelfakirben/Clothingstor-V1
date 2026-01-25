@@ -1218,15 +1218,15 @@ const translations = {
     'install.installed': 'Application Installée',
 
     // Stock Analyticsons communes
-    'common.save': 'Enregistrer',
-    'common.cancel': 'Annuler',
-    'common.edit': 'Modifier',
-    'common.delete': 'Supprimer',
-    'common.add': 'Ajouter',
     'common.search': 'Rechercher',
     'common.loading': 'Chargement...',
     'common.error': 'Erreur',
     'common.success': 'Succès',
+    'common.edit': 'Modifier',
+    'common.delete': 'Supprimer',
+    'common.add': 'Ajouter',
+    'common.cancel': 'Annuler',
+    'common.save': 'Enregistrer',
 
     // Configuration
     'settings.language': 'Langue',
@@ -2405,6 +2405,60 @@ const translations = {
     'No se detectaron cámaras.': 'Aucune caméra détectée.',
     'Error al iniciar cámara:': 'Erreur lors du démarrage de la caméra :',
     'Analizando imagen...': 'Analyse de l\'image...',
+
+    // Individual Units Manager / Quick Stock
+    'Gestión Rápida de Stock y Códigos': 'Gestion Rapide de Stock et Codes',
+    'Agregar Nueva Talla': 'Ajouter une Nouvelle Taille',
+    'Nombre (ej: XL)': 'Nom (ex: XL)',
+
+    'Código de Barras': 'Code-barres',
+    'Opcional': 'Optionnel',
+    'Escanear': 'Scanner',
+
+    'Tallas Existentes': 'Tailles Existantes',
+    'No hay tallas registradas para este producto': 'Aucune taille enregistrée pour ce produit',
+    'Código': 'Code',
+    'Sin código': 'Sans code',
+
+    'Nombre de talla obligatorio': 'Nom de taille obligatoire',
+    'Stock inválido': 'Stock invalide',
+    'Ya existe una talla con ese nombre': 'Une taille avec ce nom existe déjà',
+    'Talla agregada': 'Taille ajoutée',
+    'Error al agregar talla': 'Erreur lors de l\'ajout de la taille',
+    '¿Estás seguro de eliminar esta talla?': 'Êtes-vous sûr de vouloir supprimer cette taille ?',
+    'Talla eliminada': 'Taille supprimée',
+    'Error al eliminar talla': 'Erreur lors de la suppression de la taille',
+    'Actualizado': 'Mis à jour',
+    'Error al actualizar': 'Erreur lors de la mise à jour',
+    'Código escaneado: ': 'Code scanné : ',
+
+    // Products Manager Extras
+    'El nombre de la talla es obligatorio': 'Le nom de la taille est obligatoire',
+    'El stock debe ser un número válido >= 0': 'Le stock doit être un nombre valide >= 0',
+    'Ingresa un código de barras primero': 'Entrez d\'abord un code-barres',
+    'No se encontró el producto en la base de datos de códigos de barras': 'Produit non trouvé dans la base de données de codes-barres',
+    'Producto no encontrado': 'Produit non trouvé',
+    'Error al buscar código de barras': 'Erreur lors de la recherche du code-barres',
+    'Producto encontrado:': 'Produit trouvé :',
+    'Se autocompletaron los datos del producto': 'Les données du produit ont été complétées automatiquement',
+    'Código (Opcional)': 'Code (Optionnel)',
+
+
+    // Stock Analytics Extras
+    'Vendidos': 'Vendus',
+    'Valor Venta': 'Valeur Vente',
+
+
+    // POS & Online Store Errors
+    'Error al cargar pedidos online': 'Erreur lors du chargement des commandes en ligne',
+    'Error al cargar clientes': 'Erreur lors du chargement des clients',
+    'Error al cargar historial del cliente': 'Erreur lors du chargement de l\'historique client',
+    'Error al actualizar estado': 'Erreur lors de la mise à jour de l\'état',
+    'No se pudo cargar el contenido del pedido activo': 'Impossible de charger le contenu de la commande active',
+    'Error al cargar categorías': 'Erreur lors du chargement des catégories',
+    'Error al cargar productos': 'Erreur lors du chargement des produits',
+    'Error al cargar tamaños': 'Erreur lors du chargement des tailles',
+    'Pedido finalizado': 'Commande terminée'
   }
 };
 
