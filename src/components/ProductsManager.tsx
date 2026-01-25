@@ -1742,6 +1742,7 @@ export function ProductsManager() {
         <table className="w-full hidden md:table">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Imagen')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Producto')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Categoría')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Marca')}</th>
@@ -1756,7 +1757,88 @@ export function ProductsManager() {
             {filteredProducts.map(product => (
               <tr key={product.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
-                  {/* Show sizes badge if available */}
+                  {/* Image Column */}
+                  {editingProduct?.id === product.id ? (
+                    <div className="flex items-center gap-3">
+                      {(editingImagePreviewUrl || product.image_url) && (
+                        <div className="relative">
+                          <img
+                            src={editingImagePreviewUrl || product.image_url || ''}
+                            alt={t('Vista previa')}
+                            className="h-32 w-32 object-cover rounded border"
+                            onError={async (e) => {
+                              const img = e.currentTarget;
+                              if (img.parentElement) {
+                                const loading = document.createElement('div');
+                                loading.className = "absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-amber-600 animate-pulse";
+                                loading.innerText = "Reparando...";
+                                img.style.display = 'none';
+                                img.parentElement.appendChild(loading);
+                              }
+                              const newUrl = await fixProductImage(
+                                product.barcode || '',
+                                product.name,
+                                product.brand || '',
+                                product.image_url || ''
+                              );
+                              if (newUrl) {
+                                const updatedProducts = products.map(p =>
+                                  p.id === product.id ? { ...p, image_url: newUrl } : p
+                                );
+                                setProducts(updatedProducts);
+                                await supabase.from('products').update({ image_url: newUrl }).eq('id', product.id);
+                              } else if (img.parentElement) {
+                                img.parentElement.innerHTML = '';
+                                const fallback = document.createElement('div');
+                                fallback.className = "h-16 w-16 flex items-center justify-center bg-gray-100 text-gray-400 rounded border text-xs text-center p-1";
+                                fallback.innerText = "Sin Imagen";
+                                img.parentElement.appendChild(fallback);
+                              }
+                            }}
+                          />
+                          {uploadingImage && (
+                            <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
+                              <LoadingSpinner size="sm" light />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingImage}
+                          onChange={e => {
+                            const file = e.target.files?.[0] || null;
+                            setEditingImage(file);
+                          }}
+                          className={`text-xs w-32 ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-32 w-32 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                      {product.image_url ? (
+                        <img
+                          src={product.image_url}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement?.classList.add('flex', 'items-center', 'justify-center');
+                            e.currentTarget.parentElement!.innerHTML = '<svg class="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <Package className="w-6 h-6 opacity-50" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </td>
+                <td className="px-6 py-4">
+                  {/* Product Name Column (Cleaned) */}
                   <div className="flex flex-col">
                     {editingProduct?.id === product.id ? (
                       <div>
@@ -1766,6 +1848,7 @@ export function ProductsManager() {
                           value={editingProduct.name}
                           onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
                           className="w-full px-2 py-1 border border-gray-300 rounded"
+                          placeholder={t('Nombre')}
                         />
                         <input
                           type="text"
@@ -1774,85 +1857,11 @@ export function ProductsManager() {
                           className="w-full px-2 py-1 border border-gray-300 rounded font-mono text-xs mt-1"
                           placeholder="Código de Barras"
                         />
-
-                        {/* Image edit controls... */}
-                        <div className="mt-2 flex items-center gap-3">
-                          {(editingImagePreviewUrl || product.image_url) && (
-                            <div className="relative">
-                              <img
-                                src={editingImagePreviewUrl || product.image_url || ''}
-                                alt={t('Vista previa')}
-                                className="h-16 w-16 object-cover rounded border"
-                                onError={async (e) => {
-                                  const img = e.currentTarget;
-                                  // 1. Mostrar estado "Reparando..."
-                                  if (img.parentElement) {
-                                    const loading = document.createElement('div');
-                                    loading.className = "absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-amber-600 animate-pulse";
-                                    loading.innerText = "Reparando...";
-                                    img.style.display = 'none';
-                                    img.parentElement.appendChild(loading);
-                                  }
-
-                                  // 2. Intentar reparar
-                                  const newUrl = await fixProductImage(
-                                    product.barcode || '',
-                                    product.name,
-                                    product.brand || '',
-                                    product.image_url || ''
-                                  );
-
-                                  // 3. Resultado
-                                  if (newUrl) {
-                                    // Actualizar en la lista local para reflejo inmediato
-                                    const updatedProducts = products.map(p =>
-                                      p.id === product.id ? { ...p, image_url: newUrl } : p
-                                    );
-                                    setProducts(updatedProducts);
-
-                                    // Actualizar en DB silenciosamente
-                                    await supabase.from('products').update({ image_url: newUrl }).eq('id', product.id);
-                                  } else {
-                                    if (img.parentElement) {
-                                      img.parentElement.innerHTML = '';
-                                      const fallback = document.createElement('div');
-                                      fallback.className = "h-16 w-16 flex items-center justify-center bg-gray-100 text-gray-400 rounded border text-xs text-center p-1";
-                                      fallback.innerText = "Sin Imagen";
-                                      img.parentElement.appendChild(fallback);
-                                    }
-                                  }
-                                }}
-                              />
-                              {uploadingImage && (
-                                <div className="absolute inset-0 bg-black bg-opacity-50 rounded flex items-center justify-center">
-                                  <LoadingSpinner size="sm" light />
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          <div className="relative">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              disabled={uploadingImage}
-                              onChange={e => {
-                                const file = e.target.files?.[0] || null;
-                                setEditingImage(file);
-                              }}
-                              className={`text-sm ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            />
-                            {uploadingImage && (
-                              <div className="absolute right-0 top-1/2 transform -translate-y-1/2">
-                                <LoadingSpinner size="sm" />
-                              </div>
-                            )}
-                          </div>
-                        </div>
                       </div>
                     ) : (
                       <>
                         <div className="font-medium text-gray-900">{product.name}</div>
-                        <div className="text-sm text-gray-500">{product.description}</div>
+                        <div className="text-sm text-gray-500 line-clamp-2">{product.description}</div>
                         {getProductSizes(product.id).length > 0 && (
                           <div className="mt-1 flex flex-wrap gap-1">
                             {getProductSizes(product.id).map(s => (

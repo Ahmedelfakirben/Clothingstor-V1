@@ -39,9 +39,9 @@ export const AVAILABLE_CURRENCIES: Currency[] = [
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
   const [currentCurrency, setCurrentCurrency] = useState<Currency>({
-    code: 'EUR',
-    symbol: '€',
-    name: 'Euro',
+    code: 'MAD',
+    symbol: 'DH',
+    name: 'Dirham Marroquí',
     decimal_places: 2,
     position: 'after',
   });
@@ -82,7 +82,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Error cargando configuración de divisa:', error);
-        // Mantener EUR por defecto si hay error
+        // Mantener MAD por defecto si hay error
         return;
       }
 
