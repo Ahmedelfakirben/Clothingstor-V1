@@ -169,7 +169,7 @@ export function UserManager() {
       if (newPassword === null) return; // Cancelado
 
       if (!newPassword || newPassword.length < 6) {
-        toast.error(t('La contraseña debe tener al menos 6 caracteres'));
+        toast.error(t('users.password_length_error'));
         return;
       }
 
@@ -457,10 +457,10 @@ export function UserManager() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${employee.deleted_at
-                      ? 'bg-gray-200 text-gray-800'
-                      : employee.active
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
+                    ? 'bg-gray-200 text-gray-800'
+                    : employee.active
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
                     }`}>
                     {employee.deleted_at ? t('Eliminado') : employee.active ? t('Activo') : t('Inactivo')}
                   </span>

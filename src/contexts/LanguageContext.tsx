@@ -1183,6 +1183,59 @@ const translations = {
     'No se detectaron cámaras.': 'No se detectaron cámaras.',
     'Error al iniciar cámara:': 'Error al iniciar cámara:',
     'Analizando imagen...': 'Analizando imagen...',
+
+    // Products New Translations
+    'products.size_name_required': 'El nombre de la talla es obligatorio',
+    'products.stock_invalid': 'El stock debe ser un número válido >= 0',
+    'products.barcode_required': 'Ingresa un código de barras primero',
+    'products.existing_found': '✅ Producto ya existente encontrado en tu inventario',
+    'products.searching_info': 'Buscando información del producto...',
+
+    // POS Errors
+    'pos.error_loading_active_order': 'No se pudo cargar el contenido del pedido activo',
+    'pos.error_loading_categories': 'Error al cargar categorías',
+    'pos.error_loading_products': 'Error al cargar productos',
+    'pos.error_loading_sizes': 'Error al cargar tamaños',
+    'pos.enter_valid_amount': 'Ingrese un monto válido',
+    'pos.amount_greater_total': 'El monto no puede ser mayor al total',
+    'pos.insufficient_stock': 'No hay suficiente stock. Disponible: ',
+    'pos.stock_update_error': 'Error actualizando stock',
+    'pos.confirm_delete_supplier': '¿Estás seguro de eliminar este proveedor?',
+
+    // Users
+    'users.password_length_error': 'La contraseña debe tener al menos 6 caracteres',
+
+    // Server Manager
+    'server.confirm_import': '¿Estás seguro de que deseas importar esta base de datos? Esta acción sobrescribirá los datos existentes.',
+    'server.confirm_import_no_products': '¿Estás seguro de que deseas importar esta base de datos SIN categorías y productos? Los datos existentes se sobrescribirán excepto categorías y productos.',
+    'server.warning_clean_history': '⚠️ ADVERTENCIA: Esta acción eliminará el historial (pedidos, empleados no super_admin, sesiones de caja) pero MANTENDRÁ las categorías y productos. ¿Continuar?',
+    'server.confirm_irreversible': 'Esta acción es IRREVERSIBLE. ¿Confirmas?',
+    'server.warning_clean_all': '⚠️ ADVERTENCIA: Esta acción eliminará TODOS los datos del historial (pedidos, empleados no super_admin, etc.). ¿Estás completamente seguro?',
+
+    // Company Settings
+    'company.name_required': 'El nombre de la empresa es obligatorio',
+
+    'products.info_loaded': '✅ Información del producto cargada. Puedes editarla antes de guardar.',
+    'products.search_error': 'Error al buscar información del producto. Completa manualmente.',
+    'products.analyzing_image': 'Analizando imagen...',
+    'products.image_identify_error': 'No se pudo identificar el producto por imagen',
+    'products.image_process_error': 'Error al procesar la imagen',
+    'products.scan_success': 'Código escaneado: ',
+    'products.name_required': 'El nombre del producto es obligatorio',
+    'products.category_required': 'La categoría es obligatoria',
+    'products.price_invalid': 'El precio debe ser mayor a 0',
+    'products.create_permission_error': 'No tienes permisos para crear productos. Solo admin y super_admin pueden hacerlo.',
+    'products.barcode_exists': 'Este código de barras ya existe. Busca el producto en la lista para editarlo.',
+    'products.gender_season_error': 'Error: Verifica que los valores de género y temporada sean correctos.',
+    'products.sizes_save_error': 'Producto creado pero hubo error al guardar las tallas',
+    'products.uploading_gallery': 'Subiendo galería...',
+    'products.gallery_uploaded': 'Galería subida correctamente',
+    'products.gallery_upload_error': 'Error al subir algunas imágenes de la galería',
+    'products.bucket_missing': '❌ El bucket "product-images" no existe. Ve a Storage en Supabase y créalo como público.',
+    'products.bucket_permissions': '❌ Error de permisos. Verifica las políticas RLS del bucket "product-images".',
+    'products.repairing_image': 'Reparando...',
+    'products.image_error': 'Error imagen',
+    'products.no_image': 'Sin Imagen',
   },
   fr: {
     // Navigation
@@ -2411,7 +2464,7 @@ const translations = {
     'Agregar Nueva Talla': 'Ajouter une Nouvelle Taille',
     'Nombre (ej: XL)': 'Nom (ex: XL)',
 
-    'Código de Barras': 'Code-barres',
+
     'Opcional': 'Optionnel',
     'Escanear': 'Scanner',
 
@@ -2432,16 +2485,6 @@ const translations = {
     'Error al actualizar': 'Erreur lors de la mise à jour',
     'Código escaneado: ': 'Code scanné : ',
 
-    // Products Manager Extras
-    'El nombre de la talla es obligatorio': 'Le nom de la taille est obligatoire',
-    'El stock debe ser un número válido >= 0': 'Le stock doit être un nombre valide >= 0',
-    'Ingresa un código de barras primero': 'Entrez d\'abord un code-barres',
-    'No se encontró el producto en la base de datos de códigos de barras': 'Produit non trouvé dans la base de données de codes-barres',
-    'Producto no encontrado': 'Produit non trouvé',
-    'Error al buscar código de barras': 'Erreur lors de la recherche du code-barres',
-    'Producto encontrado:': 'Produit trouvé :',
-    'Se autocompletaron los datos del producto': 'Les données du produit ont été complétées automatiquement',
-    'Código (Opcional)': 'Code (Optionnel)',
 
 
     // Stock Analytics Extras
@@ -2458,7 +2501,59 @@ const translations = {
     'Error al cargar categorías': 'Erreur lors du chargement des catégories',
     'Error al cargar productos': 'Erreur lors du chargement des produits',
     'Error al cargar tamaños': 'Erreur lors du chargement des tailles',
-    'Pedido finalizado': 'Commande terminée'
+    'Pedido finalizado': 'Commande terminée',
+
+    // Products New Translations
+    'products.size_name_required': 'Le nom de la taille est requis',
+    'products.stock_invalid': 'Le stock doit être un nombre valide >= 0',
+    'products.barcode_required': 'Entrez d\'abord un code-barres',
+    'products.existing_found': '✅ Produit existant trouvé dans votre inventaire',
+    'products.searching_info': 'Recherche d\'informations sur le produit...',
+
+    // POS Errors
+    'pos.error_loading_active_order': 'Impossible de charger le contenu de la commande active',
+    'pos.error_loading_categories': 'Erreur lors du chargement des catégories',
+    'pos.error_loading_products': 'Erreur lors du chargement des produits',
+    'pos.error_loading_sizes': 'Erreur lors du chargement des tailles',
+    'pos.enter_valid_amount': 'Veuillez saisir un montant valide',
+    'pos.amount_greater_total': 'Le montant ne peut pas être supérieur au total',
+    'pos.insufficient_stock': 'Stock insuffisant. Disponible : ',
+    'pos.stock_update_error': 'Erreur lors de la mise à jour du stock',
+    'pos.confirm_delete_supplier': 'Êtes-vous sûr de vouloir supprimer ce fournisseur ?',
+
+    // Users
+    'users.password_length_error': 'Le mot de passe doit contenir au moins 6 caractères',
+
+    // Server Manager
+    'server.confirm_import': 'Êtes-vous sûr de vouloir importer cette base de données ? Cette action écrasera les données existantes.',
+    'server.confirm_import_no_products': 'Êtes-vous sûr de vouloir importer cette base de données SANS catégories ni produits ? Les données existantes seront écrasées sauf les catégories et produits.',
+    'server.warning_clean_history': '⚠️ AVERTISSEMENT : Cette action supprimera l\'historique (commandes, employés non super_admin, sessions de caisse) mais CONSERVERA les catégories et produits. Continuer ?',
+    'server.confirm_irreversible': 'Cette action est IRREVERSIBLE. Confirmez-vous ?',
+    'server.warning_clean_all': '⚠️ AVERTISSEMENT : Cette action supprimera TOUTES les données de l\'historique (commandes, employés non super_admin, etc.). Êtes-vous complètement sûr ?',
+
+    // Company Settings
+    'company.name_required': 'Le nom de l\'entreprise est obligatoire',
+    'products.info_loaded': '✅ Informations produit chargées. Vous pouvez les modifier avant d\'enregistrer.',
+    'products.search_error': 'Erreur lors de la recherche du produit. Remplissez manuellement.',
+    'products.analyzing_image': 'Analyse de l\'image...',
+    'products.image_identify_error': 'Impossible d\'identifier le produit par l\'image',
+    'products.image_process_error': 'Erreur lors du traitement de l\'image',
+    'products.scan_success': 'Code scanné : ',
+    'products.name_required': 'Le nom du produit est requis',
+    'products.category_required': 'La catégorie est requise',
+    'products.price_invalid': 'Le prix doit être supérieur à 0',
+    'products.create_permission_error': 'Vous n\'avez pas la permission de créer des produits. Seuls admin et super_admin peuvent le faire.',
+    'products.barcode_exists': 'Ce code-barres existe déjà. Cherchez le produit dans la liste pour le modifier.',
+    'products.gender_season_error': 'Erreur : Vérifiez que les valeurs de genre et de saison sont correctes.',
+    'products.sizes_save_error': 'Produit créé mais erreur lors de l\'enregistrement des tailles',
+    'products.uploading_gallery': 'Téléchargement de la galerie...',
+    'products.gallery_uploaded': 'Galerie téléchargée avec succès',
+    'products.gallery_upload_error': 'Erreur lors du téléchargement de certaines images de la galerie',
+    'products.bucket_missing': '❌ Le bucket "product-images" n\'existe pas. Allez dans Storage sur Supabase et créez-le en public.',
+    'products.bucket_permissions': '❌ Erreur de permissions. Vérifiez les politiques RLS du bucket "product-images".',
+    'products.repairing_image': 'Réparation...',
+    'products.image_error': 'Erreur image',
+    'products.no_image': 'Pas d\'image',
   }
 };
 

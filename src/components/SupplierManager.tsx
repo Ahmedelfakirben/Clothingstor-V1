@@ -91,7 +91,7 @@ export function SupplierManager() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este proveedor?')) return;
+    if (!confirm(t('pos.confirm_delete_supplier'))) return;
 
     try {
       const { error } = await supabase

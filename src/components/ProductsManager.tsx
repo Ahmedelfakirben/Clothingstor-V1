@@ -109,6 +109,44 @@ export function ProductsManager() {
   const [existingGalleryImages, setExistingGalleryImages] = useState<ProductImage[]>([]);
   const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
 
+  // Helper para redimensionar imágenes (reutilizable)
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200; // Aumentado un poco para mejor calidad en detalles
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.8)); // Calidad 0.8
+        };
+        img.onerror = reject;
+        img.src = event.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
 
   useEffect(() => {
     fetchCategories();
@@ -408,44 +446,6 @@ export function ProductsManager() {
 
     const toastId = toast.loading(t('Analizando imagen...'));
 
-    // Helper para redimensionar imagen
-    const resizeImage = (file: File): Promise<string> => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const img = new Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            const MAX_WIDTH = 800;
-            const MAX_HEIGHT = 800;
-            let width = img.width;
-            let height = img.height;
-
-            if (width > height) {
-              if (width > MAX_WIDTH) {
-                height *= MAX_WIDTH / width;
-                width = MAX_WIDTH;
-              }
-            } else {
-              if (height > MAX_HEIGHT) {
-                width *= MAX_HEIGHT / height;
-                height = MAX_HEIGHT;
-              }
-            }
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx?.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.7)); // JPG calidad 0.7
-          };
-          img.onerror = reject;
-          img.src = event.target?.result as string;
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    };
-
     try {
       // 1. Redimensionar y convertir a Base64
       const base64String = await resizeImage(file);
@@ -587,17 +587,17 @@ export function ProductsManager() {
 
     // Validar campos requeridos
     if (!newProduct.name.trim()) {
-      toast.error(t('El nombre del producto es obligatorio'));
+      toast.error(t('products.name_required'));
       return;
     }
 
     if (!newProduct.category_id) {
-      toast.error(t('La categoría es obligatoria'));
+      toast.error(t('products.category_required'));
       return;
     }
 
     if (newProduct.base_price <= 0) {
-      toast.error(t('El precio debe ser mayor a 0'));
+      toast.error(t('products.price_invalid'));
       return;
     }
 
@@ -678,11 +678,11 @@ export function ProductsManager() {
       if (error) {
         console.error('❌ [PRODUCTS] Error creating product:', error);
         if (error.code === '42501') {
-          toast.error(t('No tienes permisos para crear productos. Solo admin y super_admin pueden hacerlo.'));
+          toast.error(t('products.create_permission_error'));
         } else if (error.code === '23505' || error.message.includes('duplicate key value')) {
-          toast.error(t('Este código de barras ya existe. Busca el producto en la lista para editarlo.'));
+          toast.error(t('products.barcode_exists'));
         } else if (error.message.includes('violates check constraint')) {
-          toast.error(t('Error: Verifica que los valores de género y temporada sean correctos.'));
+          toast.error(t('products.gender_season_error'));
         } else {
           toast.error(`${t('Error al crear producto:')} ${error.message}`);
         }
@@ -707,7 +707,7 @@ export function ProductsManager() {
 
         if (sizesError) {
           console.error('❌ [PRODUCTS] Error creating sizes:', sizesError);
-          toast.error(t('Producto creado pero hubo error al guardar las tallas'));
+          toast.error(t('products.sizes_save_error'));
         } else {
           console.log('✅ [PRODUCTS] Sizes created successfully');
         }
@@ -717,7 +717,7 @@ export function ProductsManager() {
       if (created && galleryFiles.length > 0) {
         setUploadingImage(true);
         try {
-          toast.loading(t('Subiendo galería...'), { id: 'gallery-upload' });
+          toast.loading(t('products.uploading_gallery'), { id: 'gallery-upload' });
           const uploadPromises = galleryFiles.map(async (file, index) => {
             const fileExt = file.name.split('.').pop();
             const filePath = `products/${created.id}/gallery_${Date.now()}_${index}.${fileExt}`;
@@ -750,11 +750,11 @@ export function ProductsManager() {
 
           if (validImages.length > 0) {
             await supabase.from('product_images').insert(validImages);
-            toast.success(t('Galería subida correctamente'), { id: 'gallery-upload' });
+            toast.success(t('products.gallery_uploaded'), { id: 'gallery-upload' });
           }
         } catch (galleryErr) {
           console.error('Error uploading gallery:', galleryErr);
-          toast.error(t('Error al subir algunas imágenes de la galería'), { id: 'gallery-upload' });
+          toast.error(t('products.gallery_upload_error'), { id: 'gallery-upload' });
         } finally {
           setUploadingImage(false);
         }
@@ -769,11 +769,17 @@ export function ProductsManager() {
 
           toast.loading(t('Subiendo imagen...'), { id: 'image-upload' });
 
+          // Resize before upload
+          const resizedBase64 = await resizeImage(newProductImage);
+          const res = await fetch(resizedBase64);
+          const blob = await res.blob();
+          const resizedFile = new File([blob], newProductImage.name, { type: 'image/jpeg' });
+
           const { error: uploadError } = await supabase.storage
             .from('product-images')
-            .upload(filePath, newProductImage, {
+            .upload(filePath, resizedFile, {
               upsert: true,
-              contentType: newProductImage.type,
+              contentType: 'image/jpeg',
             });
 
           if (uploadError) {
@@ -781,12 +787,12 @@ export function ProductsManager() {
 
             if (uploadError.message.includes('Bucket not found')) {
               toast.error(
-                t('❌ El bucket "product-images" no existe. Ve a Storage en Supabase y créalo como público. Consulta GUIA_CONFIGURAR_STORAGE.md'),
+                t('products.bucket_missing'),
                 { id: 'image-upload', duration: 8000 }
               );
             } else if (uploadError.message.includes('policy')) {
               toast.error(
-                t('❌ Error de permisos. Verifica las políticas RLS del bucket "product-images".'),
+                t('products.bucket_permissions'),
                 { id: 'image-upload', duration: 6000 }
               );
             } else {
@@ -1110,11 +1116,17 @@ export function ProductsManager() {
 
           toast.loading(t('Subiendo imagen...'), { id: 'image-edit-upload' });
 
+          // Resize before upload
+          const resizedBase64 = await resizeImage(editingImage);
+          const res = await fetch(resizedBase64);
+          const blob = await res.blob();
+          const resizedFile = new File([blob], editingImage.name, { type: 'image/jpeg' });
+
           const { error: uploadError } = await supabase.storage
             .from('product-images')
-            .upload(filePath, editingImage, {
+            .upload(filePath, resizedFile, {
               upsert: true,
-              contentType: editingImage.type,
+              contentType: 'image/jpeg',
             });
 
           if (uploadError) {
@@ -1300,28 +1312,15 @@ export function ProductsManager() {
                           src={newProductPreviewUrl || newProduct.image_url}
                           alt={t('Vista previa')}
                           className="h-24 w-24 object-cover rounded-lg border-2 border-gray-200"
-                          onError={async (e) => {
-                            // Reutilizando lógica de reparación de imagen
+                          onError={(e) => {
+                            // Deshabilitada auto-reparacion
                             const img = e.currentTarget;
                             if (img.parentElement) {
-                              const loading = document.createElement('div');
-                              loading.className = "absolute inset-0 bg-gray-100 flex items-center justify-center text-xs text-amber-600 animate-pulse";
-                              loading.innerText = t("Reparando...");
                               img.style.display = 'none';
-                              img.parentElement.appendChild(loading);
-                            }
-                            const currentUrl = newProductPreviewUrl || newProduct.image_url || '';
-                            const newUrl = await fixProductImage(newProduct.barcode || '', newProduct.name, newProduct.brand || '', currentUrl);
-                            if (newUrl) {
-                              setNewProduct({ ...newProduct, image_url: newUrl });
-                            } else {
-                              if (img.parentElement) {
-                                img.parentElement.innerHTML = '';
-                                const fallback = document.createElement('div');
-                                fallback.className = "h-24 w-24 flex items-center justify-center bg-gray-100 text-gray-400 rounded border text-xs text-center p-1";
-                                fallback.innerText = t("Sin Imagen");
-                                img.parentElement.appendChild(fallback);
-                              }
+                              const fallback = document.createElement('div');
+                              fallback.className = "h-24 w-24 flex items-center justify-center bg-gray-100 text-gray-400 rounded border text-xs text-center p-1";
+                              fallback.innerText = t("Error imagen");
+                              img.parentElement.appendChild(fallback);
                             }
                           }}
                         />
@@ -1476,10 +1475,11 @@ export function ProductsManager() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="">{t('Seleccionar...')}</option>
-                    <option value="Male">{t('Hombre')}</option>
-                    <option value="Female">{t('Mujer')}</option>
-                    <option value="Unisex">{t('Unisex')}</option>
-                    <option value="Kids">{t('Niños')}</option>
+                    <option value="hombre">{t('Hombre')}</option>
+                    <option value="mujer">{t('Mujer')}</option>
+                    <option value="unisex">{t('Unisex')}</option>
+                    <option value="niño">{t('Niño')}</option>
+                    <option value="niña">{t('Niña')}</option>
                   </select>
                 </div>
                 <div>
@@ -1490,11 +1490,11 @@ export function ProductsManager() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                   >
                     <option value="">{t('Seleccionar...')}</option>
-                    <option value="Summer">{t('Verano')}</option>
-                    <option value="Winter">{t('Invierno')}</option>
-                    <option value="Spring">{t('Primavera')}</option>
-                    <option value="Autumn">{t('Otoño')}</option>
-                    <option value="All Season">{t('Todo el año')}</option>
+                    <option value="verano">{t('Verano')}</option>
+                    <option value="invierno">{t('Invierno')}</option>
+                    <option value="primavera">{t('Primavera')}</option>
+                    <option value="otoño">{t('Otoño')}</option>
+                    <option value="todas">{t('Todo el año')}</option>
                   </select>
                 </div>
               </div>
@@ -1613,50 +1613,7 @@ export function ProductsManager() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{t('Galería de Imágenes')}</label>
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={handleGalleryFilesSelect}
-                    disabled={uploadingImage}
-                    className="w-full mb-2 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
-                  />
 
-                  {(existingGalleryImages.length > 0 || galleryPreviews.length > 0) ? (
-                    <div className="grid grid-cols-4 gap-2 mt-2">
-                      {existingGalleryImages.map((img) => (
-                        <div key={img.id} className="relative aspect-square border rounded-lg overflow-hidden group">
-                          <img src={img.image_url} alt="Gallery" className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveExistingGalleryImage(img.id)}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                      {galleryPreviews.map((url, idx) => (
-                        <div key={`new-${idx}`} className="relative aspect-square border rounded-lg overflow-hidden group">
-                          <img src={url} alt="New Preview" className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveNewGalleryImage(idx)}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-center text-gray-400 mt-2">{t('Selecciona múltiples imágenes para la galería')}</p>
-                  )}
-                </div>
-              </div>
               <div className="flex gap-2">
                 <button
                   onClick={isEditing ? handleFullUpdate : handleCreateProduct}

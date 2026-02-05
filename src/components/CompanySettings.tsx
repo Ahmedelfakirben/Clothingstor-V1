@@ -136,7 +136,7 @@ export function CompanySettings() {
 
   const handleSave = async () => {
     if (!settings.company_name.trim()) {
-      toast.error(t('El nombre de la empresa es obligatorio'));
+      toast.error(t('company.name_required'));
       return;
     }
 

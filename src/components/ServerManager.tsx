@@ -127,7 +127,7 @@ export function ServerManager() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!window.confirm(t('¿Estás seguro de que deseas importar esta base de datos? Esta acción sobrescribirá los datos existentes.'))) {
+    if (!window.confirm(t('server.confirm_import'))) {
       return;
     }
 
@@ -215,7 +215,7 @@ export function ServerManager() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!window.confirm(t('¿Estás seguro de que deseas importar esta base de datos SIN categorías y productos? Los datos existentes se sobrescribirán excepto categorías y productos.'))) {
+    if (!window.confirm(t('server.confirm_import_no_products'))) {
       return;
     }
 
@@ -293,11 +293,11 @@ export function ServerManager() {
 
   // Limpiar SOLO historial (mantener categorías, productos y super_admin)
   const cleanHistoryOnly = async () => {
-    if (!window.confirm(t('⚠️ ADVERTENCIA: Esta acción eliminará el historial (pedidos, empleados no super_admin, sesiones de caja) pero MANTENDRÁ las categorías y productos. ¿Continuar?'))) {
+    if (!window.confirm(t('server.warning_clean_history'))) {
       return;
     }
 
-    if (!window.confirm(t('Esta acción es IRREVERSIBLE. ¿Confirmas que deseas limpiar solo el historial?'))) {
+    if (!window.confirm(t('server.confirm_irreversible'))) {
       return;
     }
 
@@ -399,11 +399,11 @@ export function ServerManager() {
 
   // Limpiar base de datos COMPLETA (mantener super_admin, config empresa, categorías, proveedores)
   const cleanDatabase = async () => {
-    if (!window.confirm(t('⚠️ ADVERTENCIA: Esta acción eliminará TODOS los datos del historial (pedidos, empleados no super_admin, etc.). ¿Estás completamente seguro?'))) {
+    if (!window.confirm(t('server.warning_clean_all'))) {
       return;
     }
 
-    if (!window.confirm(t('Esta acción es IRREVERSIBLE. ¿Continuar de todos modos?'))) {
+    if (!window.confirm(t('server.confirm_irreversible'))) {
       return;
     }
 
