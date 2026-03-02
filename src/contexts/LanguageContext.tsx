@@ -381,6 +381,17 @@ const translations = {
     'Manejo de Tallas y Stock': 'Manejo de Tallas y Stock',
     'Precio Base': 'Precio Base',
     'Imagen (opcional)': 'Imagen (opcional)',
+    'products.gallery': 'Galería de Imágenes (Opcional)',
+    'products.gallery_delete': 'Eliminar imagen',
+    'products.gallery_remove_new': 'Quitar imagen nueva',
+    'products.gallery_add': 'Añadir',
+    'products.gallery_help': 'Sube múltiples fotos para mostrar diferentes ángulos o detalles del producto.',
+    'products.gallery_view': 'Ver galería',
+    'products.gallery_uploaded': 'Galería subida',
+    'products.gallery_updated': 'Galería actualizada correctamente',
+    'products.gallery_uploading': 'Subiendo nuevas imágenes...',
+    'products.gallery_upload_error': 'Error al subir nuevas imágenes a la galería',
+    'products.gallery_delete_error': 'Error al eliminar algunas imágenes de la galería',
     'Vista previa': 'Vista previa',
     'Producto': 'Producto',
     'Tamaños': 'Tamaños',
@@ -1236,6 +1247,7 @@ const translations = {
     'products.repairing_image': 'Reparando...',
     'products.image_error': 'Error imagen',
     'products.no_image': 'Sin Imagen',
+    'stock.needs_validation': 'Por Validar',
   },
   fr: {
     // Navigation
@@ -1795,6 +1807,17 @@ const translations = {
     'clients.contact_none': 'Aucun contact',
 
     // POS
+    'products.gallery': 'Galerie d\'images (Optionnel)',
+    'products.gallery_delete': 'Supprimer l\'image',
+    'products.gallery_remove_new': 'Supprimer la nouvelle image',
+    'products.gallery_add': 'Ajouter',
+    'products.gallery_help': 'Téléchargez plusieurs photos pour montrer différents angles ou les détails du produit.',
+    'products.gallery_view': 'Voir la galerie',
+    'products.gallery_uploaded': 'Galerie téléchargée',
+    'products.gallery_updated': 'Galerie mise à jour avec succès',
+    'products.gallery_uploading': 'Téléchargement de nouvelles images...',
+    'products.gallery_upload_error': 'Erreur lors du téléchargement de la galerie',
+    'products.gallery_delete_error': 'Erreur lors de la suppression d\'images',
     'pos.assign_customer': 'Attribuer Client',
     'pos.assigned_success': 'Client attribué avec succès',
     'pos.unassign_success': 'Client désattribué',
@@ -2554,6 +2577,7 @@ const translations = {
     'products.repairing_image': 'Réparation...',
     'products.image_error': 'Erreur image',
     'products.no_image': 'Pas d\'image',
+    'stock.needs_validation': 'À Valider',
   }
 };
 

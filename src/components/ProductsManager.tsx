@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Save, X, ScanBarcode, Package, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, ScanBarcode, Package, Search, Eye } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { LoadingSpinner } from './LoadingSpinner';
 import IndividualUnitsManager from './IndividualUnitsManager';
 import { BarcodeScanner } from './BarcodeScanner';
+import { ImageGalleryModal } from './ImageGalleryModal';
 
 
 interface Category {
@@ -52,6 +54,8 @@ interface ProductImage {
 export function ProductsManager() {
   const { t } = useLanguage();
   const { formatCurrency } = useCurrency();
+  const { profile } = useAuth();
+  const isCashier = profile?.role === 'cashier';
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [sizes, setSizes] = useState<ProductSize[]>([]);
@@ -108,6 +112,11 @@ export function ProductsManager() {
   const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
   const [existingGalleryImages, setExistingGalleryImages] = useState<ProductImage[]>([]);
   const [imagesToDelete, setImagesToDelete] = useState<string[]>([]);
+
+  // Estado para visualización de galería
+  const [galleryModalOpen, setGalleryModalOpen] = useState(false);
+  const [galleryModalProduct, setGalleryModalProduct] = useState<Product | null>(null);
+  const [galleryModalImages, setGalleryModalImages] = useState<{ image_url: string }[]>([]);
 
   // Helper para redimensionar imágenes (reutilizable)
   const resizeImage = (file: File): Promise<string> => {
@@ -258,6 +267,22 @@ export function ProductsManager() {
   const fetchCategories = async () => {
     const { data } = await supabase.from('categories').select('*').order('name');
     if (data) setCategories(data);
+  };
+
+  const handleViewGallery = async (product: Product) => {
+    setGalleryModalProduct(product);
+    setGalleryModalImages([]);
+    setGalleryModalOpen(true);
+
+    const { data, error } = await supabase
+      .from('product_images')
+      .select('image_url')
+      .eq('product_id', product.id)
+      .order('display_order', { ascending: true });
+
+    if (!error && data) {
+      setGalleryModalImages(data);
+    }
   };
 
   const fetchProducts = async () => {
@@ -596,7 +621,7 @@ export function ProductsManager() {
       return;
     }
 
-    if (newProduct.base_price <= 0) {
+    if (newProduct.base_price <= 0 && !isCashier) {
       toast.error(t('products.price_invalid'));
       return;
     }
@@ -749,8 +774,12 @@ export function ProductsManager() {
           const validImages = results.filter(img => img !== null);
 
           if (validImages.length > 0) {
-            await supabase.from('product_images').insert(validImages);
-            toast.success(t('products.gallery_uploaded'), { id: 'gallery-upload' });
+            const { error: insertError } = await supabase.from('product_images').insert(validImages);
+            if (insertError) {
+              console.error('Insert error for gallery:', insertError);
+            } else {
+              toast.success(t('products.gallery_uploaded') || t('Galería subida'), { id: 'gallery-upload' });
+            }
           }
         } catch (galleryErr) {
           console.error('Error uploading gallery:', galleryErr);
@@ -839,6 +868,10 @@ export function ProductsManager() {
       setNewProductSizes([]);
       setNewProductImage(null);
       setNewProductPreviewUrl(null);
+      setGalleryFiles([]);
+      setGalleryPreviews([]);
+      setExistingGalleryImages([]);
+      setImagesToDelete([]);
       fetchProducts();
       fetchSizes();
       toast.success(t('Producto creado correctamente'));
@@ -961,7 +994,7 @@ export function ProductsManager() {
 
         if (deleteError) {
           console.error('Error deleting gallery images:', deleteError);
-          toast.error(t('Error al eliminar algunas imágenes de la galería'));
+          toast.error(t('products.gallery_delete_error'));
         }
       }
 
@@ -969,7 +1002,7 @@ export function ProductsManager() {
       if (galleryFiles.length > 0) {
         setUploadingImage(true);
         try {
-          toast.loading(t('Subiendo nuevas imágenes...'), { id: 'gallery-update' });
+          toast.loading(t('products.gallery_uploading'), { id: 'gallery-update' });
           const currentCount = existingGalleryImages.length;
 
           const uploadPromises = galleryFiles.map(async (file, index) => {
@@ -1003,12 +1036,16 @@ export function ProductsManager() {
           const validImages = results.filter(img => img !== null);
 
           if (validImages.length > 0) {
-            await supabase.from('product_images').insert(validImages);
-            toast.success(t('Galería actualizada correctamente'), { id: 'gallery-update' });
+            const { error: insertError } = await supabase.from('product_images').insert(validImages);
+            if (insertError) {
+              console.error('Insert error for gallery edit:', insertError);
+            } else {
+              toast.success(t('products.gallery_updated'), { id: 'gallery-update' });
+            }
           }
         } catch (galleryErr) {
           console.error('Error uploading gallery:', galleryErr);
-          toast.error(t('Error al subir nuevas imágenes a la galería'), { id: 'gallery-update' });
+          toast.error(t('products.gallery_upload_error'), { id: 'gallery-update' });
         } finally {
           setUploadingImage(false);
         }
@@ -1043,8 +1080,10 @@ export function ProductsManager() {
       // Cleanup
       setIsEditing(false);
       setEditingId(null);
-      setShowNewProduct(false);
-      resetForm();
+      setGalleryFiles([]);
+      setGalleryPreviews([]);
+      setExistingGalleryImages([]);
+      setImagesToDelete([]);
       fetchProducts();
       fetchSizes();
 
@@ -1359,6 +1398,60 @@ export function ProductsManager() {
                 </div>
               </div>
 
+              {/* Bloque Galería de Imágenes Adicionales */}
+              <div className="pt-4 border-t border-gray-100">
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('products.gallery')}</label>
+
+                <div className="grid grid-cols-4 gap-4 mb-4">
+                  {/* Imágenes Existentes (en edición) */}
+                  {existingGalleryImages.map((img) => (
+                    <div key={img.id} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                      <img src={img.image_url} alt="Gallery" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveExistingGalleryImage(img.id)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-sm transition-colors"
+                        title={t('products.gallery_delete')}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Nuevas Imágenes (Previews) */}
+                  {galleryPreviews.map((url, idx) => (
+                    <div key={`new-${idx}`} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                      <img src={url} alt={`New Gallery ${idx}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveNewGalleryImage(idx)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-sm transition-colors"
+                        title={t('products.gallery_remove_new')}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Botón Añadir */}
+                  <label className="aspect-square bg-gray-50 hover:bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 cursor-pointer transition-colors">
+                    <Plus className="w-6 h-6 mb-1 opacity-50" />
+                    <span className="text-xs">{t('products.gallery_add')}</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleGalleryFilesSelect}
+                      disabled={uploadingImage}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500">
+                  {t('products.gallery_help')}
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('Nombre')}</label>
                 <input
@@ -1517,9 +1610,11 @@ export function ProductsManager() {
                   <input
                     type="number"
                     step="0.01"
+                    disabled={isCashier}
                     value={newProduct.purchase_price || 0}
                     onChange={e => setNewProduct({ ...newProduct, purchase_price: parseFloat(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75 title-hover"
+                    title={isCashier ? t('No tienes permisos para editar el costo') : ''}
                   />
                 </div>
                 <div>
@@ -1527,9 +1622,11 @@ export function ProductsManager() {
                   <input
                     type="number"
                     step="0.01"
+                    disabled={isCashier}
                     value={newProduct.base_price}
                     onChange={e => setNewProduct({ ...newProduct, base_price: parseFloat(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75 title-hover"
+                    title={isCashier ? t('No tienes permisos para editar el precio') : ''}
                   />
                 </div>
               </div>
@@ -1547,9 +1644,11 @@ export function ProductsManager() {
                     <input
                       type="number"
                       placeholder={t('Stock')}
+                      disabled={isCashier}
                       value={newSizeStock}
                       onChange={e => setNewSizeStock(e.target.value)}
-                      className="w-24 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-amber-500 text-sm"
+                      className="w-24 px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-amber-500 text-sm disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75"
+                      title={isCashier ? t('No tienes permisos para establecer stock') : ''}
                     />
                     <input
                       type="text"
@@ -1588,7 +1687,7 @@ export function ProductsManager() {
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="font-semibold">{size.stock} u.</span>
-                            <button onClick={() => handleRemoveSize(idx)} className="text-red-500 hover:text-red-700">
+                            <button onClick={() => handleRemoveSize(idx)} disabled={isCashier} className={`text-red-500 hover:text-red-700 ${isCashier ? 'opacity-50 cursor-not-allowed' : ''}`}>
                               <X className="w-4 h-4" />
                             </button>
                           </div>
@@ -1603,10 +1702,12 @@ export function ProductsManager() {
                       <p className="text-xs text-gray-500 mb-1">{t('O ingresa el stock total si no hay tallas:')}</p>
                       <input
                         type="number"
+                        disabled={isCashier}
                         value={newProduct.stock}
                         onChange={e => setNewProduct({ ...newProduct, stock: parseInt(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75"
                         placeholder="0"
+                        title={isCashier ? t('No tienes permisos para establecer stock') : ''}
                       />
                     </div>
                   )}
@@ -1667,7 +1768,11 @@ export function ProductsManager() {
           {filteredProducts.map(product => (
             <div key={product.id} className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex gap-4">
               {/* Imagen */}
-              <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden">
+              <div
+                className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => handleViewGallery(product)}
+                title={t('products.gallery_view')}
+              >
                 {product.image_url ? (
                   <img
                     src={product.image_url}
@@ -1708,6 +1813,13 @@ export function ProductsManager() {
                 </div>
 
                 <div className="flex justify-end gap-3 mt-2">
+                  <button
+                    onClick={() => handleViewGallery(product)}
+                    className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
+                    title={t('products.gallery_view')}
+                  >
+                    <Eye className="w-5 h-5" />
+                  </button>
                   <button
                     onClick={() => {
                       setSelectedProductForUnits(product);
@@ -1814,7 +1926,11 @@ export function ProductsManager() {
                       </div>
                     </div>
                   ) : (
-                    <div className="h-32 w-32 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                    <div
+                      className="h-32 w-32 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => handleViewGallery(product)}
+                      title={t('products.gallery_view')}
+                    >
                       {product.image_url ? (
                         <img
                           src={product.image_url}
@@ -1923,9 +2039,11 @@ export function ProductsManager() {
                     <input
                       type="number"
                       step="0.01"
+                      disabled={isCashier}
                       value={editingProduct.base_price}
                       onChange={e => setEditingProduct({ ...editingProduct, base_price: parseFloat(e.target.value) })}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded"
+                      className="w-20 px-2 py-1 border border-gray-300 rounded disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75"
+                      title={isCashier ? t('No tienes permisos para editar el precio') : ''}
                     />
                   ) : (
                     formatCurrency(product.base_price)
@@ -1935,9 +2053,11 @@ export function ProductsManager() {
                   {editingProduct?.id === product.id ? (
                     <input
                       type="number"
+                      disabled={isCashier}
                       value={editingProduct.stock || 0}
                       onChange={e => setEditingProduct({ ...editingProduct, stock: parseInt(e.target.value) || 0 })}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded"
+                      className="w-20 px-2 py-1 border border-gray-300 rounded disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75"
+                      title={isCashier ? t('No tienes permisos para establecer stock') : ''}
                     />
                   ) : (
                     <span className={`font-medium ${(getProductSizes(product.id).length > 0
@@ -1985,6 +2105,13 @@ export function ProductsManager() {
                     </div>
                   ) : (
                     <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => handleViewGallery(product)}
+                        className="text-emerald-600 hover:text-emerald-800"
+                        title={t('products.gallery_view')}
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
                       <button
                         onClick={() => {
                           setSelectedProductForUnits(product);
@@ -2138,6 +2265,15 @@ export function ProductsManager() {
         capture="environment" // Fuerza cámara trasera
         onChange={handleImageAnalyze}
       />
+
+      {galleryModalOpen && galleryModalProduct && (
+        <ImageGalleryModal
+          mainImage={galleryModalProduct.image_url}
+          galleryImages={galleryModalImages}
+          title={galleryModalProduct.name}
+          onClose={() => setGalleryModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

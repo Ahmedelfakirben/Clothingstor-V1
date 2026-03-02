@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { Trash2, Plus, ScanBarcode, Save, X } from 'lucide-react';
 import { BarcodeScanner } from './BarcodeScanner';
@@ -23,6 +24,8 @@ interface IndividualUnitsManagerProps {
 
 export default function IndividualUnitsManager({ productId, productName }: IndividualUnitsManagerProps) {
     const { t } = useLanguage();
+    const { profile } = useAuth();
+    const isCashier = profile?.role === 'cashier';
     const [sizes, setSizes] = useState<ProductSize[]>([]);
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
@@ -185,8 +188,10 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
                         <input
                             type="number"
                             value={newSizeStock}
+                            disabled={isCashier}
                             onChange={e => setNewSizeStock(e.target.value)}
-                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75"
+                            title={isCashier ? t('No tienes permisos para establecer stock') : ''}
                             min="0"
                         />
                     </div>
@@ -247,13 +252,15 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
                                     <input
                                         type="number"
                                         defaultValue={size.stock}
+                                        disabled={isCashier}
                                         onBlur={(e) => {
                                             const val = parseInt(e.target.value);
                                             if (!isNaN(val) && val !== size.stock) {
                                                 handleUpdateSize(size.id, { stock: val });
                                             }
                                         }}
-                                        className="w-20 px-2 py-1 border rounded text-center font-mono"
+                                        className="w-20 px-2 py-1 border rounded text-center font-mono disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75"
+                                        title={isCashier ? t('No tienes permisos para editar stock') : ''}
                                     />
                                 </div>
 

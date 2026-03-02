@@ -3,8 +3,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X } from 'lucide-react';
+import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save } from 'lucide-react';
 import IndividualUnitsManager from './IndividualUnitsManager';
+import { toast } from 'react-hot-toast';
 
 
 
@@ -14,9 +15,10 @@ interface StockItem {
     totalStock: number;
     value: number;
     costValue: number;
-    estimatedProfit: number;
+    basePrice: number;
+    purchasePrice: number;
     imageUrl?: string;
-    status: 'ok' | 'low' | 'out';
+    status: 'ok' | 'low' | 'out' | 'validate';
     sold: number;
     sizes?: { name: string; stock: number }[];
 }
@@ -33,9 +35,53 @@ export function StockAnalytics() {
     const [loading, setLoading] = useState(true);
     const [stockItems, setStockItems] = useState<StockItem[]>([]);
     const [bestSellers, setBestSellers] = useState<BestSeller[]>([]);
-    const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all');
+    const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'validate'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+
+    // Edit Modal States
+    const [editCost, setEditCost] = useState(0);
+    const [editPrice, setEditPrice] = useState(0);
+    const [editStock, setEditStock] = useState(0);
+    const [isEditingStock, setIsEditingStock] = useState(false);
+    const [showSizesManager, setShowSizesManager] = useState(false);
+
+    const handleSelectItem = (item: StockItem | null) => {
+        setSelectedItem(item);
+        if (item) {
+            setEditCost(item.purchasePrice || 0);
+            setEditPrice(item.basePrice || 0);
+            setEditStock(item.totalStock || 0);
+            setShowSizesManager(false);
+        }
+    };
+
+    const handleUpdateProductStock = async () => {
+        if (!selectedItem) return;
+        setIsEditingStock(true);
+        try {
+            const { error } = await supabase
+                .from('products')
+                .update({
+                    base_price: editPrice,
+                    purchase_price: editCost,
+                    stock: editStock
+                })
+                .eq('id', selectedItem.id);
+
+            if (error) throw error;
+            toast.success(t('Producto actualizado correctamente'));
+
+            // Refresh stock data
+            fetchStockData();
+            setSelectedItem(null);
+        } catch (error) {
+            console.error("Error updating product:", error);
+            toast.error(t('Error al actualizar el producto'));
+        } finally {
+            setIsEditingStock(false);
+        }
+    };
 
     // KPIs
     const [totalItems, setTotalItems] = useState(0);
@@ -44,6 +90,7 @@ export function StockAnalytics() {
     const [totalPotentialProfit, setTotalPotentialProfit] = useState(0);
     const [lowStockCount, setLowStockCount] = useState(0);
     const [outStockCount, setOutStockCount] = useState(0);
+    const [validateCount, setValidateCount] = useState(0);
 
     useEffect(() => {
         fetchStockData();
@@ -81,8 +128,9 @@ export function StockAnalytics() {
                     sizesList = productSizes.map(s => ({ name: s.size_name, stock: s.stock }));
                 }
 
-                let status: 'ok' | 'low' | 'out' = 'ok';
-                if (currentStock === 0) status = 'out';
+                let status: 'ok' | 'low' | 'out' | 'validate' = 'ok';
+                if (product.purchase_price === 0 && currentStock === 0) status = 'validate';
+                else if (currentStock === 0) status = 'out';
                 else if (currentStock < 5) status = 'low';
 
                 const costValue = currentStock * (product.purchase_price || 0);
@@ -91,6 +139,8 @@ export function StockAnalytics() {
                 return {
                     id: product.id,
                     name: product.name,
+                    basePrice: product.base_price,
+                    purchasePrice: product.purchase_price,
                     totalStock: currentStock,
                     value: value,
                     costValue: costValue,
@@ -128,6 +178,7 @@ export function StockAnalytics() {
             const tCost = finalItems.reduce((sum, item) => sum + item.costValue, 0);
             const lowCount = finalItems.filter(i => i.status === 'low').length;
             const outCount = finalItems.filter(i => i.status === 'out').length;
+            const valCount = finalItems.filter(i => i.status === 'validate').length;
 
             setStockItems(finalItems);
             setTotalItems(tItems);
@@ -136,6 +187,7 @@ export function StockAnalytics() {
             setTotalPotentialProfit(tValue - tCost);
             setLowStockCount(lowCount);
             setOutStockCount(outCount);
+            setValidateCount(valCount);
 
             // 4. Fetch Best Sellers (Last 30 Days)
             const thirtyDaysAgo = new Date();
@@ -179,6 +231,7 @@ export function StockAnalytics() {
         .filter(item => {
             if (filter === 'low') return item.status === 'low';
             if (filter === 'out') return item.status === 'out';
+            if (filter === 'validate') return item.status === 'validate';
             return true;
         })
         .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -239,6 +292,16 @@ export function StockAnalytics() {
                 </div>
 
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                    <div className="p-3 bg-yellow-100 rounded-xl">
+                        <AlertCircle className="w-6 h-6 text-yellow-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">{t('stock.needs_validation')}</p>
+                        <h3 className="text-2xl font-black text-gray-900">{validateCount}</h3>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
                     <div className="p-3 bg-indigo-100 rounded-xl">
                         <TrendingUp className="w-6 h-6 text-indigo-600" />
                     </div>
@@ -287,6 +350,7 @@ export function StockAnalytics() {
                                 <option value="all">{t('Todos')}</option>
                                 <option value="low">{t('stock.low_stock')}</option>
                                 <option value="out">{t('stock.out_of_stock')}</option>
+                                <option value="validate">{t('stock.needs_validation')}</option>
                             </select>
                         </div>
                     </div>
@@ -312,7 +376,7 @@ export function StockAnalytics() {
                                         <tr
                                             key={item.id}
                                             className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                                            onClick={() => setSelectedItem(item)}
+                                            onClick={() => handleSelectItem(item)}
                                         >
                                             <td className="px-4 py-3 flex items-center gap-3">
                                                 {item.imageUrl ? (
@@ -337,6 +401,11 @@ export function StockAnalytics() {
                                             <td className="px-4 py-3 text-center font-medium text-blue-600">{item.sold}</td>
                                             <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(item.value)}</td>
                                             <td className="px-4 py-3 text-center">
+                                                {item.status === 'validate' && (
+                                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded-full border border-yellow-200">
+                                                        {t('stock.needs_validation')}
+                                                    </span>
+                                                )}
                                                 {item.status === 'out' && (
                                                     <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-200">
                                                         {t('stock.out_of_stock')}
@@ -409,10 +478,91 @@ export function StockAnalytics() {
                             </button>
                         </div>
                         <div className="p-6">
-                            <IndividualUnitsManager
-                                productId={selectedItem.id}
-                                productName={selectedItem.name}
-                            />
+                            {showSizesManager ? (
+                                <div>
+                                    <button
+                                        onClick={() => setShowSizesManager(false)}
+                                        className="mb-4 flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800"
+                                    >
+                                        ← {t('Volver a Edición Rápida')}
+                                    </button>
+                                    <IndividualUnitsManager
+                                        productId={selectedItem.id}
+                                        productName={selectedItem.name}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="bg-blue-50 p-4 rounded-xl mb-4 flex justify-between items-center">
+                                        <div>
+                                            <h3 className="font-bold text-blue-900">{t('Validación y Edición Rápida')}</h3>
+                                            <p className="text-sm text-blue-700 mt-1">{t('Ajusta el precio y stock general del producto aquí mismo.')}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowSizesManager(true)}
+                                            className="px-4 py-2 bg-white text-blue-700 border border-blue-200 rounded-lg shadow-sm hover:bg-blue-50 font-medium text-sm flex items-center gap-2 transition-colors"
+                                        >
+                                            <Package className="w-4 h-4" />
+                                            {t('Gestión de Tallas y Códigos')}
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('Costo (Compra)')}</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={editCost}
+                                                onChange={e => setEditCost(parseFloat(e.target.value) || 0)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('Precio (Venta)')}</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={editPrice}
+                                                onChange={e => setEditPrice(parseFloat(e.target.value) || 0)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">{t('Stock Total')}</label>
+                                            <input
+                                                type="number"
+                                                value={editStock}
+                                                onChange={e => setEditStock(parseInt(e.target.value) || 0)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                                disabled={selectedItem.sizes && selectedItem.sizes.length > 0}
+                                                title={selectedItem.sizes && selectedItem.sizes.length > 0 ? t('Stock calculado por tallas. Usa la Gestión de Tallas') : ''}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
+                                        <button
+                                            onClick={() => setSelectedItem(null)}
+                                            className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                                        >
+                                            {t('Cancelar')}
+                                        </button>
+                                        <button
+                                            onClick={handleUpdateProductStock}
+                                            disabled={isEditingStock}
+                                            className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 flex items-center gap-2 font-medium disabled:opacity-50 transition-colors"
+                                        >
+                                            {isEditingStock ? (
+                                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            ) : (
+                                                <Save className="w-4 h-4" />
+                                            )}
+                                            {t('Guardar Cambios')}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

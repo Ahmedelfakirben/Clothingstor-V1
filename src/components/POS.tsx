@@ -9,6 +9,7 @@ import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, Ch
 import { TicketPrinter } from './TicketPrinter';
 import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
 import { toast } from 'react-hot-toast';
+import { ImageGalleryModal } from './ImageGalleryModal';
 
 // ITEMS_PER_PAGE removed
 
@@ -70,6 +71,29 @@ export function POS() {
     paymentMethod: string;
     cashierName: string;
   } | null>(null);
+
+  // Gallery Modal States
+  const [galleryModalOpen, setGalleryModalOpen] = useState(false);
+  const [galleryModalProduct, setGalleryModalProduct] = useState<Product | null>(null);
+  const [galleryModalImages, setGalleryModalImages] = useState<{ image_url: string }[]>([]);
+
+  const handleViewGallery = async (product: Product, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setGalleryModalProduct(product);
+    setGalleryModalImages([]);
+    setGalleryModalOpen(true);
+
+    const { data, error } = await supabase
+      .from('product_images')
+      .select('image_url')
+      .eq('product_id', product.id)
+      .order('display_order', { ascending: true });
+
+    if (!error && data) {
+      setGalleryModalImages(data);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -653,7 +677,13 @@ export function POS() {
               <div key={product.id} className="bg-white rounded-lg p-3 shadow-sm border">
                 <div className="flex gap-3">
                   {product.image_url && (
-                    <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                    <div
+                      className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer active:scale-95 transition-transform relative group"
+                      onClick={(e) => handleViewGallery(product, e)}
+                    >
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 flex items-center justify-center transition-colors">
+                        <Search className="w-5 h-5 text-white opacity-0 group-hover:opacity-100" />
+                      </div>
                       <img
                         src={product.image_url}
                         alt={product.name}
@@ -911,23 +941,31 @@ export function POS() {
 
                 return (
                   <div key={product.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 border border-gray-200 overflow-hidden flex flex-col h-full group">
-                    <div className="relative h-48 bg-gray-50 flex-shrink-0">
+                    <div
+                      className="relative h-48 bg-gray-50 flex-shrink-0 cursor-pointer overflow-hidden"
+                      onClick={(e) => handleViewGallery(product, e)}
+                    >
                       {product.image_url ? (
-                        <img
-                          src={product.image_url}
-                          alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          onError={(e) => {
-                            const img = e.currentTarget;
-                            if (img.parentElement) {
-                              img.parentElement.innerHTML = '';
-                              const fallbackIcon = document.createElement('div');
-                              fallbackIcon.className = "w-full h-full flex items-center justify-center text-gray-300";
-                              fallbackIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-bag"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
-                              img.parentElement.appendChild(fallbackIcon);
-                            }
-                          }}
-                        />
+                        <>
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 z-10 flex items-center justify-center transition-colors">
+                            <Search className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 drop-shadow-md" />
+                          </div>
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (img.parentElement) {
+                                img.parentElement.innerHTML = '';
+                                const fallbackIcon = document.createElement('div');
+                                fallbackIcon.className = "w-full h-full flex items-center justify-center text-gray-300";
+                                fallbackIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-bag"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
+                                img.parentElement.appendChild(fallbackIcon);
+                              }
+                            }}
+                          />
+                        </>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-300">
                           <ShoppingBag className="w-12 h-12" />
@@ -1536,6 +1574,15 @@ export function POS() {
             </div>
           </div>
         </div>
+      )}
+
+      {galleryModalOpen && galleryModalProduct && (
+        <ImageGalleryModal
+          mainImage={galleryModalProduct.image_url}
+          galleryImages={galleryModalImages}
+          title={galleryModalProduct.name}
+          onClose={() => setGalleryModalOpen(false)}
+        />
       )}
     </>
   );
