@@ -1,0 +1,44 @@
+﻿
+> clothing-store@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.app.json
+
+src/components/BackupManager.tsx(2,91): error TS6133: 'RefreshCw' is declared but its value is never read.
+src/components/BackupManager.tsx(2,127): error TS6133: 'FileUp' is declared but its value is never read.
+src/components/BarcodeScanner.tsx(33,23): error TS6133: 'devices' is declared but its value is never read.
+src/components/CashRegisterDashboard.tsx(32,11): error TS6196: 'Order' is declared but never used.
+src/components/CashRegisterDashboard.tsx(80,10): error TS6133: 'withdrawals' is declared but its value is never read.
+src/components/CashRegisterDashboard.tsx(759,9): error TS6133: 'printSessionReport' is declared but its value is never read.
+src/components/CashRegisterDashboard.tsx(1236,30): error TS6133: 'profile' is declared but its value is never read.
+src/components/CategoryManager.tsx(2,10): error TS6133: 'PlusCircle' is declared but its value is never read.
+src/components/EmployeeTimeTracking.tsx(6,51): error TS6133: 'Download' is declared but its value is never read.
+src/components/EmployeeTimeTracking.tsx(57,9): error TS6133: 'profile' is declared but its value is never read.
+src/components/ExpenseManager.tsx(2,16): error TS6133: 'Filter' is declared but its value is never read.
+src/components/IndividualUnitsManager.tsx(6,37): error TS6133: 'Save' is declared but its value is never read.
+src/components/IndividualUnitsManager.tsx(6,43): error TS6133: 'X' is declared but its value is never read.
+src/components/LoadingSpinner.tsx(17,9): error TS6133: 'dotColors' is declared but its value is never read.
+src/components/Navigation.tsx(1,10): error TS6133: 'Shirt' is declared but its value is never read.
+src/components/Navigation.tsx(1,130): error TS6133: 'Menu' is declared but its value is never read.
+src/components/Navigation.tsx(1,136): error TS6133: 'X' is declared but its value is never read.
+src/components/Navigation.tsx(1,193): error TS6133: 'Grid3x3' is declared but its value is never read.
+src/components/Navigation.tsx(1,202): error TS6133: 'User' is declared but its value is never read.
+src/components/Navigation.tsx(1,208): error TS6133: 'Coffee' is declared but its value is never read.
+src/components/Navigation.tsx(35,10): error TS6133: 'mobileMenuOpen' is declared but its value is never read.
+src/components/Navigation.tsx(35,26): error TS6133: 'setMobileMenuOpen' is declared but its value is never read.
+src/components/OnlineStatusToggle.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/components/OnlineStoreManager.tsx(6,5): error TS6133: 'Search' is declared but its value is never read.
+src/components/OnlineStoreManager.tsx(13,5): error TS6133: 'XCircle' is declared but its value is never read.
+src/components/OnlineStoreManager.tsx(18,5): error TS6133: 'ExternalLink' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(5,94): error TS6133: 'Play' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(9,1): error TS6133: 'LoadingSpinner' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(84,26): error TS6133: 'setSelectedUserId' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(85,10): error TS6133: 'employees' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(86,26): error TS6133: 'setShowLatestOnly' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(88,28): error TS6133: 'setSelectedCashType' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(89,30): error TS6133: 'setSelectedCashUserId' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(90,33): error TS6133: 'setSelectedCashDateRange' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(96,10): error TS6133: 'deleteLoading' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(589,9): error TS6133: 'filteredCashEvents' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(616,9): error TS6133: 'totals' is declared but its value is never read.
+src/components/OrdersDashboard.tsx(628,9): error TS6133: 'getStatusColor' is declared but its value is never read.
+src/components/POS.tsx(62,10): error TS6133: 'canConfirmOrder' is declared but its value is never read.
+src/components/UserManager.tsx(2,47): error TS6133: 'Shield' is declared but its value is never read.

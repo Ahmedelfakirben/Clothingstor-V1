@@ -14,9 +14,6 @@ export function LoadingSpinner({
   };
 
   const dotSize = sizeClasses[size];
-  const dotColors = light
-    ? 'bg-white/80 bg-white bg-white/90'
-    : 'bg-pink-400 bg-pink-500 bg-pink-600';
 
   const colors = light
     ? ['bg-white/70', 'bg-white', 'bg-white/80']

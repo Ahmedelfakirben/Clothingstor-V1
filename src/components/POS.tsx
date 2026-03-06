@@ -59,7 +59,7 @@ export function POS() {
   const [existingItems, setExistingItems] = useState<Array<{ name: string; size?: string; quantity: number; price: number; subtotal: number }>>([]);
   const [existingOrderTotal, setExistingOrderTotal] = useState<number>(0);
   const [existingOrderNumber, setExistingOrderNumber] = useState<number | null>(null);
-  const [canConfirmOrder, setCanConfirmOrder] = useState(true);
+  const [, setCanConfirmOrder] = useState(true);
 
   const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeInputRef = useRef<HTMLInputElement>(null);

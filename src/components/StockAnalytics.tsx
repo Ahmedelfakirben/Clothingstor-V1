@@ -147,7 +147,8 @@ export function StockAnalytics() {
                     estimatedProfit: value - costValue,
                     imageUrl: product.image_url,
                     status,
-                    sizes: sizesList.length > 0 ? sizesList : undefined
+                    sizes: sizesList.length > 0 ? sizesList : undefined,
+                    sold: 0
                 };
             });
 

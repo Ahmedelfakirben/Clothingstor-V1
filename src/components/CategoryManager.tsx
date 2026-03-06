@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { PlusCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { Edit, Trash2, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';

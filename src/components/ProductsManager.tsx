@@ -75,6 +75,7 @@ export function ProductsManager() {
     barcode?: string;
     image_url?: string;
     color?: string;
+    purchase_price?: number;
   }>({
     name: '',
     description: '',

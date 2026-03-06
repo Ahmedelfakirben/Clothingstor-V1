@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Database, Download, Upload, HardDrive, AlertCircle, CheckCircle2, Clock, Trash2, RefreshCw, Settings, AlertTriangle, FileUp } from 'lucide-react';
+import { Database, Download, Upload, HardDrive, AlertCircle, CheckCircle2, Clock, Trash2, Settings, AlertTriangle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';

@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Clock, CheckCircle, XCircle, Banknote, CreditCard, Smartphone, Trash2, AlertCircle, Play, DollarSign } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Banknote, CreditCard, Smartphone, Trash2, AlertCircle, DollarSign } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { TicketPrinter } from './TicketPrinter';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LoadingSpinner } from './LoadingSpinner';
+
 
 interface Order {
   id: string;
@@ -81,19 +81,15 @@ export function OrdersDashboard() {
   const [viewMode, setViewMode] = useState<'current' | 'history' | 'cash'>('current');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [selectedUserId, setSelectedUserId] = useState<string>('all');
-  const [employees, setEmployees] = useState<{ id: string; full_name: string }[]>([]);
-  const [showLatestOnly, setShowLatestOnly] = useState<boolean>(true);
-  const [cashEvents, setCashEvents] = useState<CashEvent[]>([]);
-  const [selectedCashType, setSelectedCashType] = useState<'all' | 'open' | 'close'>('all');
-  const [selectedCashUserId, setSelectedCashUserId] = useState<string>('all');
-  const [selectedCashDateRange, setSelectedCashDateRange] = useState<'today' | 'week' | 'month' | 'all'>('today');
+  const [selectedUserId] = useState<string>('all');
+  const [, setEmployees] = useState<{ id: string; full_name: string }[]>([]);
+  const [showLatestOnly] = useState<boolean>(true);
 
   // Estado para modal de eliminación
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<OrderWithItems | null>(null);
   const [deletionNote, setDeletionNote] = useState('');
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [, setDeleteLoading] = useState(false);
 
   // Estado para modal de pago y ticket
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -415,7 +411,7 @@ export function OrdersDashboard() {
         }
       });
       events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setCashEvents(events);
+      // setCashEvents removed
     } catch (err) {
       console.error('Error al obtener sesiones de caja:', err);
     }
@@ -586,54 +582,11 @@ export function OrdersDashboard() {
 
   const historyToRender = showLatestOnly ? latestByOrder : filteredHistory;
 
-  const filteredCashEvents = (() => {
-    let events = cashEvents;
 
-    if (selectedCashType !== 'all') {
-      events = events.filter(e => e.type === selectedCashType);
-    }
 
-    if (selectedCashUserId !== 'all') {
-      events = events.filter(e => e.employee_id === selectedCashUserId);
-    }
 
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-    const startOfWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    if (selectedCashDateRange === 'today') {
-      events = events.filter(e => e.date >= startOfDay);
-    } else if (selectedCashDateRange === 'week') {
-      events = events.filter(e => e.date >= startOfWeek);
-    } else if (selectedCashDateRange === 'month') {
-      events = events.filter(e => e.date >= startOfMonth);
-    }
 
-    return events;
-  })();
-
-  const totals = {
-    day: historyToRender
-      .filter(h => new Date(h.created_at) >= new Date(new Date().setHours(0, 0, 0, 0)) && h.action !== 'cancelled')
-      .reduce((sum, h) => sum + h.total, 0),
-    week: historyToRender
-      .filter(h => new Date(h.created_at) >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) && h.action !== 'cancelled')
-      .reduce((sum, h) => sum + h.total, 0),
-    month: historyToRender
-      .filter(h => new Date(h.created_at).getMonth() === new Date().getMonth() && new Date(h.created_at).getFullYear() === new Date().getFullYear() && h.action !== 'cancelled')
-      .reduce((sum, h) => sum + h.total, 0),
-  };
-
-  const getStatusColor = (status: string) => {
-    const colors = {
-      preparing: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      completed: 'bg-green-100 text-green-800 border-green-200',
-      cancelled: 'bg-red-100 text-red-800 border-red-200',
-      partial: 'bg-orange-100 text-orange-800 border-orange-200',
-    };
-    return colors[status as keyof typeof colors] || colors.preparing;
-  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {

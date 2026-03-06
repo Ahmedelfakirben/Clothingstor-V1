@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Clock, Calendar, DollarSign, TrendingUp, Download, User, FileSpreadsheet } from 'lucide-react';
+import { Clock, Calendar, DollarSign, TrendingUp, User, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
 import { LoadingSpinner } from './LoadingSpinner';
@@ -54,7 +54,7 @@ interface MonthStats {
 }
 
 export function EmployeeTimeTracking() {
-  const { profile } = useAuth();
+  const { profile: _profile } = useAuth();
   const { t } = useLanguage();
   const { formatCurrency } = useCurrency();
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -262,7 +262,7 @@ export function EmployeeTimeTracking() {
       const wb = XLSX.utils.book_new();
 
       // Hoja 1: Resumen
-      const summaryData = [
+      const summaryData: any[][] = [
         [t('reports.company_info')],
         [''],
         ...(companySettings ? [
@@ -304,7 +304,7 @@ export function EmployeeTimeTracking() {
       XLSX.utils.book_append_sheet(wb, wsSummary, t('reports.summary_sheet'));
 
       // Hoja 2: Desglose Diario
-      const dailyData = [
+      const dailyData: any[][] = [
         [t('reports.company_info')],
         [''],
         ...(companySettings ? [
@@ -351,7 +351,7 @@ export function EmployeeTimeTracking() {
       XLSX.utils.book_append_sheet(wb, wsDaily, t('reports.daily_breakdown_sheet'));
 
       // Hoja 3: Detalle de Sesiones
-      const sessionsData = [
+      const sessionsData: any[][] = [
         [t('reports.company_info')],
         [''],
         ...(companySettings ? [
@@ -572,9 +572,9 @@ export function EmployeeTimeTracking() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {day.last_check_out
                             ? new Date(day.last_check_out).toLocaleTimeString('es-ES', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
                             : t('En curso')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Filter, Download } from 'lucide-react';
+import { Plus, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -365,8 +365,8 @@ export function ExpenseManager() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {suppliers.find(s => s.id === expense.supplier_id)?.name ||
-                     EXPENSE_CATEGORIES.find(cat => cat.value === expense.category)?.label ||
-                     expense.category}
+                      EXPENSE_CATEGORIES.find(cat => cat.value === expense.category)?.label ||
+                      expense.category}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900">
                     {expense.description}

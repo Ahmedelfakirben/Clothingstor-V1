@@ -3,19 +3,16 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import {
     ShoppingBag,
-    Search,
     Filter,
     ChevronDown,
     ChevronUp,
     Package,
     Truck,
     CheckCircle,
-    XCircle,
     Clock,
     User,
     Phone,
     MapPin,
-    ExternalLink,
     DollarSign,
     ClipboardList
 } from 'lucide-react';
@@ -159,7 +156,7 @@ export function OnlineStoreManager() {
 
             if (error) throw error;
 
-            toast.success(`Estado actualizado a: ${getStatusLabel(newStatus)}`);
+            toast.success(`Estado actualizado a: ${t(getStatusLabelKey(newStatus))}`);
 
             // Update local state (both main list and customer history if active)
             setOrders(orders.map(o =>

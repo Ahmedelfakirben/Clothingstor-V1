@@ -63,5 +63,5 @@ export interface EmployeeProfile {
   email?: string | null;
   deleted_at?: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }

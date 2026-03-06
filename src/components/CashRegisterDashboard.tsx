@@ -29,17 +29,7 @@ interface CashWithdrawal {
   notes: string | null;
 }
 
-interface Order {
-  id: string;
-  total: number;
-  created_at: string;
-  status: string;
-  order_items: Array<{
-    quantity: number;
-    unit_price: number;
-    products: { name: string }[];
-  }>;
-}
+// interface Order { ... }
 
 export function CashRegisterDashboard() {
   const { user, profile } = useAuth();
@@ -77,7 +67,7 @@ export function CashRegisterDashboard() {
   const [withdrawalAmount, setWithdrawalAmount] = useState('');
   const [withdrawalReason, setWithdrawalReason] = useState('');
   const [withdrawalNotes, setWithdrawalNotes] = useState('');
-  const [withdrawals, setWithdrawals] = useState<CashWithdrawal[]>([]);
+  const [, setWithdrawals] = useState<CashWithdrawal[]>([]);
 
   useEffect(() => {
     fetchSessions();
@@ -152,15 +142,7 @@ export function CashRegisterDashboard() {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+
 
   // Usar formatCurrency del contexto global
   const formatCurrency = formatCurrencyFromContext;
@@ -756,132 +738,7 @@ export function CashRegisterDashboard() {
     }
   };
 
-  const printSessionReport = async (session: CashSession) => {
-    try {
-      // Fetch orders for this session's date range
-      const { data: orders, error } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          total,
-          created_at,
-          status,
-          order_items (
-            quantity,
-            unit_price,
-            products (name)
-          )
-        `)
-        .eq('employee_id', session.employee_id)
-        .gte('created_at', session.opened_at)
-        .lte('created_at', session.closed_at || new Date().toISOString())
-        .eq('status', 'completed');
 
-      if (error) throw error;
-
-      // Calculate order totals
-      const orderTotal = (orders || []).reduce((sum, order) => sum + order.total, 0);
-      const orderCount = orders?.length || 0;
-
-      // Create print content
-      const printContent = `
-        <div style="font-family: monospace; max-width: 300px; margin: 0 auto; padding: 10px;">
-          <h2 style="text-align: center; margin-bottom: 10px;">REPORTE DE CAJA</h2>
-          <div style="border-bottom: 1px solid #000; margin-bottom: 10px;"></div>
-
-          <div style="margin-bottom: 10px;">
-            <strong>Empleado:</strong> ${profile?.role === 'admin' || profile?.role === 'super_admin' ? session.employee_profiles?.full_name || 'N/A' : 'Tú'}
-          </div>
-
-          <div style="margin-bottom: 10px;">
-            <strong>Fecha de Apertura:</strong> ${formatDate(session.opened_at)}
-          </div>
-
-          ${session.closed_at ? `<div style="margin-bottom: 10px;">
-            <strong>Fecha de Cierre:</strong> ${formatDate(session.closed_at)}
-          </div>` : ''}
-
-          <div style="margin-bottom: 10px;">
-            <strong>Monto Inicial:</strong> ${formatCurrency(session.opening_amount)}
-          </div>
-
-          ${session.closing_amount ? `<div style="margin-bottom: 10px;">
-            <strong>Monto Final:</strong> ${formatCurrency(session.closing_amount)}
-          </div>` : ''}
-
-          <div style="border-bottom: 1px solid #000; margin: 10px 0;"></div>
-
-          <div style="margin-bottom: 10px;">
-            <strong>RESUMEN DE PEDIDOS</strong>
-          </div>
-
-          <div style="margin-bottom: 5px;">
-            <strong>Total Pedidos:</strong> ${orderCount}
-          </div>
-
-          <div style="margin-bottom: 10px;">
-            <strong>Total Ventas:</strong> ${formatCurrency(orderTotal)}
-          </div>
-
-          ${session.closing_amount ? `<div style="margin-bottom: 10px;">
-            <strong>Balance:</strong> ${formatCurrency(session.closing_amount - session.opening_amount)}
-          </div>` : ''}
-
-          <div style="border-bottom: 1px solid #000; margin: 10px 0;"></div>
-
-          <div style="margin-bottom: 10px;">
-            <strong>DETALLE DE PEDIDOS</strong>
-          </div>
-
-          ${(orders || []).map(order => `
-            <div style="margin-bottom: 8px; border-bottom: 1px dashed #ccc; padding-bottom: 5px;">
-              <div><strong>Pedido #${order.id.slice(-8)}</strong></div>
-              <div>Hora: ${new Date(order.created_at).toLocaleTimeString('es-ES')}</div>
-              <div>Total: ${formatCurrency(order.total)}</div>
-              <div style="font-size: 12px; margin-top: 3px;">
-                ${order.order_items.map(item => `${item.quantity}x ${item.products[0]?.name || 'Producto'}`).join(', ')}
-              </div>
-            </div>
-          `).join('')}
-
-          <div style="border-bottom: 1px solid #000; margin: 10px 0;"></div>
-
-          <div style="text-align: center; margin-top: 20px; font-size: 12px;">
-            Generado el ${new Date().toLocaleString('es-ES')}
-          </div>
-        </div>
-      `;
-
-      // Print directly without opening new window
-      const printWindow = window.open('', '_blank', 'width=400,height=600');
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Reporte de Caja</title>
-              <style>
-                @media print {
-                  body { margin: 0; }
-                  @page { size: auto; margin: 5mm; }
-                }
-              </style>
-            </head>
-            <body>
-              ${printContent}
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        printWindow.print();
-        // Close window after printing
-        printWindow.onafterprint = () => printWindow.close();
-      }
-    } catch (err) {
-      console.error('Error generating report:', err);
-      toast.error(t('Error al generar el reporte'));
-    }
-  };
 
   return (
     <div className="p-6">
@@ -1226,14 +1083,14 @@ export function CashRegisterDashboard() {
 
       {/* HISTORIAL GLOBAL DIARIO (SOLO ADMINS) */}
       {(profile?.role === 'admin' || profile?.role === 'super_admin') && (
-        <DailyHistorySection profile={profile} />
+        <DailyHistorySection />
       )}
     </div>
   );
 }
 
 // Sub-component for Daily History to keep main component clean
-function DailyHistorySection({ profile }: { profile: any }) {
+function DailyHistorySection() {
   const { t, currentLanguage } = useLanguage(); // Added currentLanguage for date locale
   const { formatCurrency } = useCurrency();
   const [history, setHistory] = useState<any[]>([]);

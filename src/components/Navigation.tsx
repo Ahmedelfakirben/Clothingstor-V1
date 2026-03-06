@@ -1,4 +1,4 @@
-import { Shirt, ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Menu, X, Clock, Shield, Building2, Settings, Server, Database, Grid3x3, User, Coffee } from 'lucide-react';
+import { ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Clock, Shield, Building2, Settings, Server, Database } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useState, useRef, useEffect } from 'react';
@@ -32,7 +32,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
   const [closingAmount, setClosingAmount] = useState('');
   const [closingLoading, setClosingLoading] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const [userPermissions, setUserPermissions] = useState<{ [key: string]: boolean }>({});
   const [cashBreakdown, setCashBreakdown] = useState({
     openingAmount: 0,

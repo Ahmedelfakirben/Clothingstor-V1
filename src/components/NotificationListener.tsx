@@ -60,8 +60,7 @@ export function NotificationListener() {
             requireInteraction: true,
             renotify: true,
             vibrate: [200, 100, 200, 100, 400],
-            data: { url: window.location.href }
-        };
+        } as any;
 
         try {
             if ('serviceWorker' in navigator) {

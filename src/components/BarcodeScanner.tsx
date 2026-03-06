@@ -30,7 +30,7 @@ export const BarcodeScanner = ({ onScanSuccess, onClose }: BarcodeScannerProps) 
                 }
 
                 setLoading(true);
-                const devices = await Html5Qrcode.getCameras().catch(err => {
+                await Html5Qrcode.getCameras().catch(err => {
                     console.warn("Error getting cameras:", err);
                     return [];
                 });

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
-import { Trash2, Plus, ScanBarcode, Save, X } from 'lucide-react';
+import { Trash2, Plus, ScanBarcode } from 'lucide-react';
 import { BarcodeScanner } from './BarcodeScanner';
 
 interface ProductSize {
