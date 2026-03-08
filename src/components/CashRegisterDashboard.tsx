@@ -108,10 +108,10 @@ export function CashRegisterDashboard() {
       } else {
         // Para administradores: aplicar filtros
         if (filters.startDate) {
-          query = query.gte('opened_at', filters.startDate);
+          query = query.gte('opened_at', filters.startDate + 'T00:00:00');
         }
         if (filters.endDate) {
-          query = query.lte('opened_at', filters.endDate);
+          query = query.lte('opened_at', filters.endDate + 'T23:59:59');
         }
         if (filters.status !== 'all') {
           query = query.eq('status', filters.status);

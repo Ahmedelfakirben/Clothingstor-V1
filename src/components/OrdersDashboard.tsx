@@ -84,6 +84,7 @@ export function OrdersDashboard() {
   const [selectedUserId] = useState<string>('all');
   const [, setEmployees] = useState<{ id: string; full_name: string }[]>([]);
   const [showLatestOnly] = useState<boolean>(true);
+  const [currentDateFilter, setCurrentDateFilter] = useState<string>(''); // format: YYYY-MM-DD, admin only
 
   // Estado para modal de eliminación
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -161,7 +162,7 @@ export function OrdersDashboard() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [startDate, endDate, viewMode]);
+  }, [startDate, endDate, viewMode, currentDateFilter]);
 
   // Redirect cashier users to current view if they somehow access history
   useEffect(() => {
@@ -314,11 +315,16 @@ export function OrdersDashboard() {
 
       // Mostrar últimas 24 horas desde las 2 AM en vista actual
       if (viewMode === 'current') {
-        const last2AM = getLast2AMTimestamp();
-        // Nota: .or() se aplica como filtro. La sintaxis es 'col.op.val,col2.op.val'. 
-        // Queremos: created_at >= last2AM OR status = preparing OR payment_status != paid
-        // Supabase OR sintaxis: 'created_at.gte.TIMESTAMP,status.eq.preparing,payment_status.neq.paid'
-        query = query.or(`created_at.gte.${last2AM},status.eq.preparing,payment_status.neq.paid`);
+        const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+        if (isAdmin && currentDateFilter) {
+          // Admin has selected a specific date: show that full day
+          const dayStart = new Date(currentDateFilter + 'T00:00:00');
+          const dayEnd = new Date(currentDateFilter + 'T23:59:59');
+          query = query.gte('created_at', dayStart.toISOString()).lte('created_at', dayEnd.toISOString());
+        } else {
+          const last2AM = getLast2AMTimestamp();
+          query = query.or(`created_at.gte.${last2AM},status.eq.preparing,payment_status.neq.paid`);
+        }
       }
 
       query = query.limit(1000);
@@ -642,8 +648,34 @@ export function OrdersDashboard() {
           )}
         </div>
 
+        {viewMode === 'current' && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
+          <div className="flex flex-col items-center gap-2 mt-3">
+            <div className="flex gap-2 items-center">
+              <label className="text-sm font-medium text-gray-600">{t('Filtrar por fecha:')}</label>
+              <input
+                type="date"
+                value={currentDateFilter}
+                onChange={(e) => setCurrentDateFilter(e.target.value)}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white shadow-sm focus:ring-2 focus:ring-amber-500"
+              />
+              {currentDateFilter && (
+                <button
+                  onClick={() => setCurrentDateFilter('')}
+                  className="text-xs px-2 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg transition-colors"
+                >
+                  {t('Hoy')}
+                </button>
+              )}
+            </div>
+            {currentDateFilter && (
+              <p className="text-xs text-amber-600 font-medium">
+                📅 {t('Mostrando pedidos del')} {new Date(currentDateFilter + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+            )}
+          </div>
+        )}
         {viewMode === 'current' ? (
-          <div className="flex gap-3 flex-wrap justify-center">
+          <div className="flex gap-3 flex-wrap justify-center mt-3">
             {Object.entries(statusLabels).map(([status, label]) => {
               const count = status === 'all'
                 ? orders.length

@@ -32,6 +32,7 @@ interface Product {
   stock?: number;
   barcode?: string;
   purchase_price?: number;
+  created_at?: string;
 }
 
 interface ProductSize {
@@ -87,6 +88,7 @@ export function ProductsManager() {
   const [newSizeName, setNewSizeName] = useState('');
   const [newSizeStock, setNewSizeStock] = useState('0');
   const [newSizeBarcode, setNewSizeBarcode] = useState('');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -287,7 +289,7 @@ export function ProductsManager() {
   };
 
   const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*').order('name');
+    const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
     if (data) setProducts(data);
   };
 
@@ -1302,6 +1304,20 @@ export function ProductsManager() {
       (product.barcode && product.barcode.toLowerCase().includes(search)) ||
       (product.brand && product.brand.toLowerCase().includes(search))
     );
+  }).sort((a, b) => {
+    if (sortBy === 'name-asc') {
+      return a.name.localeCompare(b.name);
+    }
+    if (sortBy === 'name-desc') {
+      return b.name.localeCompare(a.name);
+    }
+    if (sortBy === 'newest') {
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    }
+    if (sortBy === 'oldest') {
+      return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+    }
+    return 0;
   });
 
   return (
@@ -1605,19 +1621,19 @@ export function ProductsManager() {
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{t('Costo (Compra)')}</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    disabled={isCashier}
-                    value={newProduct.purchase_price || 0}
-                    onChange={e => setNewProduct({ ...newProduct, purchase_price: parseFloat(e.target.value) })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75 title-hover"
-                    title={isCashier ? t('No tienes permisos para editar el costo') : ''}
-                  />
-                </div>
+              <div className={`grid ${!isCashier ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+                {!isCashier && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('Costo (Compra)')}</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newProduct.purchase_price || 0}
+                      onChange={e => setNewProduct({ ...newProduct, purchase_price: parseFloat(e.target.value) })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 title-hover"
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">{t('Precio (Venta)')}</label>
                   <input
@@ -1752,7 +1768,7 @@ export function ProductsManager() {
       )}
 
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex gap-4 bg-gray-50/50">
+        <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-4 bg-gray-50/50">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -1763,6 +1779,16 @@ export function ProductsManager() {
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white shadow-sm"
             />
           </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white shadow-sm text-sm text-gray-700 outline-none"
+          >
+            <option value="newest">{t('Más recientes')}</option>
+            <option value="oldest">{t('Más antiguos')}</option>
+            <option value="name-asc">{t('Nombre (A-Z)')}</option>
+            <option value="name-desc">{t('Nombre (Z-A)')}</option>
+          </select>
         </div>
         {/* Vista Móvil (Tarjetas) */}
         <div className="grid grid-cols-1 gap-4 p-4 md:hidden">

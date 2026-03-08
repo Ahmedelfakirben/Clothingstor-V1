@@ -1246,6 +1246,10 @@ const translations = {
     'products.image_error': 'Error imagen',
     'products.no_image': 'Sin Imagen',
     'stock.needs_validation': 'Por Validar',
+    'Más recientes': 'Más recientes',
+    'Más antiguos': 'Más antiguos',
+    'Nombre (A-Z)': 'Nombre (A-Z)',
+    'Nombre (Z-A)': 'Nombre (Z-A)',
   },
   fr: {
     // Navigation
@@ -1500,6 +1504,9 @@ const translations = {
     'Generar Reporte Mensual': 'Générer un Rapport Mensuel',
     'sesiones': 'sessions',
     'pedidos': 'commandes',
+
+    // Analytics Financial Summary card labels
+    'Costo (Productos):': 'Coût (Produits) :',
 
     'Motivo:': 'Motif :',
 
@@ -2574,6 +2581,10 @@ const translations = {
     'products.image_error': 'Erreur image',
     'products.no_image': 'Pas d\'image',
     'stock.needs_validation': 'À Valider',
+    'Más recientes': 'Plus récents',
+    'Más antiguos': 'Plus anciens',
+    'Nombre (A-Z)': 'Nom (A-Z)',
+    'Nombre (Z-A)': 'Nom (Z-A)',
   }
 };
 

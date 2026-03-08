@@ -474,6 +474,7 @@ export function POS() {
         size_id: item.size?.id || null,
         quantity: item.quantity,
         unit_price: Number(item.product.base_price) + Number(item.size?.price_modifier || 0),
+        purchase_price: Number(item.product.purchase_price || 0),
         subtotal: (Number(item.product.base_price) + Number(item.size?.price_modifier || 0)) * item.quantity,
         notes: item.notes,
       }));

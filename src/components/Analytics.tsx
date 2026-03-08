@@ -70,6 +70,7 @@ interface FinancialSummary {
   period: string;
   sales: number;
   expenses: number;
+  cogs: number;
   profit: number;
   profit_margin: number;
 }
@@ -368,10 +369,19 @@ export function Analytics() {
 
     const summaries = await Promise.all(
       periods.map(async (period) => {
-        // Get sales
+        // Get sales and order items to calculate real COGS (purchase price * quantity)
         const { data: sales } = await supabase
           .from('orders')
-          .select('total')
+          .select(`
+          total,
+          order_items (
+            quantity,
+            purchase_price,
+            products (
+              purchase_price
+            )
+          )
+        `)
           .gte('created_at', period.start.toISOString())
           .lte('created_at', period.end.toISOString())
           .eq('status', 'completed');
@@ -383,15 +393,26 @@ export function Analytics() {
           .gte('created_at', period.start.toISOString())
           .lte('created_at', period.end.toISOString());
 
-        const totalSales = sales?.reduce((sum, order) => sum + order.total, 0) || 0;
+        const totalSales = sales?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
+
+        // Calculate COGS (Cost of Goods Sold)
+        let totalCogs = 0;
+        sales?.forEach(order => {
+          order.order_items?.forEach((item: any) => {
+            const itemCogs = item.purchase_price > 0 ? item.purchase_price : (item.products?.purchase_price || 0);
+            totalCogs += itemCogs * (item.quantity || 0);
+          });
+        });
+
         const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
-        const profit = totalSales - totalExpenses;
+        const profit = totalSales - totalCogs - totalExpenses;
         const profitMargin = totalSales > 0 ? (profit / totalSales) * 100 : 0;
 
         return {
           period: period.name,
           sales: totalSales,
           expenses: totalExpenses,
+          cogs: totalCogs,
           profit,
           profit_margin: profitMargin,
         };
@@ -571,7 +592,8 @@ export function Analytics() {
           order_items (
             quantity,
             unit_price,
-            products (name)
+            purchase_price,
+            products (name, purchase_price)
           ),
           employee_profiles!inner(full_name)
         `)
@@ -583,7 +605,16 @@ export function Analytics() {
       // Calculate totals
       const totalSales = (orders || []).reduce((sum, order) => sum + order.total, 0);
       const totalExpenses = (expenses || []).reduce((sum, exp) => sum + exp.amount, 0);
-      const profit = totalSales - totalExpenses;
+
+      let totalCogs = 0;
+      orders?.forEach(order => {
+        order.order_items?.forEach((item: any) => {
+          const itemCogs = item.purchase_price > 0 ? item.purchase_price : (item.products?.purchase_price || 0);
+          totalCogs += itemCogs * (item.quantity || 0);
+        });
+      });
+
+      const profit = totalSales - totalCogs - totalExpenses;
 
       // Group sessions by employee
       const employeeSessions = (sessions || []).reduce((acc: Record<string, {
@@ -667,6 +698,7 @@ export function Analytics() {
         [t('reports.indicator'), t('reports.value'), t('reports.detail')],
         [t('reports.total_sales'), `$${totalSales.toFixed(2)}`, `${(orders || []).length} ${t('reports.orders_completed')}`],
         [t('reports.total_expenses'), `$${totalExpenses.toFixed(2)}`, `${(expenses || []).length} ${t('reports.expenses_registered')}`],
+        [t('Costo de Productos (COGS)'), `$${totalCogs.toFixed(2)}`, t('Costo de compra de los artículos vendidos')],
         [t('reports.net_profit'), `$${profit.toFixed(2)}`, `${((profit / totalSales) * 100 || 0).toFixed(2)}% ${t('reports.margin')}`],
         [t('reports.products_sold'), orders?.reduce((sum, order) =>
           sum + (order.order_items?.reduce((itemSum: number, item: any) => itemSum + item.quantity, 0) || 0), 0) || 0, t('reports.units')],
@@ -1591,6 +1623,10 @@ export function Analytics() {
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">{t('Gastos:')}</span>
                 <span className="font-semibold text-red-600">{formatCurrency(summary.expenses)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">{t('Costo (Productos):')}</span>
+                <span className="font-semibold text-amber-600">{formatCurrency(summary.cogs)}</span>
               </div>
               <div className="flex justify-between border-t pt-2">
                 <span className="text-sm font-medium text-gray-900">{t('Beneficio:')}</span>
