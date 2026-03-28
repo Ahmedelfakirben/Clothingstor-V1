@@ -33,6 +33,7 @@ interface Product {
   barcode?: string;
   purchase_price?: number;
   created_at?: string;
+  needs_validation?: boolean;
 }
 
 interface ProductSize {
@@ -644,6 +645,7 @@ export function ProductsManager() {
         base_price: newProduct.base_price,
         purchase_price: newProduct.purchase_price,
         available: newProduct.available ?? true,
+        needs_validation: isCashier,
       };
 
       // Solo agregar campos opcionales si tienen valor válido
@@ -945,6 +947,7 @@ export function ProductsManager() {
         material: newProduct.material?.trim() || null,
         gender: newProduct.gender || null,
         season: newProduct.season || null,
+        needs_validation: isCashier,
       };
 
       // Handle stock logic
@@ -1141,6 +1144,7 @@ export function ProductsManager() {
           purchase_price: editingProduct.purchase_price,
           available: editingProduct.available,
           barcode: editingProduct.barcode,
+          needs_validation: isCashier,
         })
         .eq('id', editingProduct.id);
 
@@ -1862,12 +1866,14 @@ export function ProductsManager() {
                   >
                     <Edit2 className="w-5 h-5" />
                   </button>
-                  <button
-                    onClick={() => handleDeleteProduct(product.id)}
-                    className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
+                  {!isCashier && (
+                    <button
+                      onClick={() => handleDeleteProduct(product.id)}
+                      className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -2156,13 +2162,15 @@ export function ProductsManager() {
                       >
                         <Edit2 className="w-5 h-5" />
                       </button>
-                      <button
-                        onClick={() => handleDeleteProduct(product.id)}
-                        className="text-red-600 hover:text-red-800"
-                        title={t('Eliminar producto permanentemente')}
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                      {!isCashier && (
+                        <button
+                          onClick={() => handleDeleteProduct(product.id)}
+                          className="text-red-600 hover:text-red-800"
+                          title={t('Eliminar producto permanentemente')}
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
                   )}
                 </td>

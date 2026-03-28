@@ -3,11 +3,13 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { Bell, X } from 'lucide-react';
 
 export function NotificationListener() {
     const { profile } = useAuth();
     const { t } = useLanguage();
+    const { formatCurrency } = useCurrency();
     const audioContextRef = useRef<AudioContext | null>(null);
     const [statusColor, setStatusColor] = useState('bg-gray-400'); // Gris por defecto
     const originalTitle = useRef(document.title);
@@ -168,7 +170,7 @@ export function NotificationListener() {
                             return;
                         }
 
-                        const amount = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(newOrder.total);
+                        const amount = formatCurrency(newOrder.total);
 
                         // 1. Sonido
                         playNotificationSound();

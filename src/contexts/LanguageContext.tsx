@@ -55,6 +55,7 @@ const translations = {
     'stock.low_stock': 'Stock Bajo',
     'stock.out_of_stock': 'Agotado',
     'stock.inventory_status': 'Estado del Inventario',
+    'stock.validate_changes': 'Aprobar Cambios',
     'stock.current_stock': 'Stock Actual',
     'stock.estimated_cost': 'Costo Est.',
     'stock.sales_value': 'Valor Venta',
@@ -337,6 +338,7 @@ const translations = {
     'Completar': 'Completar',
     'Eliminar Pedido': 'Eliminar Pedido',
     'No hay historial de órdenes para mostrar': 'No hay historial de órdenes para mostrar',
+    'Marcar como Terminada': 'Marcar como Terminada',
     'Orden': 'Orden',
     'Fecha': 'Fecha',
     'Estado': 'Estado',
@@ -781,6 +783,32 @@ const translations = {
     'pos.customer_selected': 'Cliente Seleccionado',
     'pos.select_size': 'Seleccionar Talla',
 
+    // POS - Discounts / Rebajas por producto
+    'pos.discount_btn': 'Aplicar descuento',
+    'pos.discount_title': 'Descuento para este producto',
+    'pos.discount_percent': 'Porcentaje',
+    'pos.discount_fixed': 'Importe fijo',
+    'pos.discount_invalid': 'Por favor ingresa un valor de descuento válido',
+
+    // POS - Returns / Devoluciones
+    'pos.return_btn': 'Devolución',
+    'pos.return_title': 'Gestión de Devoluciones',
+    'pos.return_subtitle': 'Busca el producto vendido para gestionar la devolución',
+    'pos.return_barcode_placeholder': 'Escanear código de barras...',
+    'pos.return_scan_btn': 'Buscar',
+    'pos.return_search_placeholder': 'Buscar por nombre, código o N° de pedido...',
+    'pos.return_no_results': 'No se encontraron productos vendidos',
+    'pos.return_order': 'Pedido',
+    'pos.return_barcode': 'Código',
+    'pos.return_qty_label': 'Cantidad a devolver',
+    'pos.return_refund': 'Reembolso',
+    'pos.return_confirm': 'Confirmar Devolución',
+    'pos.return_processing': 'Procesando...',
+    'pos.return_success': 'Devolución realizada. Reembolso descontado de caja:',
+    'pos.return_error': 'Error procesando la devolución',
+    'pos.return_load_error': 'Error al cargar productos vendidos',
+    'pos.return_invalid_qty': 'Cantidad inválida para la devolución',
+    'pos.return_withdrawal_reason': 'Devolución de venta',
 
     // Employee Time Tracking
 
@@ -1250,6 +1278,28 @@ const translations = {
     'Más antiguos': 'Más antiguos',
     'Nombre (A-Z)': 'Nombre (A-Z)',
     'Nombre (Z-A)': 'Nombre (Z-A)',
+
+    // Modal Seleccionar Cliente (POS)
+    'Seleccionar Cliente': 'Seleccionar Cliente',
+    'Asigne un cliente a este pedido': 'Asigne un cliente a este pedido',
+    'Buscar cliente por nombre o teléfono...': 'Buscar cliente por nombre o teléfono...',
+    'No se encontraron clientes': 'No se encontraron clientes',
+    'Desasignar Cliente': 'Desasignar Cliente',
+    'Cliente asignado correctamente': 'Cliente asignado correctamente',
+    'Cliente desasignado': 'Cliente desasignado',
+
+    'orders.returns_tab': 'Devoluciones',
+    'orders.returns_subtitle': 'Historial completo de productos devueltos',
+    'orders.returns_refresh': 'Actualizar',
+    'orders.returns_empty': 'No hay devoluciones registradas',
+    'orders.returns_col_order': 'Pedido',
+    'orders.returns_col_product': 'Producto',
+    'orders.returns_col_qty': 'Cant.',
+    'orders.returns_col_unit': 'P. Unit.',
+    'orders.returns_col_refund': 'Reembolso',
+    'orders.returns_col_reason': 'Motivo',
+    'orders.returns_total_label': 'Total reembolsado',
+    'orders.returns_count': 'devolución(es)',
   },
   fr: {
     // Navigation
@@ -1546,6 +1596,7 @@ const translations = {
     'Completar': 'Compléter',
     'Eliminar Pedido': 'Supprimer la Commande',
     'No hay historial de órdenes para mostrar': 'Aucun historique de commande à afficher',
+    'Marcar como Terminada': 'Marquer comme Terminée',
     'Orden': 'Commande',
     'Fecha': 'Date',
     'Estado': 'État',
@@ -1768,6 +1819,7 @@ const translations = {
     'stock.low_stock': 'Stock Faible',
     'stock.out_of_stock': 'Épuisé',
     'stock.inventory_status': 'État de l\'Inventaire',
+    'stock.validate_changes': 'Valider les modifications',
     'stock.current_stock': 'Stock Actuel',
     'stock.estimated_cost': 'Coût Est.',
     'stock.sales_value': 'Valeur Vente',
@@ -1828,6 +1880,34 @@ const translations = {
     'pos.unassign_success': 'Client désattribué',
     'pos.customer_selected': 'Client Sélectionné',
     'pos.select_size': 'Sélectionner Taille',
+
+    // POS - Remises par produit
+    'pos.discount_btn': 'Appliquer une remise',
+    'pos.discount_title': 'Remise pour ce produit',
+    'pos.discount_percent': 'Pourcentage',
+    'pos.discount_fixed': 'Montant fixe',
+    'pos.discount_invalid': 'Veuillez saisir une valeur de remise valide',
+
+    // POS - Retours
+    'pos.return_btn': 'Retour',
+    'pos.return_title': 'Gestion des Retours',
+    'pos.return_subtitle': 'Recherchez le produit vendu pour gérer le retour',
+    'pos.return_barcode_placeholder': 'Scanner le code-barres...',
+    'pos.return_scan_btn': 'Rechercher',
+    'pos.return_search_placeholder': 'Rechercher par nom, code ou N° de commande...',
+    'pos.return_no_results': 'Aucun produit vendu trouvé',
+    'pos.return_order': 'Commande',
+    'pos.return_barcode': 'Code',
+    'pos.return_qty_label': 'Quantité à retourner',
+    'pos.return_refund': 'Remboursement',
+    'pos.return_confirm': 'Confirmer le Retour',
+    'pos.return_processing': 'Traitement...',
+    'pos.return_success': 'Retour effectué. Remboursement déduit de la caisse :',
+    'pos.return_error': 'Erreur lors du traitement du retour',
+    'pos.return_load_error': 'Erreur lors du chargement des produits vendus',
+    'pos.return_invalid_qty': 'Quantité invalide pour le retour',
+    'pos.return_withdrawal_reason': 'Retour sur vente',
+
     'Contacto': 'Contact',
 
     // Online Store Manager
@@ -2585,6 +2665,29 @@ const translations = {
     'Más antiguos': 'Plus anciens',
     'Nombre (A-Z)': 'Nom (A-Z)',
     'Nombre (Z-A)': 'Nom (Z-A)',
+
+    // Modal Sélection Client (POS)
+    'Seleccionar Cliente': 'Sélectionner un Client',
+    'Asigne un cliente a este pedido': 'Assignez un client à cette commande',
+    'Buscar cliente por nombre o teléfono...': 'Rechercher un client par nom ou téléphone...',
+    'No se encontraron clientes': 'Aucun client trouvé',
+    'Desasignar Cliente': 'Désassigner le Client',
+    'Cliente asignado correctamente': 'Client assigné avec succès',
+    'Cliente desasignado': 'Client désassigné',
+
+    // Retours dans Commandes
+    'orders.returns_tab': 'Retours',
+    'orders.returns_subtitle': 'Historique complet des produits retournés',
+    'orders.returns_refresh': 'Actualiser',
+    'orders.returns_empty': 'Aucun retour enregistré',
+    'orders.returns_col_order': 'Commande',
+    'orders.returns_col_product': 'Produit',
+    'orders.returns_col_qty': 'Qté',
+    'orders.returns_col_unit': 'P. Unit.',
+    'orders.returns_col_refund': 'Remboursement',
+    'orders.returns_col_reason': 'Motif',
+    'orders.returns_total_label': 'Total remboursé',
+    'orders.returns_count': 'retour(s)',
   }
 };
 

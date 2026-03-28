@@ -5,7 +5,7 @@ import { useCart } from '../contexts/CartContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { Category, Product, ProductSize } from '../types/supabase';
-import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, ChevronRight, Search, ScanBarcode, ShoppingBag, Users, CheckCircle } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, ChevronRight, Search, ScanBarcode, ShoppingBag, Users, CheckCircle, RotateCcw, Tag, X } from 'lucide-react';
 import { TicketPrinter } from './TicketPrinter';
 import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
 import { toast } from 'react-hot-toast';
@@ -15,7 +15,7 @@ import { ImageGalleryModal } from './ImageGalleryModal';
 
 export function POS() {
   const { user, profile } = useAuth();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { formatCurrency } = useCurrency();
   const {
     items: cart,
@@ -30,7 +30,8 @@ export function POS() {
     activeOrderId,
     setActiveOrderId,
     customerId,
-    setCustomerId
+    setCustomerId,
+    setItemDiscount,
   } = useCart();
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -60,6 +61,20 @@ export function POS() {
   const [existingOrderTotal, setExistingOrderTotal] = useState<number>(0);
   const [existingOrderNumber, setExistingOrderNumber] = useState<number | null>(null);
   const [, setCanConfirmOrder] = useState(true);
+
+  // Return modal state
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnSearch, setReturnSearch] = useState('');
+  const [returnBarcodeInput, setReturnBarcodeInput] = useState('');
+  const [soldItems, setSoldItems] = useState<any[]>([]);
+  const [soldItemsLoading, setSoldItemsLoading] = useState(false);
+  const [selectedReturnItem, setSelectedReturnItem] = useState<any | null>(null);
+  const [returnQuantity, setReturnQuantity] = useState(1);
+  const [returnProcessing, setReturnProcessing] = useState(false);
+  // Discount popover state per cart item
+  const [discountPopoverIndex, setDiscountPopoverIndex] = useState<number | null>(null);
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
 
   const [barcodeInput, setBarcodeInput] = useState('');
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -468,16 +483,20 @@ export function POS() {
       const amountPaid = pData.amountPaid !== undefined ? pData.amountPaid : pData.total;
       const paymentStatus = pData.paymentStatus || 'paid';
 
-      // Preparar items para la BD
-      const orderItemsPayload = cart.map(item => ({
-        product_id: item.product.id,
-        size_id: item.size?.id || null,
-        quantity: item.quantity,
-        unit_price: Number(item.product.base_price) + Number(item.size?.price_modifier || 0),
-        purchase_price: Number(item.product.purchase_price || 0),
-        subtotal: (Number(item.product.base_price) + Number(item.size?.price_modifier || 0)) * item.quantity,
-        notes: item.notes,
-      }));
+      // Preparar items para la BD (con descuento por producto aplicado)
+      const orderItemsPayload = cart.map(item => {
+        const basePrice = Number(item.product.base_price) + Number(item.size?.price_modifier || 0);
+        const finalPrice = basePrice - (item.discount || 0);
+        return {
+          product_id: item.product.id,
+          size_id: item.size?.id || null,
+          quantity: item.quantity,
+          unit_price: finalPrice,
+          purchase_price: Number(item.product.purchase_price || 0),
+          subtotal: finalPrice * item.quantity,
+          notes: item.notes,
+        };
+      });
 
       // CREAR la orden en la base de datos (SOLO AQUÍ)
       const { data: order, error: orderError } = await supabase
@@ -562,7 +581,7 @@ export function POS() {
       console.log('🏁 Proceso de actualización de stock finalizado');
 
       // Notificar localmente (para feedback inmediato)
-      const formattedAmount = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(order.total);
+      const formattedAmount = formatCurrency(order.total);
       window.dispatchEvent(new CustomEvent('dispatch-sale-notification', {
         detail: { amount: formattedAmount }
       }));
@@ -610,7 +629,169 @@ export function POS() {
     }
   };
 
+  // ──────────────────────────────────────────────
+  // DEVOLUCIONES / RETOURS
+  // ──────────────────────────────────────────────
+  const fetchSoldItems = async (searchTerm: string = '') => {
+    setSoldItemsLoading(true);
+    try {
+      // Simpler query: no embedded filter, no FK hints — filter by status client-side
+      const { data, error } = await supabase
+        .from('order_items')
+        .select(`
+          id,
+          order_id,
+          product_id,
+          size_id,
+          quantity,
+          unit_price,
+          subtotal,
+          orders(id, order_number, created_at, status),
+          products(id, name, barcode),
+          product_sizes(id, size_name, barcode)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(500);
+
+      if (error) throw error;
+
+      const mapped = (data || [])
+        .filter((item: any) => item.orders?.status === 'completed') // filter completed
+        .map((item: any) => ({
+          id: item.id,
+          order_id: item.order_id,
+          order_number: item.orders?.order_number,
+          order_date: item.orders?.created_at,
+          product_id: item.product_id,
+          product_name: (item.products as any)?.name || 'Producto',
+          product_barcode: (item.products as any)?.barcode || '',
+          size_id: item.size_id,
+          size_name: (item.product_sizes as any)?.size_name || null,
+          size_barcode: (item.product_sizes as any)?.barcode || '',
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          subtotal: item.subtotal,
+        }));
+
+      if (searchTerm.trim()) {
+        const term = searchTerm.trim().toLowerCase();
+        setSoldItems(mapped.filter(i =>
+          i.product_name.toLowerCase().includes(term) ||
+          i.product_barcode.toLowerCase().includes(term) ||
+          i.size_barcode.toLowerCase().includes(term) ||
+          String(i.order_number || '').includes(term)
+        ));
+      } else {
+        setSoldItems(mapped);
+      }
+    } catch (err) {
+      console.error('Error fetching sold items:', err);
+      toast.error(t('pos.return_load_error'));
+    } finally {
+      setSoldItemsLoading(false);
+    }
+  };
+
+  const handleReturnBarcodeSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = returnBarcodeInput.trim();
+    if (!code) return;
+    setReturnSearch(code);
+    fetchSoldItems(code);
+    setReturnBarcodeInput('');
+  };
+
+  const processReturn = async () => {
+    if (!selectedReturnItem || !user) return;
+    if (returnQuantity < 1 || returnQuantity > selectedReturnItem.quantity) {
+      toast.error(t('pos.return_invalid_qty'));
+      return;
+    }
+    setReturnProcessing(true);
+    try {
+      const refundAmount = selectedReturnItem.unit_price * returnQuantity;
+
+      // 1. Restore stock
+      if (selectedReturnItem.size_id) {
+        await supabase.rpc('increment_product_size_stock', {
+          p_size_id: selectedReturnItem.size_id,
+          p_quantity: returnQuantity,
+        });
+      } else {
+        await supabase.rpc('increment_product_stock', {
+          p_product_id: selectedReturnItem.product_id,
+          p_quantity: returnQuantity,
+        });
+      }
+
+      // 2. Find open session to attach withdrawal
+      const { data: openSession } = await supabase
+        .from('cash_register_sessions')
+        .select('id')
+        .eq('employee_id', user.id)
+        .eq('status', 'open')
+        .order('opened_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // 3. Register cash withdrawal (refund deducted from cash register)
+      const noteText = `${t('pos.return_order')} #${String(selectedReturnItem.order_number || '').padStart(3, '0')} - ${selectedReturnItem.product_name}${selectedReturnItem.size_name ? ` (${selectedReturnItem.size_name})` : ''} x${returnQuantity}`;
+      const { data: withdrawal } = await supabase
+        .from('cash_withdrawals')
+        .insert({
+          session_id: openSession?.id || null,
+          amount: refundAmount,
+          reason: t('pos.return_withdrawal_reason'),
+          withdrawn_by: user.id,
+          notes: noteText,
+        })
+        .select('id')
+        .single();
+
+      // 4. Record the return
+      await supabase.from('order_returns').insert({
+        order_item_id: selectedReturnItem.id,
+        order_id: selectedReturnItem.order_id,
+        product_id: selectedReturnItem.product_id,
+        size_id: selectedReturnItem.size_id || null,
+        quantity_returned: returnQuantity,
+        unit_price: selectedReturnItem.unit_price,
+        total_refund: refundAmount,
+        reason: t('pos.return_withdrawal_reason'),
+        returned_by: user.id,
+        withdrawal_id: withdrawal?.id || null,
+      });
+
+      toast.success(`✅ ${t('pos.return_success')} ${formatCurrency(refundAmount)}`);
+      setSelectedReturnItem(null);
+      setReturnQuantity(1);
+      setShowReturnModal(false);
+      await fetchInitialProducts();
+      await fetchSizes();
+    } catch (err: any) {
+      console.error('Return processing error:', err);
+      toast.error(`${t('pos.return_error')}: ${err.message}`);
+    } finally {
+      setReturnProcessing(false);
+    }
+  };
+
+  // ──────────────────────────────────────────────
+  // DISCOUNTS
+  // ──────────────────────────────────────────────
+  const applyDiscount = (cartIndex: number) => {
+    const val = parseFloat(discountInput);
+    if (isNaN(val) || val < 0) {
+      toast.error(t('pos.discount_invalid'));
+      return;
+    }
+    setItemDiscount(cartIndex, discountType, val);
+    setDiscountPopoverIndex(null);
+    setDiscountInput('');
+  };
+
   if (dataLoading) {
+
     return <LoadingPage message={t('Cargando productos...')} />;
   }
 
@@ -691,12 +872,13 @@ export function POS() {
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const img = e.currentTarget;
-                          if (img.parentElement) {
-                            img.parentElement.innerHTML = '';
+                          const parent = img.parentElement;
+                          if (parent) {
+                            parent.innerHTML = '';
                             const fallbackIcon = document.createElement('div');
                             fallbackIcon.className = "w-full h-full flex items-center justify-center text-gray-300";
-                            fallbackIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-bag"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
-                            img.parentElement.appendChild(fallbackIcon);
+                            fallbackIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
+                            parent.appendChild(fallbackIcon);
                           }
                         }}
                       />
@@ -957,12 +1139,13 @@ export function POS() {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             onError={(e) => {
                               const img = e.currentTarget;
-                              if (img.parentElement) {
-                                img.parentElement.innerHTML = '';
+                              const parent = img.parentElement;
+                              if (parent) {
+                                parent.innerHTML = '';
                                 const fallbackIcon = document.createElement('div');
                                 fallbackIcon.className = "w-full h-full flex items-center justify-center text-gray-300";
-                                fallbackIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shopping-bag"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
-                                img.parentElement.appendChild(fallbackIcon);
+                                fallbackIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
+                                parent.appendChild(fallbackIcon);
                               }
                             }}
                           />
@@ -1058,21 +1241,37 @@ export function POS() {
 
         <div className="w-[450px] bg-white border-l border-gray-200 flex flex-col shadow-lg h-full">
           <div className="p-5 border-b border-gray-200 bg-white">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center shadow-sm">
-                <ShoppingCart className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-gray-800">{t('Carrito de Compras')}</h2>
-
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-gray-500">{cart.length} {cart.length === 1 ? 'producto' : 'productos'}</p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center shadow-sm">
+                  <ShoppingCart className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-800">{t('Carrito de Compras')}</h2>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500">{cart.length} {cart.length === 1 ? 'producto' : 'productos'}</p>
+                  </div>
                 </div>
               </div>
+              {/* Return Button */}
+              <button
+                onClick={() => {
+                  setShowReturnModal(true);
+                  setSelectedReturnItem(null);
+                  setReturnQuantity(1);
+                  setReturnSearch('');
+                  fetchSoldItems();
+                }}
+                title={t('pos.return_title')}
+                className="flex items-center gap-1.5 px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-xl text-xs font-bold transition-all"
+              >
+                <RotateCcw className="w-4 h-4" />
+                {t('pos.return_btn')}
+              </button>
             </div>
 
             {/* Customer Selector in Cart Sidebar */}
-            <div className="px-5 py-2 border-b border-gray-100">
+            <div className="mt-3">
               <button
                 onClick={() => setShowCustomerModal(true)}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm border ${customerId ? 'bg-amber-50 border-amber-200 text-amber-800' : 'bg-gray-50 border-gray-200 text-gray-600'} hover:border-amber-300 transition-colors`}
@@ -1101,7 +1300,6 @@ export function POS() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      // Show validation modal for pending order
                       const ticketData = {
                         orderDate: new Date(),
                         orderNumber: existingOrderNumber ? existingOrderNumber.toString().padStart(3, '0') : activeOrderId.slice(-8),
@@ -1161,52 +1359,137 @@ export function POS() {
               </div>
             ) : (
               <div className="space-y-3">
-                {cart.slice().reverse().map((item, index) => (
-                  <div key={cart.length - 1 - index} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md hover:border-gray-300 transition-all duration-200">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <h4 className="font-bold text-gray-900 text-sm leading-tight">
-                          {item.quantity}x {item.product.name}
-                          {item.size && ` (${item.size.size_name})`}
-                        </h4>
-                        <p className="text-xs text-gray-500 mt-1">
-                          c/u {formatCurrency(item.product.base_price + (item.size?.price_modifier || 0))}
-                        </p>
+                {cart.slice().reverse().map((item, index) => {
+                  const cartIndex = cart.length - 1 - index;
+                  const basePrice = item.product.base_price + (item.size?.price_modifier || 0);
+                  const finalPrice = basePrice - (item.discount || 0);
+                  const isDiscountPopoverOpen = discountPopoverIndex === cartIndex;
+
+                  return (
+                    <div key={cartIndex} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 hover:shadow-md hover:border-gray-300 transition-all duration-200 relative">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-bold text-gray-900 text-sm leading-tight">
+                            {item.quantity}x {item.product.name}
+                            {item.size && ` (${item.size.size_name})`}
+                          </h4>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {item.discount > 0 ? (
+                              <>
+                                <p className="text-xs text-gray-400 line-through">
+                                  {formatCurrency(basePrice)}
+                                </p>
+                                <p className="text-xs font-bold text-green-600">
+                                  {formatCurrency(finalPrice)} <span className="text-green-500">(-{formatCurrency(item.discount)})</span>
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-xs text-gray-500">c/u {formatCurrency(basePrice)}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {/* Discount button */}
+                          <button
+                            onClick={() => {
+                              if (isDiscountPopoverOpen) {
+                                setDiscountPopoverIndex(null);
+                              } else {
+                                setDiscountPopoverIndex(cartIndex);
+                                setDiscountInput(item.discount > 0 ? String(item.discountValue) : '');
+                                setDiscountType(item.discountType === 'fixed' ? 'fixed' : 'percent');
+                              }
+                            }}
+                            className={`p-1.5 rounded-lg transition-all ${item.discount > 0 ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'text-gray-400 hover:text-amber-600 hover:bg-amber-50'}`}
+                            title={t('pos.discount_btn')}
+                          >
+                            <Tag className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => removeItem(cartIndex)}
+                            className="text-gray-400 hover:text-white hover:bg-red-500 p-2 rounded-lg transition-all duration-200"
+                            title="Eliminar producto"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={() => removeItem(cart.length - 1 - index)}
-                        className="text-gray-400 hover:text-white hover:bg-red-500 p-2 rounded-lg transition-all duration-200"
-                        title="Eliminar producto"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1.5 border border-gray-200">
-                        <button
-                          onClick={() => updateQuantity(cart.length - 1 - index, -1)}
-                          className="w-7 h-7 rounded-md bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100 hover:border-gray-300 transition-all"
-                        >
-                          <Minus className="w-3.5 h-3.5 text-gray-600" />
-                        </button>
-                        <span className="w-9 text-center font-bold text-base text-gray-900">{item.quantity}</span>
-                        <button
-                          onClick={() => {
-                            if (checkStock(item.product, item.size, 1)) {
-                              updateQuantity(cart.length - 1 - index, 1);
-                            }
-                          }}
-                          className="w-7 h-7 rounded-md bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100 hover:border-gray-300 transition-all"
-                        >
-                          <Plus className="w-3.5 h-3.5 text-gray-600" />
-                        </button>
+
+                      {/* Discount Popover */}
+                      {isDiscountPopoverOpen && (
+                        <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2 animate-fade-in">
+                          <p className="text-xs font-bold text-amber-800">{t('pos.discount_title')}</p>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setDiscountType('percent')}
+                              className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all ${discountType === 'percent' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'}`}
+                            >
+                              % {t('pos.discount_percent')}
+                            </button>
+                            <button
+                              onClick={() => setDiscountType('fixed')}
+                              className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all ${discountType === 'fixed' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-700 border-gray-200 hover:border-amber-300'}`}
+                            >
+                              {formatCurrency(0).replace(/[\d.,]/g, '').trim() || '€'} {t('pos.discount_fixed')}
+                            </button>
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={discountInput}
+                              onChange={e => setDiscountInput(e.target.value)}
+                              placeholder={discountType === 'percent' ? '10' : '5.00'}
+                              className="flex-1 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 outline-none"
+                              onKeyDown={e => e.key === 'Enter' && applyDiscount(cartIndex)}
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => applyDiscount(cartIndex)}
+                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-all"
+                            >
+                              ✓
+                            </button>
+                            {item.discount > 0 && (
+                              <button
+                                onClick={() => { setItemDiscount(cartIndex, 'none', 0); setDiscountPopoverIndex(null); }}
+                                className="px-2 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold rounded-lg transition-all"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center mt-2">
+                        <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-1.5 border border-gray-200">
+                          <button
+                            onClick={() => updateQuantity(cartIndex, -1)}
+                            className="w-7 h-7 rounded-md bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100 hover:border-gray-300 transition-all"
+                          >
+                            <Minus className="w-3.5 h-3.5 text-gray-600" />
+                          </button>
+                          <span className="w-9 text-center font-bold text-base text-gray-900">{item.quantity}</span>
+                          <button
+                            onClick={() => {
+                              if (checkStock(item.product, item.size, 1)) {
+                                updateQuantity(cartIndex, 1);
+                              }
+                            }}
+                            className="w-7 h-7 rounded-md bg-white border border-gray-200 flex items-center justify-center hover:bg-gray-100 hover:border-gray-300 transition-all"
+                          >
+                            <Plus className="w-3.5 h-3.5 text-gray-600" />
+                          </button>
+                        </div>
+                        <span className={`font-bold text-base px-3 py-1.5 rounded-lg border ${item.discount > 0 ? 'text-green-700 bg-green-50 border-green-200' : 'text-gray-900 bg-gray-100 border-gray-300'}`}>
+                          {formatCurrency(finalPrice * item.quantity)}
+                        </span>
                       </div>
-                      <span className="font-bold text-gray-900 text-base bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-300">
-                        {formatCurrency((item.product.base_price + (item.size?.price_modifier || 0)) * item.quantity)}
-                      </span>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1584,6 +1867,150 @@ export function POS() {
           title={galleryModalProduct.name}
           onClose={() => setGalleryModalOpen(false)}
         />
+      )}
+
+      {/* ───── RETURN / DEVOLUTION MODAL ───── */}
+      {showReturnModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center">
+                  <RotateCcw className="w-6 h-6 text-orange-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-gray-900">{t('pos.return_title')}</h2>
+                  <p className="text-sm text-gray-500">{t('pos.return_subtitle')}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowReturnModal(false); setSelectedReturnItem(null); }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="p-4 border-b border-gray-100 space-y-2">
+              {/* Barcode Scanner input */}
+              <form onSubmit={handleReturnBarcodeSearch} className="flex gap-2">
+                <div className="relative flex-1">
+                  <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={returnBarcodeInput}
+                    onChange={e => setReturnBarcodeInput(e.target.value)}
+                    placeholder={t('pos.return_barcode_placeholder')}
+                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-400 outline-none"
+                  />
+                </div>
+                <button type="submit" className="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-all">
+                  {t('pos.return_scan_btn')}
+                </button>
+              </form>
+              {/* Name / Order search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={returnSearch}
+                  onChange={e => { setReturnSearch(e.target.value); fetchSoldItems(e.target.value); }}
+                  placeholder={t('pos.return_search_placeholder')}
+                  className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-400 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Product List */}
+            <div className="flex-1 overflow-auto p-4 space-y-2">
+              {soldItemsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <LoadingSpinner size="md" />
+                </div>
+              ) : soldItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                  <ShoppingBag className="w-12 h-12 mb-3 opacity-30" />
+                  <p className="font-medium">{t('pos.return_no_results')}</p>
+                </div>
+              ) : (
+                soldItems.map((item, idx) => {
+                  const isSelected = selectedReturnItem?.id === item.id;
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => { setSelectedReturnItem(item); setReturnQuantity(1); }}
+                      className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${isSelected ? 'bg-orange-50 border-orange-400 shadow-md' : 'bg-white border-gray-200 hover:border-orange-300 hover:bg-orange-50/40'}`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-bold text-gray-900 text-sm">{item.product_name}{item.size_name ? ` (${item.size_name})` : ''}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {t('pos.return_order')} #{String(item.order_number || '').padStart(3, '0')} &bull; {new Date(item.order_date).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')}
+                          </p>
+                          {item.product_barcode && (
+                            <p className="text-xs text-gray-400 mt-0.5">{t('pos.return_barcode')}: {item.product_barcode}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="font-black text-gray-900">{formatCurrency(item.unit_price)}</p>
+                          <p className="text-xs text-gray-500">x{item.quantity}</p>
+                        </div>
+                      </div>
+
+                      {/* Quantity selector when selected */}
+                      {isSelected && (
+                        <div className="mt-3 pt-3 border-t border-orange-200 flex items-center justify-between" onClick={e => e.stopPropagation()}>
+                          <span className="text-xs font-bold text-orange-700">{t('pos.return_qty_label')}:</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setReturnQuantity(q => Math.max(1, q - 1))}
+                              className="w-7 h-7 rounded-lg bg-white border border-orange-200 flex items-center justify-center hover:bg-orange-100 transition-all"
+                            >
+                              <Minus className="w-3.5 h-3.5 text-orange-600" />
+                            </button>
+                            <span className="w-8 text-center font-bold text-orange-700">{returnQuantity}</span>
+                            <button
+                              onClick={() => setReturnQuantity(q => Math.min(item.quantity, q + 1))}
+                              className="w-7 h-7 rounded-lg bg-white border border-orange-200 flex items-center justify-center hover:bg-orange-100 transition-all"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-orange-600" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-orange-700 font-bold">
+                            {t('pos.return_refund')}: {formatCurrency(item.unit_price * returnQuantity)}
+                          </p>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={() => { setShowReturnModal(false); setSelectedReturnItem(null); }}
+                className="px-5 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl font-bold text-gray-700 transition-all"
+              >
+                {t('Cancelar')}
+              </button>
+              <button
+                onClick={processReturn}
+                disabled={!selectedReturnItem || returnProcessing}
+                className="px-6 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg"
+              >
+                {returnProcessing ? (
+                  <><LoadingSpinner size="sm" light />{t('pos.return_processing')}</>
+                ) : (
+                  <><RotateCcw className="w-4 h-4" />{t('pos.return_confirm')}</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

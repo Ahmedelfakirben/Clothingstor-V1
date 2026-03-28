@@ -55,7 +55,7 @@ interface MonthStats {
 
 export function EmployeeTimeTracking() {
   const { profile: _profile } = useAuth();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { formatCurrency } = useCurrency();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -279,8 +279,8 @@ export function EmployeeTimeTracking() {
         [t('Empleado'), selectedEmployee.full_name],
         [t('reports.role'), selectedEmployee.role],
         [t('reports.email'), selectedEmployee.email],
-        [t('reports.period'), new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
-        [t('reports.generation_date'), new Date().toLocaleDateString('es-ES')],
+        [t('reports.period'), new Date(selectedMonth).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { month: 'long', year: 'numeric' })],
+        [t('reports.generation_date'), new Date().toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')],
         [''],
         ['═'.repeat(60)],
         [t('reports.month_summary')],
@@ -319,20 +319,20 @@ export function EmployeeTimeTracking() {
         [t('reports.daily_work_breakdown')],
         [''],
         [t('Empleado'), selectedEmployee.full_name],
-        [t('reports.period'), new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
+        [t('reports.period'), new Date(selectedMonth).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { month: 'long', year: 'numeric' })],
         [''],
         [t('Fecha'), t('reports.day'), t('Entrada'), t('Salida'), t('reports.hours'), t('reports.sessions'), t('Ventas'), t('Pedidos'), t('reports.sales_per_hour')],
       ];
 
       dayStats.forEach((day) => {
         const date = new Date(day.date);
-        const dayName = date.toLocaleDateString('es-ES', { weekday: 'long' });
-        const entry = day.first_check_in ? new Date(day.first_check_in).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '-';
-        const exit = day.last_check_out ? new Date(day.last_check_out).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : t('En curso');
+        const dayName = date.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { weekday: 'long' });
+        const entry = day.first_check_in ? new Date(day.first_check_in).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-';
+        const exit = day.last_check_out ? new Date(day.last_check_out).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' }) : t('En curso');
         const salesPerHour = day.total_hours > 0 ? day.total_sales / day.total_hours : 0;
 
         dailyData.push([
-          date.toLocaleDateString('es-ES'),
+          date.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
           dayName.charAt(0).toUpperCase() + dayName.slice(1),
           entry,
           exit,
@@ -366,16 +366,16 @@ export function EmployeeTimeTracking() {
         [t('reports.work_sessions_detail')],
         [''],
         [t('Empleado'), selectedEmployee.full_name],
-        [t('reports.period'), new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
+        [t('reports.period'), new Date(selectedMonth).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { month: 'long', year: 'numeric' })],
         [''],
         [t('Fecha'), t('reports.opening'), t('reports.closing'), t('reports.duration'), t('reports.initial_amount'), t('reports.final_amount'), t('reports.difference'), t('Estado')],
       ];
 
       dayStats.forEach((day) => {
         day.sessions.forEach((session) => {
-          const date = new Date(session.opened_at).toLocaleDateString('es-ES');
-          const opened = new Date(session.opened_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-          const closed = session.closed_at ? new Date(session.closed_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : t('Abierta');
+          const date = new Date(session.opened_at).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR');
+          const opened = new Date(session.opened_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' });
+          const closed = session.closed_at ? new Date(session.closed_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' }) : t('Abierta');
           const duration = `${session.hours_worked.toFixed(2)} ${t('reports.hours_abbr')}`;
           const difference = session.closing_amount ? session.closing_amount - session.opening_amount : 0;
 
@@ -399,7 +399,7 @@ export function EmployeeTimeTracking() {
       XLSX.utils.book_append_sheet(wb, wsSessions, t('Sesiones'));
 
       // Generar nombre de archivo
-      const monthName = new Date(selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+      const monthName = new Date(selectedMonth).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { month: 'long', year: 'numeric' });
       const filename = `${t('reports.filename_time')}${selectedEmployee.full_name.replace(/\s+/g, '_')}_${monthName.replace(/\s+/g, '_')}.xlsx`;
 
       // Descargar archivo
@@ -556,7 +556,7 @@ export function EmployeeTimeTracking() {
                       <tr key={day.date} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900">
-                            {new Date(day.date).toLocaleDateString('es-ES', {
+                            {new Date(day.date).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', {
                               weekday: 'short',
                               day: 'numeric',
                               month: 'short'
@@ -564,14 +564,14 @@ export function EmployeeTimeTracking() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(day.first_check_in).toLocaleTimeString('es-ES', {
+                          {new Date(day.first_check_in).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', {
                             hour: '2-digit',
                             minute: '2-digit'
                           })}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {day.last_check_out
-                            ? new Date(day.last_check_out).toLocaleTimeString('es-ES', {
+                            ? new Date(day.last_check_out).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', {
                               hour: '2-digit',
                               minute: '2-digit'
                             })

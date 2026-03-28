@@ -33,7 +33,7 @@ interface CashWithdrawal {
 
 export function CashRegisterDashboard() {
   const { user, profile } = useAuth();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { formatCurrency: formatCurrencyFromContext } = useCurrency();
   const [sessions, setSessions] = useState<CashSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -442,7 +442,7 @@ export function CashRegisterDashboard() {
           order_items (
             quantity,
             unit_price,
-            products (name)
+            products!product_id(name)
           )
         `)
         .eq('employee_id', day.employee_id)
@@ -461,99 +461,103 @@ export function CashRegisterDashboard() {
         <div class="report">
           <div class="header">
             <h1>LIN-Caisse</h1>
-            <p>Sistema de Gestión Integral</p>
-            <p>Reporte Diario de Caja</p>
+            <p>${t('Sistema de Gestión Integral')}</p>
+            <p>${t('Reporte Diario de Caja')}</p>
           </div>
 
           <div class="info-section">
             <div class="info-item">
-              <strong>${new Date(day.date).toLocaleDateString('es-ES')}</strong>
-              <span>Fecha del Reporte</span>
+              <strong>${new Date(day.date).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')}</strong>
+              <span>${t('Fecha del Reporte')}</span>
             </div>
             <div class="info-item">
               <strong>${profile?.role === 'admin' || profile?.role === 'super_admin' ? day.employee_profiles?.full_name || 'N/A' : 'Tú'}</strong>
-              <span>Empleado</span>
+              <span>${t('Empleado')}</span>
             </div>
             <div class="info-item">
               <strong>${orderCount}</strong>
-              <span>Total Pedidos</span>
+              <span>${t('Total Pedidos')}</span>
             </div>
             <div class="info-item">
               <strong>${formatCurrency(orderTotal)}</strong>
-              <span>Total Ventas</span>
+              <span>${t('Total Ventas')}</span>
             </div>
           </div>
 
-          <div class="section-title">RESUMEN FINANCIERO DEL DÍA</div>
+          <div class="section-title">${t('RESUMEN FINANCIERO DEL DÍA')}</div>
           <div class="summary-grid">
             <div class="summary-item">
               <strong>${formatCurrency(day.totalOpening)}</strong>
-              <span>Total Inicial</span>
+              <span>${t('Total Inicial')}</span>
             </div>
             <div class="summary-item">
               <strong>${formatCurrency(day.totalClosing)}</strong>
-              <span>Total Final</span>
+              <span>${t('Total Final')}</span>
             </div>
             <div class="summary-item">
               <strong>${formatCurrency(day.totalClosing - day.totalOpening)}</strong>
-              <span>Balance del Día</span>
+              <span>${t('Balance del Día')}</span>
             </div>
             <div class="summary-item">
               <strong>${day.sessions.length}</strong>
-              <span>Sesiones de Caja</span>
+              <span>${t('Sesiones de Caja')}</span>
             </div>
           </div>
 
-          <div class="section-title">DETALLE DE SESIONES</div>
+          <div class="section-title">${t('DETALLE DE SESIONES')}</div>
           <div class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>Sesión</th>
-                  <th>Hora Apertura</th>
-                  <th>Monto Inicial</th>
-                  <th>Hora Cierre</th>
-                  <th>Monto Final</th>
-                  <th>Estado</th>
+                  <th>${t('Sesión')}</th>
+                  <th>${t('Hora Apertura')}</th>
+                  <th>${t('Monto Inicial')}</th>
+                  <th>${t('Hora Cierre')}</th>
+                  <th>${t('Monto Final')}</th>
+                  <th>${t('Estado')}</th>
                 </tr>
               </thead>
               <tbody>
                 ${day.sessions.map((session: CashSession, index: number) => `
                   <tr>
                     <td>${index + 1}</td>
-                    <td>${new Date(session.opened_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td>${new Date(session.opened_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
                     <td>${formatCurrency(session.opening_amount)}</td>
-                    <td>${session.closed_at ? new Date(session.closed_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                    <td>${session.closed_at ? new Date(session.closed_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                     <td>${session.closing_amount ? formatCurrency(session.closing_amount) : '-'}</td>
-                    <td>${session.closed_at ? 'Cerrada' : 'Abierta'}</td>
+                    <td>${session.closed_at ? t('Cerrada') : t('Abierta')}</td>
                   </tr>
                 `).join('')}
               </tbody>
             </table>
           </div>
 
-          <div class="section-title">DETALLE DE PEDIDOS</div>
+          <div class="section-title">${t('DETALLE DE PEDIDOS')}</div>
           <div class="table-container">
             <table>
               <thead>
                 <tr>
-                  <th>N° Pedido</th>
-                  <th>Hora</th>
-                  <th>Productos</th>
-                  <th>Total</th>
+                  <th>${t('N° Pedido')}</th>
+                  <th>${t('Hora')}</th>
+                  <th>${t('Productos')}</th>
+                  <th>${t('Total')}</th>
                 </tr>
               </thead>
               <tbody>
                 ${(orders || []).map(order => `
                   <tr>
                     <td>${order.order_number ? order.order_number.toString().padStart(3, '0') : order.id.slice(-8)}</td>
-                    <td>${new Date(order.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td>${order.order_items.map(item => `${item.quantity}x ${item.products[0]?.name || 'Producto'}`).join(', ')}</td>
+                    <td>${new Date(order.created_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td>${order.order_items.map((item: any) => {
+                      const prodInfo = item.products || item.products_product_id;
+                      const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
+                      return `${item.quantity}x ${pName || t('Producto')}`;
+                    }).join('<br/>')}</td>
                     <td>${formatCurrency(order.total)}</td>
                   </tr>
                 `).join('')}
                 <tr class="total-row">
-                  <td colspan="3" style="text-align: right; font-weight: bold;">TOTAL DEL DÍA</td>
+                  <td colspan="3" style="text-align: right; font-weight: bold;">${t('TOTAL DEL DÍA')}</td>
                   <td style="font-weight: bold; font-size: 16px;">${formatCurrency(orderTotal)}</td>
                 </tr>
               </tbody>
@@ -562,17 +566,17 @@ export function CashRegisterDashboard() {
 
           <div class="signature-section">
             <div class="signature-box">
-              <p>Firma del Empleado</p>
+              <p>${t('Firma del Empleado')}</p>
               <p>${profile?.role === 'admin' || profile?.role === 'super_admin' ? day.employee_profiles?.full_name || 'N/A' : profile?.full_name || 'Usuario'}</p>
             </div>
             <div class="signature-box">
-              <p>Firma del Administrador</p>
+              <p>${t('Firma del Administrador')}</p>
             </div>
           </div>
 
           <div class="footer">
-            <p>Este documento es oficial y forma parte del registro contable de LIN-Caisse</p>
-            <p>Reporte generado el ${new Date().toLocaleString('es-ES')}</p>
+            <p>${t('Este documento es oficial y forma parte del registro contable de LIN-Caisse')}</p>
+            <p>${t('Reporte generado el')} ${new Date().toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')}</p>
           </div>
         </div>
       `;

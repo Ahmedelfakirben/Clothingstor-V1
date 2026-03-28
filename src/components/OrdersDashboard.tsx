@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Clock, CheckCircle, XCircle, Banknote, CreditCard, Smartphone, Trash2, AlertCircle, DollarSign } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Banknote, CreditCard, Smartphone, Trash2, AlertCircle, DollarSign, RotateCcw } from 'lucide-react';
+
 import { toast } from 'react-hot-toast';
 import { TicketPrinter } from './TicketPrinter';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -61,6 +62,23 @@ interface OrderWithItems extends Order {
   order_items: OrderItem[];
 }
 
+interface ReturnRecord {
+  id: string;
+  order_id: string | null;
+  order_number?: number | null;
+  product_id: string | null;
+  product_name: string;
+  size_id: string | null;
+  size_name: string | null;
+  quantity_returned: number;
+  unit_price: number;
+  total_refund: number;
+  reason: string | null;
+  returned_by_name: string;
+  withdrawal_notes: string | null;
+  created_at: string;
+}
+
 interface CashEvent {
   id: string;
   type: 'open' | 'close';
@@ -78,13 +96,17 @@ export function OrdersDashboard() {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [orderHistory, setOrderHistory] = useState<OrderHistory[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<'current' | 'history' | 'cash'>('current');
+  const [viewMode, setViewMode] = useState<'current' | 'history' | 'cash' | 'returns'>('current');
+
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [selectedUserId] = useState<string>('all');
   const [, setEmployees] = useState<{ id: string; full_name: string }[]>([]);
   const [showLatestOnly] = useState<boolean>(true);
   const [currentDateFilter, setCurrentDateFilter] = useState<string>(''); // format: YYYY-MM-DD, admin only
+  const [returns, setReturns] = useState<ReturnRecord[]>([]);
+  const [returnsLoading, setReturnsLoading] = useState(false);
+
 
   // Estado para modal de eliminación
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -164,6 +186,13 @@ export function OrdersDashboard() {
     };
   }, [startDate, endDate, viewMode, currentDateFilter]);
 
+  useEffect(() => {
+    if (viewMode === 'returns') {
+      fetchReturns();
+    }
+  }, [viewMode]);
+
+
   // Redirect cashier users to current view if they somehow access history
   useEffect(() => {
     if (profile?.role === 'cashier' && viewMode !== 'current') {
@@ -217,13 +246,73 @@ export function OrdersDashboard() {
       const { data } = await supabase
         .from('employee_profiles')
         .select('id, full_name')
-        .neq('role', 'super_admin') // Ocultar super_admin
+        .neq('role', 'super_admin')
         .order('full_name');
       setEmployees(data || []);
     } catch (err) {
       console.error('Error al obtener empleados:', err);
     }
   };
+
+  const fetchReturns = async () => {
+    setReturnsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('order_returns')
+        .select(`
+          id,
+          order_id,
+          product_id,
+          size_id,
+          quantity_returned,
+          unit_price,
+          total_refund,
+          reason,
+          created_at,
+          returned_by,
+          withdrawal_id,
+          orders(order_number),
+          products(name),
+          product_sizes(size_name),
+          cash_withdrawals(notes)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch employee names separately
+      const returnedByIds = [...new Set((data || []).map((r: any) => r.returned_by).filter(Boolean))];
+      const { data: empData } = await supabase
+        .from('employee_profiles')
+        .select('id, full_name')
+        .in('id', returnedByIds);
+      const empMap = new Map((empData || []).map((e: any) => [e.id, e.full_name]));
+
+      const mapped: ReturnRecord[] = (data || []).map((r: any) => ({
+        id: r.id,
+        order_id: r.order_id,
+        order_number: (r.orders as any)?.order_number ?? null,
+        product_id: r.product_id,
+        product_name: (r.products as any)?.name || 'Producto',
+        size_id: r.size_id,
+        size_name: (r.product_sizes as any)?.size_name || null,
+        quantity_returned: r.quantity_returned,
+        unit_price: r.unit_price,
+        total_refund: r.total_refund,
+        reason: r.reason,
+        returned_by_name: empMap.get(r.returned_by) || 'N/A',
+        withdrawal_notes: (r.cash_withdrawals as any)?.notes || null,
+        created_at: r.created_at,
+      }));
+
+      setReturns(mapped);
+    } catch (err) {
+      console.error('Error fetching returns:', err);
+    } finally {
+      setReturnsLoading(false);
+    }
+  };
+
 
   const fetchOrderHistory = async () => {
     try {
@@ -567,6 +656,22 @@ export function OrdersDashboard() {
     }
   };
 
+  const markOrderAsCompleted = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'completed' })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      toast.success(t('Orden completada exitosamente'));
+      fetchOrders();
+    } catch (err: any) {
+      console.error('Error al completar orden:', err);
+      toast.error(`${t('Error al completar la orden:')} ${err.message}`);
+    }
+  };
+
   const filteredOrders = selectedStatus === 'all'
     ? orders
     : orders.filter(o => o.status === selectedStatus);
@@ -644,6 +749,25 @@ export function OrdersDashboard() {
                 }`}
             >
               {t('Historial')}
+            </button>
+          )}
+
+          {/* Devoluciones tab — admin & super_admin only */}
+          {profile?.role !== 'cashier' && (
+            <button
+              onClick={() => setViewMode('returns')}
+              className={`px-6 py-3 rounded-full font-bold transition-all duration-300 shadow-lg transform hover:-translate-y-0.5 flex items-center gap-2 ${viewMode === 'returns'
+                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-orange-300 scale-105'
+                : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200'
+                }`}
+            >
+              <RotateCcw className="w-4 h-4" />
+              {t('orders.returns_tab')}
+              {returns.length > 0 && (
+                <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-black ${
+                  viewMode === 'returns' ? 'bg-white/30 text-white' : 'bg-orange-100 text-orange-800'
+                }`}>{returns.length}</span>
+              )}
             </button>
           )}
         </div>
@@ -824,6 +948,16 @@ export function OrdersDashboard() {
                         </button>
                       )}
 
+                      {order.status === 'preparing' && order.payment_status === 'paid' && (
+                        <button
+                          onClick={() => markOrderAsCompleted(order.id)}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                          {t('Marcar como Terminada')}
+                        </button>
+                      )}
+
                       {order.status === 'completed' && (profile?.role === 'admin' || profile?.role === 'super_admin') && (
                         <button
                           onClick={() => {
@@ -881,7 +1015,120 @@ export function OrdersDashboard() {
             </table>
           </div>
         </div>
+      ) : viewMode === 'returns' ? (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                <RotateCcw className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">{t('orders.returns_tab')}</h3>
+                <p className="text-xs text-gray-500">{t('orders.returns_subtitle')}</p>
+              </div>
+            </div>
+            <button
+              onClick={fetchReturns}
+              className="px-4 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              {t('orders.returns_refresh')}
+            </button>
+          </div>
+
+          {returnsLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-10 h-10 border-4 border-orange-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : returns.length === 0 ? (
+            <div className="text-center py-20">
+              <div className="w-20 h-20 bg-orange-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <RotateCcw className="w-10 h-10 text-orange-300" />
+              </div>
+              <p className="text-gray-600 font-semibold">{t('orders.returns_empty')}</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-orange-50 border-b border-orange-200">
+                    <tr>
+                      <th className="px-5 py-3 text-left text-xs font-bold text-orange-700 uppercase tracking-wider">{t('Fecha')}</th>
+                      <th className="px-5 py-3 text-left text-xs font-bold text-orange-700 uppercase tracking-wider">{t('orders.returns_col_order')}</th>
+                      <th className="px-5 py-3 text-left text-xs font-bold text-orange-700 uppercase tracking-wider">{t('orders.returns_col_product')}</th>
+                      <th className="px-5 py-3 text-left text-xs font-bold text-orange-700 uppercase tracking-wider">{t('orders.returns_col_qty')}</th>
+                      <th className="px-5 py-3 text-left text-xs font-bold text-orange-700 uppercase tracking-wider">{t('orders.returns_col_unit')}</th>
+                      <th className="px-5 py-3 text-left text-xs font-bold text-orange-700 uppercase tracking-wider">{t('orders.returns_col_refund')}</th>
+                      <th className="px-5 py-3 text-left text-xs font-bold text-orange-700 uppercase tracking-wider">{t('orders.returns_col_reason')}</th>
+                      <th className="px-5 py-3 text-left text-xs font-bold text-orange-700 uppercase tracking-wider">{t('Empleado')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {returns.map((ret, idx) => (
+                      <tr key={ret.id} className={`hover:bg-orange-50/40 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/40'}`}>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <div className="text-xs font-semibold text-gray-900">
+                            {new Date(ret.created_at).toLocaleDateString('fr-FR')}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(ret.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold">
+                            #{ret.order_number ? String(ret.order_number).padStart(3, '0') : (ret.order_id?.slice(-6) || 'N/A')}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <p className="text-sm font-bold text-gray-900">{ret.product_name}</p>
+                          {ret.size_name && (
+                            <span className="text-xs text-orange-600 font-bold">{ret.size_name}</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 text-orange-700 font-black text-sm">
+                            {ret.quantity_returned}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-700 font-semibold">
+                          {formatCurrency(ret.unit_price)}
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap">
+                          <span className="text-base font-black text-red-600">
+                            -{formatCurrency(ret.total_refund)}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <p className="text-xs text-gray-600 max-w-[160px] truncate" title={ret.reason || ''}>
+                            {ret.reason || '—'}
+                          </p>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">
+                          {ret.returned_by_name}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {/* Footer totals */}
+                  <tfoot className="bg-orange-50 border-t-2 border-orange-200">
+                    <tr>
+                      <td colSpan={5} className="px-5 py-3 text-right text-sm font-bold text-orange-700">
+                        {t('orders.returns_total_label')} ({returns.length} {t('orders.returns_count')}):
+                      </td>
+                      <td className="px-5 py-3 text-base font-black text-red-600">
+                        -{formatCurrency(returns.reduce((sum, r) => sum + Number(r.total_refund), 0))}
+                      </td>
+                      <td colSpan={2} />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       ) : null}
+
 
       {/* Delete Modal */}
       {showDeleteModal && orderToDelete && (

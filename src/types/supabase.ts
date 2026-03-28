@@ -20,6 +20,7 @@ export interface Product {
   season?: string;
   stock?: number;
   barcode?: string;
+  purchase_price?: number;
 }
 
 export interface ProductSize {

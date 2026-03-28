@@ -6,6 +6,9 @@ interface CartItem {
   size: ProductSize | null;
   quantity: number;
   notes: string;
+  discount: number;        // amount discounted per unit (in currency, already calculated)
+  discountType: 'none' | 'percent' | 'fixed';
+  discountValue: number;   // raw input: percentage (e.g. 10 = 10%) or fixed amount
 }
 
 interface CartContextType {
@@ -20,6 +23,7 @@ interface CartContextType {
   updateQuantity: (index: number, delta: number) => void;
   removeItem: (index: number) => void;
   setItemNotes: (index: number, notes: string) => void;
+  setItemDiscount: (index: number, type: 'none' | 'percent' | 'fixed', value: number) => void;
   setPaymentMethod: (method: 'cash' | 'card' | 'digital' | null) => void;
   setServiceType: (type: 'dine_in' | 'takeaway') => void;
   setTableId: (tableId: string | null) => void;
@@ -29,6 +33,12 @@ interface CartContextType {
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+
+function calcDiscount(basePrice: number, type: 'none' | 'percent' | 'fixed', value: number): number {
+  if (type === 'percent') return Math.min(basePrice, (basePrice * value) / 100);
+  if (type === 'fixed') return Math.min(basePrice, value);
+  return 0;
+}
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -50,7 +60,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return newItems;
       }
 
-      return [...currentItems, { product, size, quantity: 1, notes: '' }];
+      return [...currentItems, { product, size, quantity: 1, notes: '', discount: 0, discountType: 'none', discountValue: 0 }];
     });
   }, []);
 
@@ -76,6 +86,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setItemDiscount = useCallback((index: number, type: 'none' | 'percent' | 'fixed', value: number) => {
+    setItems(currentItems => {
+      const newItems = [...currentItems];
+      const item = newItems[index];
+      const basePrice = item.product.base_price + (item.size?.price_modifier || 0);
+      const discountAmount = calcDiscount(basePrice, type, value);
+      newItems[index] = { ...item, discountType: type, discountValue: value, discount: discountAmount };
+      return newItems;
+    });
+  }, []);
+
   const clearCart = useCallback(() => {
     setItems([]);
     setPaymentMethod(null);
@@ -86,9 +107,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const total = items.reduce((sum, item) => {
-    const basePrice = item.product.base_price;
-    const sizeModifier = item.size?.price_modifier || 0;
-    return sum + (basePrice + sizeModifier) * item.quantity;
+    const basePrice = item.product.base_price + (item.size?.price_modifier || 0);
+    const finalPrice = basePrice - item.discount;
+    return sum + finalPrice * item.quantity;
   }, 0);
 
   return (
@@ -105,6 +126,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         updateQuantity,
         removeItem,
         setItemNotes,
+        setItemDiscount,
         setPaymentMethod,
         setServiceType,
         setTableId,

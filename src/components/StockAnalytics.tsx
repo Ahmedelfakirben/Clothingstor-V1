@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save } from 'lucide-react';
+import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save, CheckCircle } from 'lucide-react';
 import IndividualUnitsManager from './IndividualUnitsManager';
 import { toast } from 'react-hot-toast';
 
@@ -21,6 +21,7 @@ interface StockItem {
     status: 'ok' | 'low' | 'out' | 'validate';
     sold: number;
     sizes?: { name: string; stock: number }[];
+    needs_validation?: boolean;
 }
 
 interface BestSeller {
@@ -65,7 +66,8 @@ export function StockAnalytics() {
                 .update({
                     base_price: editPrice,
                     purchase_price: editCost,
-                    stock: editStock
+                    stock: editStock,
+                    needs_validation: false
                 })
                 .eq('id', selectedItem.id);
 
@@ -77,6 +79,28 @@ export function StockAnalytics() {
             setSelectedItem(null);
         } catch (error) {
             console.error("Error updating product:", error);
+            toast.error(t('Error al actualizar el producto'));
+        } finally {
+            setIsEditingStock(false);
+        }
+    };
+
+    const handleApproveChanges = async () => {
+        if (!selectedItem) return;
+        setIsEditingStock(true);
+        try {
+            const { error } = await supabase
+                .from('products')
+                .update({ needs_validation: false })
+                .eq('id', selectedItem.id);
+
+            if (error) throw error;
+            toast.success(t('Producto actualizado correctamente'));
+            
+            fetchStockData();
+            setSelectedItem(null);
+        } catch (error) {
+            console.error("Error approving product:", error);
             toast.error(t('Error al actualizar el producto'));
         } finally {
             setIsEditingStock(false);
@@ -103,7 +127,7 @@ export function StockAnalytics() {
             // 1. Fetch Products
             const { data: products, error: prodError } = await supabase
                 .from('products')
-                .select('id, name, base_price, purchase_price, stock, image_url')
+                .select('id, name, base_price, purchase_price, stock, image_url, needs_validation')
                 .eq('available', true);
 
             if (prodError) throw prodError;
@@ -129,7 +153,8 @@ export function StockAnalytics() {
                 }
 
                 let status: 'ok' | 'low' | 'out' | 'validate' = 'ok';
-                if (product.purchase_price === 0 && currentStock === 0) status = 'validate';
+                if (product.needs_validation) status = 'validate';
+                else if (product.purchase_price === 0 && currentStock === 0) status = 'validate';
                 else if (currentStock === 0) status = 'out';
                 else if (currentStock < 5) status = 'low';
 
@@ -148,7 +173,8 @@ export function StockAnalytics() {
                     imageUrl: product.image_url,
                     status,
                     sizes: sizesList.length > 0 ? sizesList : undefined,
-                    sold: 0
+                    sold: 0,
+                    needs_validation: product.needs_validation
                 };
             });
 
@@ -549,6 +575,22 @@ export function StockAnalytics() {
                                         >
                                             {t('Cancelar')}
                                         </button>
+                                        
+                                        {selectedItem.needs_validation && (
+                                            <button
+                                                onClick={handleApproveChanges}
+                                                disabled={isEditingStock}
+                                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 font-medium disabled:opacity-50 transition-colors"
+                                            >
+                                                {isEditingStock ? (
+                                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                ) : (
+                                                    <CheckCircle className="w-4 h-4" />
+                                                )}
+                                                {t('stock.validate_changes')}
+                                            </button>
+                                        )}
+
                                         <button
                                             onClick={handleUpdateProductStock}
                                             disabled={isEditingStock}

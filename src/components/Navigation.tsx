@@ -1,6 +1,7 @@
 import { ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Clock, Shield, Building2, Settings, Server, Database } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 import { useState, useRef, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
@@ -27,6 +28,7 @@ interface NavGroup {
 export function Navigation({ currentView, onViewChange }: NavigationProps) {
   const { user, profile, signOut } = useAuth();
   const { t, currentLanguage } = useLanguage();
+  const { formatCurrency } = useCurrency();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const dropdownRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const [showCloseCashModal, setShowCloseCashModal] = useState(false);
@@ -569,7 +571,10 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
               <div>${t('Hora:')} ${new Date(order.created_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</div>
               <div>Total: ${formatCurrency(order.total)}</div>
               <div style="font-size: 12px; margin-top: 3px;">
-                ${order.order_items.map(item => `${item.quantity}x ${item.products[0]?.name || t('Producto')}`).join(', ')}
+                ${order.order_items.map((item: any) => {
+                  const pName = Array.isArray(item.products) ? item.products[0]?.name : item.products?.name;
+                  return `${item.quantity}x ${pName || t('Producto')}`;
+                }).join(', ')}
               </div>
             </div>
           `).join('') : `<div style="text-align: center; color: #666; padding: 10px;">${t('Sin pedidos')}</div>`}
@@ -636,12 +641,8 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-ES', {
-      style: 'currency',
-      currency: 'EUR',
-    }).format(amount);
-  };
+  // formatCurrency se importa desde el contexto de moneda
+
 
   const handleLogoutClick = async () => {
     if (profile?.role === 'cashier') {

@@ -94,7 +94,7 @@ interface Notification {
 
 export function Analytics() {
   const { profile } = useAuth();
-  const { t } = useLanguage();
+  const { t, currentLanguage } = useLanguage();
   const { formatCurrency } = useCurrency();
   const [stats, setStats] = useState({
     todaySales: 0,
@@ -582,25 +582,29 @@ export function Analytics() {
         .order('created_at', { ascending: true });
 
       // Get orders for today
-      const { data: orders } = await supabase
+      const { data: orders, error: ordersErr } = await supabase
         .from('orders')
         .select(`
           id,
           total,
           created_at,
           employee_id,
+          status,
           order_items (
             quantity,
             unit_price,
             purchase_price,
-            products (name, purchase_price)
-          ),
-          employee_profiles!inner(full_name)
+            products!product_id(name, purchase_price)
+          )
         `)
         .gte('created_at', dayStart.toISOString())
         .lte('created_at', dayEnd.toISOString())
         .eq('status', 'completed')
         .order('created_at', { ascending: true });
+
+      if (ordersErr) {
+        throw new Error(`Error fetching orders: ${ordersErr.message}`);
+      }
 
       // Calculate totals
       const totalSales = (orders || []).reduce((sum, order) => sum + order.total, 0);
@@ -668,13 +672,13 @@ export function Analytics() {
         ]),
         [t('reports.daily_operations')],
         [''],
-        [t('reports.report_date'), today.toLocaleDateString('es-ES', {
+        [t('reports.report_date'), today.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', {
           weekday: 'long',
           year: 'numeric',
           month: 'long',
           day: 'numeric'
         })],
-        [t('reports.generation_time'), today.toLocaleTimeString('es-ES')],
+        [t('reports.generation_time'), today.toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')],
         [t('reports.generated_by'), profile?.full_name || t('reports.system')],
         [''],
         ['═'.repeat(50)],
@@ -696,10 +700,10 @@ export function Analytics() {
         [t('reports.daily_financial_summary')],
         [''],
         [t('reports.indicator'), t('reports.value'), t('reports.detail')],
-        [t('reports.total_sales'), `$${totalSales.toFixed(2)}`, `${(orders || []).length} ${t('reports.orders_completed')}`],
-        [t('reports.total_expenses'), `$${totalExpenses.toFixed(2)}`, `${(expenses || []).length} ${t('reports.expenses_registered')}`],
-        [t('Costo de Productos (COGS)'), `$${totalCogs.toFixed(2)}`, t('Costo de compra de los artículos vendidos')],
-        [t('reports.net_profit'), `$${profit.toFixed(2)}`, `${((profit / totalSales) * 100 || 0).toFixed(2)}% ${t('reports.margin')}`],
+        [t('reports.total_sales'), formatCurrency(totalSales), `${(orders || []).length} ${t('reports.orders_completed')}`],
+        [t('reports.total_expenses'), formatCurrency(totalExpenses), `${(expenses || []).length} ${t('reports.expenses_registered')}`],
+        [t('Costo de Productos (COGS)'), formatCurrency(totalCogs), t('Costo de compra de los artículos vendidos')],
+        [t('reports.net_profit'), formatCurrency(profit), `${((profit / totalSales) * 100 || 0).toFixed(2)}% ${t('reports.margin')}`],
         [t('reports.products_sold'), orders?.reduce((sum, order) =>
           sum + (order.order_items?.reduce((itemSum: number, item: any) => itemSum + item.quantity, 0) || 0), 0) || 0, t('reports.units')],
         [t('reports.active_employees'), Object.keys(employeeSessions).length, t('reports.with_cash_sessions')],
@@ -721,11 +725,11 @@ export function Analytics() {
           ...Object.values(employeeSessions).map((emp) => [
             emp.employee_name,
             emp.sessions.length,
-            new Date(emp.firstOpen).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-            emp.lastClose ? new Date(emp.lastClose).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : t('reports.pending'),
-            `$${emp.totalOpening.toFixed(2)}`,
-            `$${emp.totalClosing.toFixed(2)}`,
-            `$${(emp.totalClosing - emp.totalOpening).toFixed(2)}`
+            new Date(emp.firstOpen).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            emp.lastClose ? new Date(emp.lastClose).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' }) : t('reports.pending'),
+            formatCurrency(emp.totalOpening),
+            formatCurrency(emp.totalClosing),
+            formatCurrency(emp.totalClosing - emp.totalOpening)
           ])
         ];
 
@@ -736,31 +740,29 @@ export function Analytics() {
         XLSX.utils.book_append_sheet(wb, wsEmployees, t('reports.employees_sheet'));
       }
 
-      // Orders Detail Sheet
+      // Detailed Operations sheet
       if (orders && orders.length > 0) {
-        const ordersData = [
-          [t('reports.detailed_orders_breakdown')],
-          [''],
-          [t('reports.time'), t('reports.order'), t('reports.employee'), t('reports.products'), t('reports.total')],
-          ...orders.map((order: any) => [
-            new Date(order.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-            `#${order.id.slice(-8)}`,
-            order.employee_profiles?.full_name || 'N/A',
-            order.order_items?.map((item: any) => {
-              const productName = Array.isArray(item.products)
-                ? item.products[0]?.name
-                : (item.products as any)?.name;
-              return `${item.quantity}x ${productName || t('reports.product')}`;
-            }).join(', ') || t('reports.no_products'),
-            `$${order.total.toFixed(2)}`
-          ])
-        ];
-
-        const wsOrders = XLSX.utils.aoa_to_sheet(ordersData);
-        wsOrders['!merges'] = [
-          { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }
-        ];
-        XLSX.utils.book_append_sheet(wb, wsOrders, t('reports.orders_sheet'));
+        const operationsFormatted: any[] = [];
+        orders.forEach((order: any) => {
+          if (order.order_items && order.order_items.length > 0) {
+            order.order_items.forEach((item: any) => {
+              const prodInfo = item.products || item.products_product_id;
+              const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
+              operationsFormatted.push({
+                [t('reports.order_id')]: order.id.slice(-8),
+                [t('reports.date')]: new Date(order.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
+                [t('reports.employee')]: (order.employee_profiles as any)?.full_name || 'N/A',
+                [t('Estado')]: order.status,
+                [t('Producto')]: pName || t('reports.product'),
+                [t('Cantidad')]: item.quantity,
+                [t('Precio Unit.')]: formatCurrency(item.unit_price),
+                [t('Subtotal')]: formatCurrency(item.quantity * item.unit_price)
+              });
+            });
+          }
+        });
+        const wsOperations = XLSX.utils.json_to_sheet(operationsFormatted);
+        XLSX.utils.book_append_sheet(wb, wsOperations, t('Detalle Operaciones'));
       }
 
       // Expenses Detail Sheet
@@ -828,12 +830,32 @@ export function Analytics() {
         .order('opened_at', { ascending: true });
 
       // Get all expenses for the week
+      // Get all expenses for the week
       const { data: expenses } = await supabase
         .from('expenses')
         .select('*')
         .gte('created_at', weekStart.toISOString())
         .lte('created_at', weekEnd.toISOString())
         .order('created_at', { ascending: true });
+
+      // Get all orders for the week
+      const { data: orders, error: ordersErr } = await supabase
+        .from('orders')
+        .select(`
+          id, total, status, created_at, employee_id,
+          order_items (
+            quantity,
+            unit_price,
+            products!product_id(name)
+          )
+        `)
+        .gte('created_at', weekStart.toISOString())
+        .lte('created_at', weekEnd.toISOString())
+        .order('created_at', { ascending: true });
+
+      if (ordersErr) {
+        throw new Error(`Error fetching orders: ${ordersErr.message}`);
+      }
 
       // Group sessions by day
       const dailySessions = (sessions || []).reduce((acc: Record<string, {
@@ -984,11 +1006,11 @@ export function Analytics() {
         expenses.forEach(expense => {
           const expenseDate = new Date(expense.created_at);
           expensesData.push([
-            expenseDate.toLocaleDateString('es-ES'),
+            expenseDate.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
             expense.description,
             expense.category,
-            `$${expense.amount.toFixed(2)}`,
-            expenseDate.toLocaleDateString('es-ES', { weekday: 'long' })
+            formatCurrency(expense.amount),
+            expenseDate.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { weekday: 'long' })
           ]);
         });
 
@@ -999,9 +1021,47 @@ export function Analytics() {
         XLSX.utils.book_append_sheet(wb, wsExpenses, t('reports.detailed_expenses_sheet'));
       }
 
+      // Detailed Operations sheet
+      const operationsFormatted: any[] = [];
+      if (orders) {
+        orders.forEach((order: any) => {
+          if (order.order_items && order.order_items.length > 0) {
+            order.order_items.forEach((item: any) => {
+              const prodInfo = item.products || item.products_product_id;
+              const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
+              operationsFormatted.push({
+                [t('reports.order_id')]: order.id ? order.id.slice(-8) : t('reports.unknown'),
+                [t('reports.date')]: order.created_at ? new Date(order.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR') : '',
+                [t('reports.employee')]: (order.employee_profiles as any)?.full_name || 'N/A',
+                [t('Estado')]: order.status || '',
+                [t('Producto')]: pName || t('reports.product'),
+                [t('Cantidad')]: item.quantity || 0,
+                [t('Precio Unit.')]: formatCurrency(item.unit_price || 0),
+                [t('Subtotal')]: formatCurrency((item.quantity || 0) * (item.unit_price || 0))
+              });
+            });
+          }
+        });
+      }
+
+      if (operationsFormatted.length === 0) {
+        operationsFormatted.push({
+          [t('reports.order_id')]: t('reports.no_data'),
+          [t('reports.date')]: '',
+          [t('reports.employee')]: '',
+          [t('Estado')]: '',
+          [t('Producto')]: '',
+          [t('Cantidad')]: '',
+          [t('Precio Unit.')]: '',
+          [t('Subtotal')]: ''
+        });
+      }
+      const wsOperations = XLSX.utils.json_to_sheet(operationsFormatted);
+      XLSX.utils.book_append_sheet(wb, wsOperations, t('Detalle Operaciones').slice(0, 31));
+
       // Generate filename with timestamp
       const weekNumber = Math.ceil((currentDate.getTime() - new Date(currentDate.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000));
-      const filename = `Reporte_Semanal_CoffeeShop_Semana_${weekNumber}_${currentDate.getFullYear()}.xlsx`;
+      const filename = `Reporte_Semanal_Semana_${weekNumber}_${currentDate.getFullYear()}.xlsx`;
 
       // Save file
       XLSX.writeFile(wb, filename);
@@ -1045,6 +1105,26 @@ export function Analytics() {
         .gte('created_at', monthStart.toISOString())
         .lte('created_at', monthEnd.toISOString())
         .order('created_at', { ascending: true });
+
+      // Get all orders for the month
+      const { data: orders, error: ordersErr } = await supabase
+        .from('orders')
+        .select(`
+          id, total, status, created_at, employee_id,
+          order_items (
+            quantity,
+            unit_price,
+            products!product_id(name)
+          ),
+          employee_profiles!inner(full_name, role)
+        `)
+        .gte('created_at', monthStart.toISOString())
+        .lte('created_at', monthEnd.toISOString())
+        .order('created_at', { ascending: true });
+
+      if (ordersErr) {
+        throw new Error(`Error fetching orders: ${ordersErr.message}`);
+      }
 
       // Group sessions by day
       const dailySessions = (sessions || []).reduce((acc: Record<string, {
@@ -1106,9 +1186,9 @@ export function Analytics() {
         ]),
         [t('reports.monthly_operations')],
         [''],
-        [t('reports.report_period'), `${monthStart.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}`],
-        [t('reports.month_of_year'), currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })],
-        [t('reports.generation_time'), currentDate.toLocaleTimeString('es-ES')],
+        [t('reports.report_period'), `${monthStart.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { month: 'long', year: 'numeric' })}`],
+        [t('reports.month_of_year'), currentDate.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { month: 'long', year: 'numeric' })],
+        [t('reports.generation_time'), currentDate.toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')],
         [t('reports.generated_by'), profile?.full_name || t('reports.system')],
         [''],
         ['═'.repeat(60)],
@@ -1167,16 +1247,16 @@ export function Analytics() {
         });
 
         Object.values(dailySessions).forEach((emp) => {
-          const date = new Date(emp.date).toLocaleDateString('es-ES');
+          const date = new Date(emp.date).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR');
           performanceData.push([
             date,
             emp.employee_name,
             emp.sessions.length.toString(),
-            new Date(emp.firstOpen).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-            emp.lastClose ? new Date(emp.lastClose).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : t('reports.pending'),
-            `$${emp.totalOpening.toFixed(2)}`,
-            `$${emp.totalClosing.toFixed(2)}`,
-            `$${(emp.totalClosing - emp.totalOpening).toFixed(2)}`
+            new Date(emp.firstOpen).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' }),
+            emp.lastClose ? new Date(emp.lastClose).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' }) : t('reports.pending'),
+            formatCurrency(emp.totalOpening),
+            formatCurrency(emp.totalClosing),
+            formatCurrency(emp.totalClosing - emp.totalOpening)
           ]);
         });
 
@@ -1238,9 +1318,34 @@ export function Analytics() {
         XLSX.utils.book_append_sheet(wb, wsExpenses, t('reports.expenses_category_sheet'));
       }
 
+      // Detailed Operations sheet
+      if (orders && orders.length > 0) {
+        const operationsFormatted: any[] = [];
+        orders.forEach((order: any) => {
+          if (order.order_items && order.order_items.length > 0) {
+            order.order_items.forEach((item: any) => {
+              const prodInfo = item.products || item.products_product_id;
+              const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
+              operationsFormatted.push({
+                [t('reports.order_id')]: order.id.slice(-8),
+                [t('reports.date')]: new Date(order.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
+                [t('reports.employee')]: (order.employee_profiles as any)?.full_name || 'N/A',
+                [t('Estado')]: order.status,
+                [t('Producto')]: pName || t('reports.product'),
+                [t('Cantidad')]: item.quantity,
+                [t('Precio Unit.')]: formatCurrency(item.unit_price),
+                [t('Subtotal')]: formatCurrency(item.quantity * item.unit_price)
+              });
+            });
+          }
+        });
+        const wsOperations = XLSX.utils.json_to_sheet(operationsFormatted);
+        XLSX.utils.book_append_sheet(wb, wsOperations, t('Detalle Operaciones'));
+      }
+
       // Generate filename with month and year
-      const monthName = currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-      const filename = `Reporte_Mensual_CoffeeShop_${monthName.replace(/ /g, '_')}.xlsx`;
+      const monthName = currentDate.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { month: 'long', year: 'numeric' });
+      const filename = `Reporte_Mensual_${monthName.replace(/ /g, '_')}.xlsx`;
 
       // Save file
       XLSX.writeFile(wb, filename);
@@ -1263,10 +1368,12 @@ export function Analytics() {
           order_items (
             quantity,
             unit_price,
-            products (name)
+            products!product_id(name)
           ),
-          employee_profiles!inner(full_name, role)
-        `).neq('employee_profiles.role', 'super_admin').order('created_at', { ascending: false }),
+          employee_profiles (
+            full_name
+          )
+        `).order('created_at', { ascending: false }),
         supabase.from('cash_register_sessions').select(`
           id, opening_amount, closing_amount, opened_at, closed_at, status, employee_id,
           employee_profiles!inner(full_name, role)
@@ -1298,8 +1405,8 @@ export function Analytics() {
         ]),
         [t('reports.complete_data_export')],
         [''],
-        [t('reports.export_date'), currentDate.toLocaleDateString('es-ES')],
-        [t('reports.time'), currentDate.toLocaleTimeString('es-ES')],
+        [t('reports.export_date'), currentDate.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')],
+        [t('reports.time'), currentDate.toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')],
         [t('reports.generated_by'), profile?.full_name || t('reports.system')],
         [''],
         ['═'.repeat(60)],
@@ -1316,33 +1423,53 @@ export function Analytics() {
       ];
       XLSX.utils.book_append_sheet(wb, wsHeader, t('reports.information_sheet'));
 
-      // Orders sheet
+      // Detailed Operations sheet (formerly Orders sheet)
       if (ordersData.data) {
-        const ordersFormatted = ordersData.data.map(order => ({
-          [t('reports.order_id')]: order.id,
-          [t('reports.date')]: new Date(order.created_at).toLocaleString('es-ES'),
-          [t('reports.status')]: order.status,
-          [t('reports.total')]: order.total,
-          [t('reports.employee')]: (order.employee_profiles as any)?.full_name || 'N/A',
-          [t('reports.items')]: order.order_items?.map(item =>
-            `${item.quantity}x ${(item.products as any)?.name || t('reports.product')}`
-          ).join('; ') || ''
-        }));
-        const wsOrders = XLSX.utils.json_to_sheet(ordersFormatted);
-        XLSX.utils.book_append_sheet(wb, wsOrders, t('reports.orders_sheet'));
+        const operationsFormatted: any[] = [];
+        ordersData.data.forEach(order => {
+          if (order.order_items && order.order_items.length > 0) {
+            order.order_items.forEach((item: any) => {
+              const prodInfo = item.products || item.products_product_id;
+              const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
+              operationsFormatted.push({
+                [t('reports.order_id')]: order.id.slice(-8), // Corto para que sea legible
+                [t('reports.date')]: new Date(order.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
+                [t('reports.employee')]: (order.employee_profiles as any)?.full_name || 'N/A',
+                [t('Estado')]: order.status,
+                [t('Producto')]: pName || t('reports.product'),
+                [t('Cantidad')]: item.quantity,
+                [t('Precio Unit.')]: formatCurrency(item.unit_price),
+                [t('Subtotal')]: formatCurrency(item.quantity * item.unit_price)
+              });
+            });
+          } else {
+            operationsFormatted.push({
+              [t('reports.order_id')]: order.id.slice(-8),
+              [t('reports.date')]: new Date(order.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
+              [t('reports.employee')]: (order.employee_profiles as any)?.full_name || 'N/A',
+              [t('Estado')]: order.status,
+              [t('Producto')]: t('Sin productos'),
+              [t('Cantidad')]: 0,
+              [t('Precio Unit.')]: formatCurrency(0),
+              [t('Subtotal')]: formatCurrency(order.total)
+            });
+          }
+        });
+        const wsOperations = XLSX.utils.json_to_sheet(operationsFormatted);
+        XLSX.utils.book_append_sheet(wb, wsOperations, t('Detalle Operaciones'));
       }
 
       // Cash Sessions sheet
       if (sessionsData.data) {
         const sessionsFormatted = sessionsData.data.map(session => ({
-          [t('reports.session_id')]: session.id,
+          [t('reports.session_id')]: session.id.slice(-8),
           [t('reports.employee')]: (session.employee_profiles as any)?.full_name || 'N/A',
-          [t('reports.initial_amount')]: session.opening_amount,
-          [t('reports.final_amount')]: session.closing_amount || 0,
-          [t('reports.opening_date')]: new Date(session.opened_at).toLocaleString('es-ES'),
-          [t('reports.closing_date')]: session.closed_at ? new Date(session.closed_at).toLocaleString('es-ES') : t('reports.open'),
+          [t('reports.initial_amount')]: formatCurrency(session.opening_amount),
+          [t('reports.final_amount')]: session.closing_amount ? formatCurrency(session.closing_amount) : '-',
+          [t('reports.opening_date')]: new Date(session.opened_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
+          [t('reports.closing_date')]: session.closed_at ? new Date(session.closed_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR') : t('reports.open'),
           [t('reports.status')]: session.status,
-          [t('reports.balance')]: (session.closing_amount || 0) - session.opening_amount
+          [t('reports.balance')]: session.closing_amount ? formatCurrency(session.closing_amount - session.opening_amount) : '-'
         }));
         const wsSessions = XLSX.utils.json_to_sheet(sessionsFormatted);
         XLSX.utils.book_append_sheet(wb, wsSessions, t('reports.cash_sessions_sheet'));
@@ -1351,11 +1478,11 @@ export function Analytics() {
       // Expenses sheet
       if (expensesData.data) {
         const expensesFormatted = expensesData.data.map(expense => ({
-          [t('reports.id')]: expense.id,
+          [t('reports.id')]: expense.id.slice(-8),
           [t('reports.description')]: expense.description,
-          [t('reports.amount')]: expense.amount,
+          [t('reports.amount')]: formatCurrency(expense.amount),
           [t('reports.category')]: expense.category,
-          [t('reports.date')]: new Date(expense.created_at).toLocaleString('es-ES')
+          [t('reports.date')]: new Date(expense.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')
         }));
         const wsExpenses = XLSX.utils.json_to_sheet(expensesFormatted);
         XLSX.utils.book_append_sheet(wb, wsExpenses, t('reports.expenses_sheet'));
@@ -1364,14 +1491,14 @@ export function Analytics() {
       // Employees sheet
       if (employeesData.data) {
         const employeesFormatted = employeesData.data.map(emp => ({
-          [t('reports.id')]: emp.id,
+          [t('reports.id')]: emp.id.slice(-8),
           [t('reports.full_name')]: emp.full_name,
           [t('reports.role')]: emp.role,
           [t('reports.email')]: emp.email || '',
           [t('reports.phone')]: emp.phone || '',
           [t('reports.active')]: emp.active ? t('reports.yes') : t('reports.no'),
-          [t('reports.creation_date')]: new Date(emp.created_at).toLocaleString('es-ES'),
-          [t('reports.last_update')]: new Date(emp.updated_at).toLocaleString('es-ES')
+          [t('reports.creation_date')]: new Date(emp.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
+          [t('reports.last_update')]: new Date(emp.updated_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')
         }));
         const wsEmployees = XLSX.utils.json_to_sheet(employeesFormatted);
         XLSX.utils.book_append_sheet(wb, wsEmployees, t('reports.employees_sheet'));
@@ -1380,12 +1507,12 @@ export function Analytics() {
       // Products sheet
       if (productsData.data) {
         const productsFormatted = productsData.data.map(product => ({
-          [t('reports.id')]: product.id,
+          [t('reports.id')]: product.id.slice(-8),
           [t('reports.name')]: product.name,
-          [t('reports.base_price')]: product.base_price,
+          [t('reports.base_price')]: formatCurrency(product.base_price),
           [t('reports.category')]: (product.categories as any)?.name || t('reports.no_category'),
           [t('reports.available')]: product.available ? t('reports.yes') : t('reports.no'),
-          [t('reports.creation_date')]: new Date(product.created_at).toLocaleString('es-ES')
+          [t('reports.creation_date')]: new Date(product.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')
         }));
         const wsProducts = XLSX.utils.json_to_sheet(productsFormatted);
         XLSX.utils.book_append_sheet(wb, wsProducts, t('reports.products_sheet'));
@@ -1395,24 +1522,24 @@ export function Analytics() {
       const financialData = [
         {
           [t('reports.period')]: t('Hoy'),
-          [t('reports.sales')]: financialSummary[0]?.sales || 0,
-          [t('reports.expenses')]: financialSummary[0]?.expenses || 0,
-          [t('reports.profit')]: financialSummary[0]?.profit || 0,
-          [t('reports.margin_percentage')]: financialSummary[0]?.profit_margin || 0
+          [t('reports.sales')]: formatCurrency(financialSummary[0]?.sales || 0),
+          [t('reports.expenses')]: formatCurrency(financialSummary[0]?.expenses || 0),
+          [t('reports.profit')]: formatCurrency(financialSummary[0]?.profit || 0),
+          [t('reports.margin_percentage')]: `${(financialSummary[0]?.profit_margin || 0).toFixed(1)}%`
         },
         {
           [t('reports.period')]: t('Esta Semana'),
-          [t('reports.sales')]: financialSummary[1]?.sales || 0,
-          [t('reports.expenses')]: financialSummary[1]?.expenses || 0,
-          [t('reports.profit')]: financialSummary[1]?.profit || 0,
-          [t('reports.margin_percentage')]: financialSummary[1]?.profit_margin || 0
+          [t('reports.sales')]: formatCurrency(financialSummary[1]?.sales || 0),
+          [t('reports.expenses')]: formatCurrency(financialSummary[1]?.expenses || 0),
+          [t('reports.profit')]: formatCurrency(financialSummary[1]?.profit || 0),
+          [t('reports.margin_percentage')]: `${(financialSummary[1]?.profit_margin || 0).toFixed(1)}%`
         },
         {
           [t('reports.period')]: t('Este Mes'),
-          [t('reports.sales')]: financialSummary[2]?.sales || 0,
-          [t('reports.expenses')]: financialSummary[2]?.expenses || 0,
-          [t('reports.profit')]: financialSummary[2]?.profit || 0,
-          [t('reports.margin_percentage')]: financialSummary[2]?.profit_margin || 0
+          [t('reports.sales')]: formatCurrency(financialSummary[2]?.sales || 0),
+          [t('reports.expenses')]: formatCurrency(financialSummary[2]?.expenses || 0),
+          [t('reports.profit')]: formatCurrency(financialSummary[2]?.profit || 0),
+          [t('reports.margin_percentage')]: `${(financialSummary[2]?.profit_margin || 0).toFixed(1)}%`
         }
       ];
       const wsFinancial = XLSX.utils.json_to_sheet(financialData);
@@ -1420,7 +1547,7 @@ export function Analytics() {
 
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().split('T')[0];
-      const filename = `CoffeeShop_Report_${timestamp}.xlsx`;
+      const filename = `Report_${timestamp}.xlsx`;
 
       // Save file directly without opening new window
       XLSX.writeFile(wb, filename);
