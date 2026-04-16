@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save, CheckCircle } from 'lucide-react';
 import IndividualUnitsManager from './IndividualUnitsManager';
 import { toast } from 'react-hot-toast';
@@ -33,6 +34,7 @@ interface BestSeller {
 export function StockAnalytics() {
     const { t } = useLanguage();
     const { formatCurrency } = useCurrency();
+    const { profile } = useAuth();
     const [loading, setLoading] = useState(true);
     const [stockItems, setStockItems] = useState<StockItem[]>([]);
     const [bestSellers, setBestSellers] = useState<BestSeller[]>([]);
@@ -67,7 +69,8 @@ export function StockAnalytics() {
                     base_price: editPrice,
                     purchase_price: editCost,
                     stock: editStock,
-                    needs_validation: false
+                    needs_validation: false,
+                    validated_by: profile?.id
                 })
                 .eq('id', selectedItem.id);
 
@@ -91,7 +94,10 @@ export function StockAnalytics() {
         try {
             const { error } = await supabase
                 .from('products')
-                .update({ needs_validation: false })
+                .update({ 
+                    needs_validation: false,
+                    validated_by: profile?.id
+                })
                 .eq('id', selectedItem.id);
 
             if (error) throw error;

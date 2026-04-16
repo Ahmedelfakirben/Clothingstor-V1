@@ -3,9 +3,13 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { TrendingUp, DollarSign, ShoppingBag, Clock, Activity, AlertTriangle, Bell, FileSpreadsheet } from 'lucide-react';
+import { TrendingUp, DollarSign, ShoppingBag, Clock, Activity, AlertTriangle, Bell, FileSpreadsheet, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  BarChart, Bar, Cell, PieChart, Pie
+} from 'recharts';
 
 // --- Interfaces ---
 
@@ -92,6 +96,54 @@ interface Notification {
   total?: number;
 }
 
+// --- Period helpers ---
+type PeriodType = 'day' | 'week' | 'month';
+
+function getDayRange(dateStr: string): { start: Date; end: Date } {
+  const start = new Date(dateStr + 'T00:00:00');
+  const end = new Date(dateStr + 'T23:59:59');
+  return { start, end };
+}
+
+function getWeekRange(weekStr: string): { start: Date; end: Date } {
+  // weekStr = "YYYY-Www"
+  const [yearStr, weekPart] = weekStr.split('-W');
+  const year = parseInt(yearStr);
+  const week = parseInt(weekPart);
+  const jan4 = new Date(year, 0, 4);
+  const startOfWeek1 = new Date(jan4);
+  startOfWeek1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+  const start = new Date(startOfWeek1);
+  start.setDate(startOfWeek1.getDate() + (week - 1) * 7);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function getMonthRange(monthStr: string): { start: Date; end: Date } {
+  // monthStr = "YYYY-MM"
+  const [y, m] = monthStr.split('-').map(Number);
+  const start = new Date(y, m - 1, 1, 0, 0, 0, 0);
+  const end = new Date(y, m, 0, 23, 59, 59, 999);
+  return { start, end };
+}
+
+function formatPeriodLabel(type: PeriodType, dateStr: string, weekStr: string, monthStr: string, lang: string): string {
+  const locale = lang === 'fr' ? 'fr-FR' : lang === 'en' ? 'en-US' : 'es-ES';
+  if (type === 'day') {
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  if (type === 'week') {
+    const { start, end } = getWeekRange(weekStr);
+    return `${start.toLocaleDateString(locale, { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  }
+  const [y, m] = monthStr.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(locale, { month: 'long', year: 'numeric' });
+}
+
 export function Analytics() {
   const { profile } = useAuth();
   const { t, currentLanguage } = useLanguage();
@@ -108,8 +160,31 @@ export function Analytics() {
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary[]>([]);
   const [recentNotifications, setRecentNotifications] = useState<Notification[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<number>(0);
-
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [paymentData, setPaymentData] = useState<any[]>([]);
+  const [profitData, setProfitData] = useState<any[]>([]);
+
+  // --- Dynamic period filter state ---
+  const todayStr = new Date().toISOString().split('T')[0];
+  const nowDate = new Date();
+  const currentWeekStr = (() => {
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
+    const startOfYear = new Date(d.getFullYear(), 0, 4);
+    startOfYear.setDate(startOfYear.getDate() - ((startOfYear.getDay() + 6) % 7));
+    const week = Math.round((d.getTime() - startOfYear.getTime()) / (7 * 86400000)) + 1;
+    return `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+  })();
+  const currentMonthStr = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}`;
+
+  const [periodType, setPeriodType] = useState<PeriodType>('day');
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [selectedWeek, setSelectedWeek] = useState<string>(currentWeekStr);
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
+  const [customSummary, setCustomSummary] = useState<FinancialSummary | null>(null);
+  const [customLoading, setCustomLoading] = useState(false);
 
   useEffect(() => {
     fetchStats();
@@ -119,21 +194,25 @@ export function Analytics() {
     fetchFinancialSummary();
     fetchRecentNotifications();
     fetchCompanySettings();
+    fetchChartData();
+    fetchDailyProfit();
     setupRealtimeSubscriptions();
 
-    // Listen for company settings updates
     const handleCompanySettingsUpdate = (event: any) => {
-      if (event.detail) {
-        setCompanySettings(event.detail);
-      }
+      if (event.detail) setCompanySettings(event.detail);
     };
-
     window.addEventListener('companySettingsUpdated', handleCompanySettingsUpdate);
-
-    return () => {
-      window.removeEventListener('companySettingsUpdated', handleCompanySettingsUpdate);
-    };
+    return () => window.removeEventListener('companySettingsUpdated', handleCompanySettingsUpdate);
   }, []);
+
+  // Reload custom summary whenever period selection changes
+  useEffect(() => {
+    let range: { start: Date; end: Date };
+    if (periodType === 'day') range = getDayRange(selectedDate);
+    else if (periodType === 'week') range = getWeekRange(selectedWeek);
+    else range = getMonthRange(selectedMonth);
+    fetchCustomSummary(range.start, range.end);
+  }, [periodType, selectedDate, selectedWeek, selectedMonth]);
 
   const fetchStats = async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -160,6 +239,124 @@ export function Analytics() {
       totalProducts: productsCount || 0,
       totalCustomers: customersCount || 0,
     });
+  };
+
+  const fetchChartData = async () => {
+    try {
+      // 1. Category Data
+      const { data: catItems } = await supabase
+        .from('order_items')
+        .select(`
+          subtotal,
+          products!inner (
+            categories!inner (name)
+          )
+        `)
+        .limit(1000); // Recents
+
+      if (catItems) {
+        const catMap: Record<string, number> = {};
+        catItems.forEach((item: any) => {
+          const catName = item.products?.categories?.name || t('analytics.others');
+          catMap[catName] = (catMap[catName] || 0) + item.subtotal;
+        });
+        setCategoryData(Object.entries(catMap).map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5)
+        );
+      }
+
+      // 2. Payment Data
+      const { data: payOrders } = await supabase
+        .from('orders')
+        .select('total, payment_method')
+        .eq('status', 'completed')
+        .limit(500);
+
+      if (payOrders) {
+        const payMap: Record<string, number> = {
+          cash: 0,
+          card: 0,
+          digital: 0
+        };
+        payOrders.forEach((o: any) => {
+          const method = o.payment_method || 'cash';
+          payMap[method] = (payMap[method] || 0) + o.total;
+        });
+
+        const COLORS_MAP: any = {
+          cash: { name: t('Efectivo'), color: '#10b981' },
+          card: { name: t('Tarjeta'), color: '#3b82f6' },
+          digital: { name: t('Digital'), color: '#8b5cf6' }
+        };
+
+        setPaymentData(Object.entries(payMap).map(([key, value]) => ({
+          name: COLORS_MAP[key]?.name || key,
+          value,
+          color: COLORS_MAP[key]?.color || '#94a3b8'
+        })));
+      }
+    } catch (err) {
+      console.error('Error fetching chart data:', err);
+    }
+  };
+
+  const fetchDailyProfit = async () => {
+    try {
+      const today = new Date();
+      const weekAgo = new Date(today);
+      weekAgo.setDate(today.getDate() - 7);
+      
+      const { data: sales, error } = await supabase
+        .from('orders')
+        .select(`
+          created_at,
+          order_items (
+            quantity,
+            unit_price,
+            purchase_price,
+            products (purchase_price)
+          )
+        `)
+        .gte('created_at', weekAgo.toISOString())
+        .eq('status', 'completed')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const dailyMap: Record<string, number> = {};
+      
+      // Initialize last 7 days
+      for (let i = 0; i < 7; i++) {
+        const d = new Date();
+        d.setDate(today.getDate() - i);
+        dailyMap[d.toISOString().split('T')[0]] = 0;
+      }
+
+      sales?.forEach(order => {
+        const date = order.created_at.split('T')[0];
+        let orderProfit = 0;
+        
+        order.order_items?.forEach((item: any) => {
+          const sellingPrice = item.unit_price || 0;
+          const purchasePrice = item.purchase_price > 0 ? item.purchase_price : (item.products?.purchase_price || 0);
+          const profit = (sellingPrice - purchasePrice) * (item.quantity || 0);
+          orderProfit += profit;
+        });
+
+        if (dailyMap[date] !== undefined) {
+          dailyMap[date] += orderProfit;
+        }
+      });
+
+      const formattedData = Object.entries(dailyMap)
+        .map(([date, profit]) => ({ date, profit }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      setProfitData(formattedData);
+    } catch (err) {
+      console.error('Error fetching daily profit:', err);
+    }
   };
 
   const fetchEmployeeActivity = async () => {
@@ -357,45 +554,28 @@ export function Analytics() {
 
 
   const fetchFinancialSummary = async () => {
+    // Kept for backwards compatibility (used by exportToExcel financial sheet)
     const today = new Date();
     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
-
     const periods = [
       { name: t('Hoy'), start: new Date(today.toDateString()), end: new Date(today.toDateString() + ' 23:59:59') },
       { name: t('Esta Semana'), start: weekAgo, end: today },
       { name: t('Este Mes'), start: monthAgo, end: today },
     ];
-
     const summaries = await Promise.all(
       periods.map(async (period) => {
-        // Get sales and order items to calculate real COGS (purchase price * quantity)
         const { data: sales } = await supabase
           .from('orders')
-          .select(`
-          total,
-          order_items (
-            quantity,
-            purchase_price,
-            products (
-              purchase_price
-            )
-          )
-        `)
+          .select(`total, order_items(quantity, purchase_price, products(purchase_price))`)
           .gte('created_at', period.start.toISOString())
           .lte('created_at', period.end.toISOString())
           .eq('status', 'completed');
-
-        // Get expenses
         const { data: expenses } = await supabase
-          .from('expenses')
-          .select('amount')
+          .from('expenses').select('amount')
           .gte('created_at', period.start.toISOString())
           .lte('created_at', period.end.toISOString());
-
         const totalSales = sales?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
-
-        // Calculate COGS (Cost of Goods Sold)
         let totalCogs = 0;
         sales?.forEach(order => {
           order.order_items?.forEach((item: any) => {
@@ -403,23 +583,50 @@ export function Analytics() {
             totalCogs += itemCogs * (item.quantity || 0);
           });
         });
-
         const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
         const profit = totalSales - totalCogs - totalExpenses;
-        const profitMargin = totalSales > 0 ? (profit / totalSales) * 100 : 0;
-
-        return {
-          period: period.name,
-          sales: totalSales,
-          expenses: totalExpenses,
-          cogs: totalCogs,
-          profit,
-          profit_margin: profitMargin,
-        };
+        return { period: period.name, sales: totalSales, expenses: totalExpenses, cogs: totalCogs, profit, profit_margin: totalSales > 0 ? (profit / totalSales) * 100 : 0 };
       })
     );
-
     setFinancialSummary(summaries);
+  };
+
+  const fetchCustomSummary = async (start: Date, end: Date) => {
+    setCustomLoading(true);
+    try {
+      const { data: sales } = await supabase
+        .from('orders')
+        .select(`total, order_items(quantity, purchase_price, products(purchase_price))`)
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .eq('status', 'completed');
+      const { data: expenses } = await supabase
+        .from('expenses').select('amount')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+      const totalSales = sales?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
+      let totalCogs = 0;
+      sales?.forEach(order => {
+        order.order_items?.forEach((item: any) => {
+          const itemCogs = item.purchase_price > 0 ? item.purchase_price : (item.products?.purchase_price || 0);
+          totalCogs += itemCogs * (item.quantity || 0);
+        });
+      });
+      const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
+      const profit = totalSales - totalCogs - totalExpenses;
+      setCustomSummary({
+        period: '',
+        sales: totalSales,
+        expenses: totalExpenses,
+        cogs: totalCogs,
+        profit,
+        profit_margin: totalSales > 0 ? (profit / totalSales) * 100 : 0,
+      });
+    } catch (err) {
+      console.error('Error fetching custom summary:', err);
+    } finally {
+      setCustomLoading(false);
+    }
   };
 
   const fetchRecentNotifications = async () => {
@@ -548,13 +755,13 @@ export function Analytics() {
     }
   };
 
-  const generateDailyReport = async () => {
+  const generateDailyReport = async (dayStart?: Date, dayEnd?: Date) => {
     try {
       toast.loading(t('reports.generating_daily'), { id: 'daily-report' });
 
       const today = new Date();
-      const dayStart = new Date(today.toDateString());
-      const dayEnd = new Date(today.toDateString() + ' 23:59:59');
+      if (!dayStart) dayStart = new Date(today.toDateString());
+      if (!dayEnd) dayEnd = new Date(today.toDateString() + ' 23:59:59');
 
       // Get all sessions for today
       const { data: sessions } = await supabase
@@ -787,8 +994,8 @@ export function Analytics() {
       }
 
       // Generate filename with timestamp
-      const timestamp = today.toISOString().split('T')[0];
-      const filename = `Reporte_Diario_CoffeeShop_${timestamp}.xlsx`;
+      const timestamp = dayStart.toISOString().split('T')[0];
+      const filename = `Reporte_Diario_${timestamp}.xlsx`;
 
       // Save file
       XLSX.writeFile(wb, filename);
@@ -800,17 +1007,21 @@ export function Analytics() {
     }
   };
 
-  const generateWeeklyReport = async (summary: FinancialSummary) => {
+  const generateWeeklyReport = async (summary: FinancialSummary, weekStart?: Date, weekEnd?: Date) => {
     try {
       toast.loading(t('reports.generating_weekly'), { id: 'weekly-report' });
 
       const currentDate = new Date();
-      const weekStart = new Date(currentDate);
-      weekStart.setDate(currentDate.getDate() - currentDate.getDay()); // Start of week (Sunday)
-      weekStart.setHours(0, 0, 0, 0);
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
-      weekEnd.setHours(23, 59, 59, 999);
+      if (!weekStart) {
+        weekStart = new Date(currentDate);
+        weekStart.setDate(currentDate.getDate() - currentDate.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+      }
+      if (!weekEnd) {
+        weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
+      }
 
       // Get all sessions for the week
       const { data: sessions } = await supabase
@@ -1073,13 +1284,13 @@ export function Analytics() {
     }
   };
 
-  const generateMonthlyReport = async (monthlySummary: FinancialSummary) => {
+  const generateMonthlyReport = async (monthlySummary: FinancialSummary, monthStart?: Date, monthEnd?: Date) => {
     try {
       toast.loading(t('reports.generating_monthly'), { id: 'monthly-report' });
 
       const currentDate = new Date();
-      const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
+      if (!monthStart) monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      if (!monthEnd) monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59);
 
       // Get all daily sessions for the month
       const { data: sessions } = await supabase
@@ -1092,7 +1303,7 @@ export function Analytics() {
           opened_at,
           closed_at,
           status,
-          employee_profiles!inner(full_name)
+          employee_profiles!employee_id(full_name)
         `)
         .gte('opened_at', monthStart.toISOString())
         .lte('opened_at', monthEnd.toISOString())
@@ -1106,25 +1317,73 @@ export function Analytics() {
         .lte('created_at', monthEnd.toISOString())
         .order('created_at', { ascending: true });
 
-      // Get all orders for the month
+      // Get all orders for the month — NO employee_profiles join (FK not in schema cache)
       const { data: orders, error: ordersErr } = await supabase
         .from('orders')
         .select(`
-          id, total, status, created_at, employee_id,
+          id, total, status, created_at, employee_id, payment_method,
           order_items (
             quantity,
             unit_price,
-            products!product_id(name)
-          ),
-          employee_profiles!inner(full_name, role)
+            purchase_price,
+            products!product_id(name, purchase_price)
+          )
         `)
         .gte('created_at', monthStart.toISOString())
         .lte('created_at', monthEnd.toISOString())
+        .eq('status', 'completed')
         .order('created_at', { ascending: true });
 
       if (ordersErr) {
         throw new Error(`Error fetching orders: ${ordersErr.message}`);
       }
+
+      // Fetch employee names separately (avoids FK schema cache issue)
+      const employeeIds = [...new Set((orders || []).map((o: any) => o.employee_id).filter(Boolean))];
+      const empMap: Record<string, string> = {};
+      if (employeeIds.length > 0) {
+        const { data: empData } = await supabase
+          .from('employee_profiles')
+          .select('id, full_name')
+          .in('id', employeeIds);
+        (empData || []).forEach((e: any) => { empMap[e.id] = e.full_name; });
+      }
+
+      const locale = (currentLanguage as string) === 'fr' ? 'fr-FR' : 'es-ES';
+
+      // Payment method label helper
+      const paymentLabel = (method: string | null) => {
+        switch (method) {
+          case 'cash': return (currentLanguage as string) === 'fr' ? 'Espèces' : 'Efectivo';
+          case 'card': return (currentLanguage as string) === 'fr' ? 'Carte bancaire' : 'Tarjeta bancaria';
+          case 'digital': return (currentLanguage as string) === 'fr' ? 'Paiement digital' : 'Pago digital';
+          default: return (currentLanguage as string) === 'fr' ? 'Non spécifié' : 'No especificado';
+        }
+      };
+
+      // Payment breakdown
+      const paymentBreakdown: Record<string, { count: number; total: number }> = {
+        cash: { count: 0, total: 0 },
+        card: { count: 0, total: 0 },
+        digital: { count: 0, total: 0 },
+      };
+      (orders || []).forEach((order: any) => {
+        const method = order.payment_method || 'cash';
+        if (!paymentBreakdown[method]) paymentBreakdown[method] = { count: 0, total: 0 };
+        paymentBreakdown[method].count += 1;
+        paymentBreakdown[method].total += order.total || 0;
+      });
+
+      // COGS calculation
+      let totalCogsMonth = 0;
+      (orders || []).forEach((order: any) => {
+        order.order_items?.forEach((item: any) => {
+          const prodInfo = item.products || item.products_product_id;
+          const purchasePrice = Array.isArray(prodInfo) ? prodInfo[0]?.purchase_price : prodInfo?.purchase_price;
+          const itemCogs = item.purchase_price > 0 ? item.purchase_price : (purchasePrice || 0);
+          totalCogsMonth += itemCogs * (item.quantity || 0);
+        });
+      });
 
       // Group sessions by day
       const dailySessions = (sessions || []).reduce((acc: Record<string, {
@@ -1210,14 +1469,24 @@ export function Analytics() {
         [t('reports.monthly_financial_summary')],
         [''],
         [t('reports.indicator'), t('reports.value'), t('reports.detail'), t('reports.trend')],
-        [t('reports.total_sales'), `$${monthlySummary.sales.toFixed(2)}`, t('reports.gross_income_month'), '📈'],
-        [t('reports.total_expenses'), `$${monthlySummary.expenses.toFixed(2)}`, `${expenses?.length || 0} ${t('reports.expenses_registered')}`, '📉'],
-        [t('reports.net_profit'), `$${monthlySummary.profit.toFixed(2)}`, t('reports.sales_minus_expenses'), '🎯'],
+        [t('reports.total_sales'), formatCurrency(monthlySummary.sales), t('reports.gross_income_month'), '📈'],
+        [t('reports.total_expenses'), formatCurrency(monthlySummary.expenses), `${expenses?.length || 0} ${t('reports.expenses_registered')}`, '📉'],
+        [(currentLanguage as string) === 'fr' ? 'Coût des Produits (COGS)' : 'Costo de Productos (COGS)', formatCurrency(totalCogsMonth), (currentLanguage as string) === 'fr' ? "Prix d'achat des articles vendus" : 'Precio de compra de artículos vendidos', '🏷️'],
+        [t('reports.net_profit'), formatCurrency(monthlySummary.profit), t('reports.sales_minus_expenses'), '🎯'],
         [t('reports.profit_margin'), `${monthlySummary.profit_margin.toFixed(2)}%`, t('reports.monthly_operational_efficiency'), '⭐'],
         [t('reports.operation_days'), new Set(Object.values(dailySessions).map((emp: any) => emp.date)).size, t('reports.days_with_activity'), '🗓️'],
         [t('reports.active_employees'), Object.keys(dailySessions).length, t('reports.with_sessions_this_month'), '👥'],
         [t('reports.total_sessions'), Object.values(dailySessions).reduce((sum: number, emp: any) => sum + emp.sessions.length, 0), t('reports.cash_openings'), '💼'],
-        [t('reports.daily_average'), `$${(monthlySummary.sales / new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()).toFixed(2)}`, t('reports.average_sales_per_day'), '📅']
+        [t('reports.daily_average'), formatCurrency(monthlySummary.sales / new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()), t('reports.average_sales_per_day'), '📅'],
+        [''],
+        [(currentLanguage as string) === 'fr' ? '━━ PAIEMENTS PAR MÉTHODE ━━' : '━━ PAGOS POR MÉTODO ━━', '', '', ''],
+        [(currentLanguage as string) === 'fr' ? 'Méthode' : 'Método', (currentLanguage as string) === 'fr' ? 'Nombre de ventes' : 'N° de ventas', 'Total', '%'],
+        ...Object.entries(paymentBreakdown).map(([method, data]) => [
+          paymentLabel(method),
+          data.count,
+          formatCurrency(data.total),
+          monthlySummary.sales > 0 ? `${((data.total / monthlySummary.sales) * 100).toFixed(1)}%` : '0%'
+        ])
       ];
 
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
@@ -1343,8 +1612,75 @@ export function Analytics() {
         XLSX.utils.book_append_sheet(wb, wsOperations, t('Detalle Operaciones'));
       }
 
+      // ── Payment Method Sheet ──
+      const paymentSheetData: any[][] = [
+        [(currentLanguage as string) === 'fr' ? 'Analyse des Paiements par Méthode' : 'Análisis de Pagos por Método'],
+        [''],
+        [
+          (currentLanguage as string) === 'fr' ? 'Méthode de paiement' : 'Método de pago',
+          (currentLanguage as string) === 'fr' ? 'Nb de commandes' : 'N° pedidos',
+          (currentLanguage as string) === 'fr' ? 'Total encaissé' : 'Total cobrado',
+          (currentLanguage as string) === 'fr' ? '% des ventes' : '% de ventas'
+        ],
+        ...Object.entries(paymentBreakdown).map(([method, data]) => [
+          paymentLabel(method),
+          data.count,
+          formatCurrency(data.total),
+          monthlySummary.sales > 0 ? `${((data.total / monthlySummary.sales) * 100).toFixed(1)}%` : '0%'
+        ]),
+        [''],
+        [
+          (currentLanguage as string) === 'fr' ? 'TOTAL' : 'TOTAL',
+          (orders || []).length,
+          formatCurrency(monthlySummary.sales),
+          '100%'
+        ]
+      ];
+      const wsPayment = XLSX.utils.aoa_to_sheet(paymentSheetData);
+      wsPayment['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+      XLSX.utils.book_append_sheet(wb, wsPayment, (currentLanguage as string) === 'fr' ? 'Paiements' : 'Métodos Pago');
+
+      // ── Detailed Operations Sheet (with payment method) ──
+      if (orders && orders.length > 0) {
+        const operationsFormatted: any[] = [];
+        orders.forEach((order: any) => {
+          const empName = empMap[order.employee_id] || 'N/A';
+          if (order.order_items && order.order_items.length > 0) {
+            order.order_items.forEach((item: any) => {
+              const prodInfo = item.products || item.products_product_id;
+              const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
+              operationsFormatted.push({
+                [t('reports.order_id')]: order.id ? order.id.slice(-8) : t('reports.unknown'),
+                [t('reports.date')]: order.created_at ? new Date(order.created_at).toLocaleString(locale) : '',
+                [t('reports.employee')]: empName,
+                [(currentLanguage as string) === 'fr' ? 'Mode de paiement' : 'Método de pago']: paymentLabel(order.payment_method),
+                [t('Producto')]: pName || t('reports.product'),
+                [t('Cantidad')]: item.quantity || 0,
+                [t('Precio Unit.')]: formatCurrency(item.unit_price || 0),
+                [t('Subtotal')]: formatCurrency((item.quantity || 0) * (item.unit_price || 0)),
+                [(currentLanguage as string) === 'fr' ? 'Total commande' : 'Total pedido']: formatCurrency(order.total || 0),
+              });
+            });
+          } else {
+            operationsFormatted.push({
+              [t('reports.order_id')]: order.id ? order.id.slice(-8) : t('reports.unknown'),
+              [t('reports.date')]: order.created_at ? new Date(order.created_at).toLocaleString(locale) : '',
+              [t('reports.employee')]: empName,
+              [(currentLanguage as string) === 'fr' ? 'Mode de paiement' : 'Método de pago']: paymentLabel(order.payment_method),
+              [t('Producto')]: (currentLanguage as string) === 'fr' ? 'Sans détail' : 'Sin detalle',
+              [t('Cantidad')]: 0,
+              [t('Precio Unit.')]: formatCurrency(0),
+              [t('Subtotal')]: formatCurrency(0),
+              [(currentLanguage as string) === 'fr' ? 'Total commande' : 'Total pedido']: formatCurrency(order.total || 0),
+            });
+          }
+        });
+        const wsOperations = XLSX.utils.json_to_sheet(operationsFormatted);
+        XLSX.utils.book_append_sheet(wb, wsOperations, (currentLanguage as string) === 'fr' ? 'Détail Opérations' : 'Detalle Operaciones');
+      }
+
       // Generate filename with month and year
-      const monthName = currentDate.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { month: 'long', year: 'numeric' });
+      const monthName = monthStart.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
       const filename = `Reporte_Mensual_${monthName.replace(/ /g, '_')}.xlsx`;
 
       // Save file
@@ -1708,7 +2044,7 @@ export function Analytics() {
             <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
-            <span className="text-xs font-medium text-gray-500">{t('Total')}</span>
+            <span className="text-xs font-medium text-gray-500">{t('analytics.total')}</span>
           </div>
           <p className="text-2xl font-bold text-gray-900 mb-1">{stats.totalProducts}</p>
           <p className="text-sm text-gray-600">{t('Productos activos')}</p>
@@ -1719,10 +2055,21 @@ export function Analytics() {
             <div className="w-10 h-10 bg-pink-50 rounded-lg flex items-center justify-center">
               <Activity className="w-5 h-5 text-pink-600" />
             </div>
-            <span className="text-xs font-medium text-gray-500">{t('Activos')}</span>
+            <span className="text-xs font-medium text-gray-500">{t('analytics.active')}</span>
           </div>
           <p className="text-2xl font-bold text-gray-900 mb-1">{onlineUsers}</p>
-          <p className="text-sm text-gray-600">{t('Usuarios conectados')}</p>
+          <p className="text-sm text-gray-600">{t('usuarios conectados')}</p>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
+              <ShoppingBag className="w-5 h-5 text-indigo-600" />
+            </div>
+            <span className="text-xs font-medium text-gray-500">{t('analytics.total')}</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 mb-1">{stats.totalCustomers}</p>
+          <p className="text-sm text-gray-600">{t('analytics.registered_customers')}</p>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm p-5 border border-gray-100 hover:shadow-md transition-shadow">
@@ -1730,75 +2077,385 @@ export function Analytics() {
             <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center">
               <Clock className="w-5 h-5 text-purple-600" />
             </div>
-            <span className="text-xs font-medium text-gray-500">{t('Ahora')}</span>
+            <span className="text-xs font-medium text-gray-500">{t('analytics.now')}</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900 mb-1">{new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
-          <p className="text-sm text-gray-600">{t('Hora actual')}</p>
+          <p className="text-2xl font-bold text-gray-900 mb-1">{new Date().toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+          <p className="text-sm text-gray-600">{t('analytics.current_time')}</p>
         </div>
       </div>
 
-      {/* Financial Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
-        {financialSummary.map((summary, index) => (
-          <div key={index} className="bg-white rounded-2xl shadow-2xl p-8 border-2 border-gray-100 hover:border-purple-300 transition-all duration-300 transform hover:-translate-y-1">
-            <h3 className="text-2xl font-black text-gray-900 mb-6 bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">{summary.period}</h3>
+      {/* DASHBOARD VISUAL (GRÁFICOS) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Gráfico de Ventas (Evolución) */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">{t('analytics.sales_evolution')}</h3>
+              <p className="text-sm text-gray-500">{t('analytics.revenue_7_days')}</p>
+            </div>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={[...dailySales].reverse()}>
+                <defs>
+                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                <XAxis 
+                  dataKey="date" 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{fill: '#9ca3af', fontSize: 12}}
+                  tickFormatter={(str) => {
+                    const d = new Date(str);
+                    return d.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', {weekday: 'short'});
+                  }}
+                />
+                <YAxis 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{fill: '#9ca3af', fontSize: 12}}
+                  tickFormatter={(val) => `${val}`}
+                />
+                <Tooltip 
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  formatter={(val: any) => [formatCurrency(Number(val)), t('analytics.sales')]}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="total" 
+                  stroke="#3b82f6" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorSales)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Gráfico de Métodos de Pago */}
+        <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <div className="mb-6">
+            <h3 className="text-lg font-bold text-gray-900">{t('analytics.payment_methods')}</h3>
+            <p className="text-sm text-gray-500">{t('analytics.income_distribution')}</p>
+          </div>
+          <div className="h-[250px] w-full relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={paymentData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={8}
+                  dataKey="value"
+                >
+                  {paymentData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  formatter={(val: any) => formatCurrency(Number(val))}
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            {/* Legend costumizada para Pie */}
+            <div className="mt-4 space-y-2">
+              {paymentData.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{backgroundColor: item.color}}></div>
+                    <span className="text-gray-600">{item.name}</span>
+                  </div>
+                  <span className="font-bold text-gray-900">{formatCurrency(item.value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Gráfico de Beneficio Real (NUEVO) */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">{t('analytics.real_profit')}</h3>
+              <p className="text-sm text-gray-500">{t('analytics.profit_margin_desc')}</p>
+            </div>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={profitData}>
+                <defs>
+                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                <XAxis 
+                  dataKey="date" 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{fill: '#9ca3af', fontSize: 12}}
+                  tickFormatter={(str) => {
+                    const d = new Date(str);
+                    return d.toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', {weekday: 'short'});
+                  }}
+                />
+                <YAxis 
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{fill: '#9ca3af', fontSize: 12}}
+                  tickFormatter={(val) => `${val}`}
+                />
+                <Tooltip 
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                  formatter={(val: any) => [formatCurrency(Number(val)), t('analytics.net_profit')]}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="profit" 
+                  stroke="#10b981" 
+                  strokeWidth={3}
+                  fillOpacity={1} 
+                  fill="url(#colorProfit)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Gráfico de Categorías (Bar Chart) - Ahora lg:col-span-1 para ajustar la fila */}
+        <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">{t('analytics.category_sales')}</h3>
+              <p className="text-sm text-gray-500">{t('analytics.category_comparison')}</p>
+            </div>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={categoryData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f3f4f6" />
+                <XAxis type="number" hide />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  axisLine={false} 
+                  tickLine={false}
+                  tick={{fill: '#4b5563', fontSize: 11, fontWeight: 500}}
+                  width={80}
+                />
+                <Tooltip 
+                  cursor={{fill: '#f9fafb'}}
+                  formatter={(val: any) => [formatCurrency(Number(val)), t('analytics.revenue')]}
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                />
+                <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={25}>
+                  {categoryData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'][index % 5]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Dynamic Period Filter + Summary Card ── */}
+      <div className="mb-10">
+        {/* Period type selector */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-6">
+          <div className="flex items-center bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            {(['day', 'week', 'month'] as PeriodType[]).map((type) => {
+              const lang = currentLanguage as string;
+              const labels: Record<PeriodType, string> = {
+                day: lang === 'fr' ? "Aujourd'hui" : lang === 'en' ? 'Day' : 'Día',
+                week: lang === 'fr' ? 'Cette Semaine' : lang === 'en' ? 'Week' : 'Semana',
+                month: lang === 'fr' ? 'Ce Mois' : lang === 'en' ? 'Month' : 'Mes',
+              };
+              return (
+                <button
+                  key={type}
+                  onClick={() => setPeriodType(type)}
+                  className={`px-5 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                    periodType === type
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-inner'
+                      : 'text-gray-600 hover:text-purple-600 hover:bg-purple-50'
+                  }`}
+                >
+                  {labels[type]}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Date / Week / Month picker */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (periodType === 'day') {
+                  const d = new Date(selectedDate + 'T12:00:00'); d.setDate(d.getDate() - 1);
+                  setSelectedDate(d.toISOString().split('T')[0]);
+                } else if (periodType === 'week') {
+                  const { start } = getWeekRange(selectedWeek);
+                  start.setDate(start.getDate() - 7);
+                  const jan4 = new Date(start.getFullYear(), 0, 4);
+                  const sw1 = new Date(jan4); sw1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+                  const wk = Math.round((start.getTime() - sw1.getTime()) / (7 * 86400000)) + 1;
+                  setSelectedWeek(`${start.getFullYear()}-W${String(wk).padStart(2, '0')}`);
+                } else {
+                  const [y, m] = selectedMonth.split('-').map(Number);
+                  const prev = new Date(y, m - 2, 1);
+                  setSelectedMonth(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`);
+                }
+              }}
+              className="w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-purple-300 transition-all shadow-sm"
+            >
+              <ChevronLeft className="w-4 h-4 text-gray-600" />
+            </button>
+
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-500 pointer-events-none" />
+              {periodType === 'day' && (
+                <input
+                  type="date"
+                  value={selectedDate}
+                  max={todayStr}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-300 shadow-sm cursor-pointer transition-all"
+                />
+              )}
+              {periodType === 'week' && (
+                <input
+                  type="week"
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  className="pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-300 shadow-sm cursor-pointer transition-all"
+                />
+              )}
+              {periodType === 'month' && (
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  max={currentMonthStr}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-300 shadow-sm cursor-pointer transition-all"
+                />
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                if (periodType === 'day') {
+                  const d = new Date(selectedDate + 'T12:00:00'); d.setDate(d.getDate() + 1);
+                  const next = d.toISOString().split('T')[0];
+                  if (next <= todayStr) setSelectedDate(next);
+                } else if (periodType === 'week') {
+                  const { start } = getWeekRange(selectedWeek);
+                  start.setDate(start.getDate() + 7);
+                  const jan4 = new Date(start.getFullYear(), 0, 4);
+                  const sw1 = new Date(jan4); sw1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+                  const wk = Math.round((start.getTime() - sw1.getTime()) / (7 * 86400000)) + 1;
+                  const next = `${start.getFullYear()}-W${String(wk).padStart(2, '0')}`;
+                  if (next <= currentWeekStr) setSelectedWeek(next);
+                } else {
+                  const [y, m] = selectedMonth.split('-').map(Number);
+                  const nx = new Date(y, m, 1);
+                  const next = `${nx.getFullYear()}-${String(nx.getMonth() + 1).padStart(2, '0')}`;
+                  if (next <= currentMonthStr) setSelectedMonth(next);
+                }
+              }}
+              className="w-8 h-8 flex items-center justify-center bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-purple-300 transition-all shadow-sm"
+            >
+              <ChevronRight className="w-4 h-4 text-gray-600" />
+            </button>
+          </div>
+
+          {/* Period label */}
+          <span className="text-sm text-gray-500 italic hidden md:block">
+            {formatPeriodLabel(periodType, selectedDate, selectedWeek, selectedMonth, currentLanguage)}
+          </span>
+        </div>
+
+        {/* Summary card */}
+        <div className="bg-white rounded-2xl shadow-2xl p-8 border-2 border-gray-100 hover:border-purple-300 transition-all duration-300 max-w-lg">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-black bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+              {formatPeriodLabel(periodType, selectedDate, selectedWeek, selectedMonth, currentLanguage)}
+            </h3>
+            {customLoading && (
+              <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            )}
+          </div>
+
+          {customSummary ? (
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">{t('Ventas:')}</span>
-                <span className="font-semibold text-green-600">{formatCurrency(summary.sales)}</span>
+                <span className="font-semibold text-green-600">{formatCurrency(customSummary.sales)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">{t('Gastos:')}</span>
-                <span className="font-semibold text-red-600">{formatCurrency(summary.expenses)}</span>
+                <span className="font-semibold text-red-600">{formatCurrency(customSummary.expenses)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">{t('Costo (Productos):')}</span>
-                <span className="font-semibold text-amber-600">{formatCurrency(summary.cogs)}</span>
+                <span className="font-semibold text-amber-600">{formatCurrency(customSummary.cogs)}</span>
               </div>
               <div className="flex justify-between border-t pt-2">
                 <span className="text-sm font-medium text-gray-900">{t('Beneficio:')}</span>
-                <span className={`font-bold ${summary.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(summary.profit)}
+                <span className={`font-bold ${customSummary.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrency(customSummary.profit)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">{t('Margen:')}</span>
-                <span className={`font-semibold ${summary.profit_margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {summary.profit_margin.toFixed(1)}%
+                <span className={`font-semibold ${customSummary.profit_margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {customSummary.profit_margin.toFixed(1)}%
                 </span>
               </div>
               <div className="mt-4 pt-4 border-t">
-                {summary.period === t('Hoy') && (
-                  <button
-                    onClick={() => generateDailyReport()}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    {t('Generar Reporte Diario')}
-                  </button>
-                )}
-                {summary.period === t('Esta Semana') && (
-                  <button
-                    onClick={() => generateWeeklyReport(summary)}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    {t('Generar Reporte Semanal')}
-                  </button>
-                )}
-                {summary.period === t('Este Mes') && (
-                  <button
-                    onClick={() => generateMonthlyReport(summary)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    {t('Generar Reporte Mensual')}
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    if (periodType === 'day') {
+                      const r = getDayRange(selectedDate);
+                      generateDailyReport(r.start, r.end);
+                    } else if (periodType === 'week') {
+                      const r = getWeekRange(selectedWeek);
+                      generateWeeklyReport(customSummary, r.start, r.end);
+                    } else {
+                      const r = getMonthRange(selectedMonth);
+                      generateMonthlyReport(customSummary, r.start, r.end);
+                    }
+                  }}
+                  className={`w-full text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                    periodType === 'day'
+                      ? 'bg-purple-600 hover:bg-purple-700'
+                      : periodType === 'week'
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  {periodType === 'day' && t('Generar Reporte Diario')}
+                  {periodType === 'week' && t('Generar Reporte Semanal')}
+                  {periodType === 'month' && t('Generar Reporte Mensual')}
+                </button>
               </div>
             </div>
-          </div>
-        ))}
+          ) : (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

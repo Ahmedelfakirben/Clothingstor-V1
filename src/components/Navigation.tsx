@@ -1,4 +1,4 @@
-import { ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Clock, Shield, Building2, Settings, Server, Database } from 'lucide-react';
+import { ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Clock, Shield, Building2, Settings, Server, Database, Bell, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -48,6 +48,110 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
   const [openingLoading, setOpeningLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  
+  const [sessionNotifications, setSessionNotifications] = useState<Array<{id: string, type?: string, amount?: string, createdAt: string}>>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handleNewNotif = (e: any) => {
+      const dismissed = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
+      if (dismissed.includes(e.detail.id)) return;
+      
+      const newNotif = { ...e.detail, type: e.detail.type || 'sale' };
+      setSessionNotifications(prev => [newNotif, ...prev].slice(0, 50));
+    };
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setShowNotifications(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    window.addEventListener('global-new-notification', handleNewNotif);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('global-new-notification', handleNewNotif);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Cargar notificaciones offline/pasadas
+  useEffect(() => {
+    if (profile?.role !== 'admin' && profile?.role !== 'super_admin') return;
+
+    const loadMissedNotifications = async () => {
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const dismissed = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
+
+      try {
+        const { data: ordersData, error: ordersErr } = await supabase
+          .from('orders')
+          .select('id, total, created_at')
+          .eq('status', 'completed')
+          .gt('created_at', oneWeekAgo);
+
+        if (ordersErr) throw ordersErr;
+
+        const { data: sessions, error: sessionsErr } = await supabase
+          .from('cash_register_sessions')
+          .select('id, opened_at, closed_at, opening_amount')
+          .gt('opened_at', oneWeekAgo);
+          
+        if (sessionsErr) throw sessionsErr;
+
+        let allNotifs: any[] = [];
+        
+        if (ordersData) {
+          ordersData.forEach(o => {
+            allNotifs.push({
+               id: o.id,
+               type: 'sale',
+               amount: formatCurrency(o.total),
+               createdAt: o.created_at
+            });
+          });
+        }
+        
+        if (sessions) {
+          sessions.forEach(s => {
+            allNotifs.push({
+               id: `open-${s.id}`,
+               type: 'cash_open',
+               amount: formatCurrency(s.opening_amount || 0),
+               createdAt: s.opened_at
+            });
+            
+            if (s.closed_at) {
+               allNotifs.push({
+                  id: `close-${s.id}`,
+                  type: 'cash_close',
+                  amount: '',
+                  createdAt: s.closed_at
+               });
+            }
+          });
+        }
+        
+        allNotifs = allNotifs.filter(n => !dismissed.includes(n.id));
+        
+        setSessionNotifications(prev => {
+           const prevIds = new Set(prev.map(n => n.id));
+           const newNotifs = allNotifs.filter(n => !prevIds.has(n.id));
+           const combined = [...prev, ...newNotifs];
+           combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+           return combined.slice(0, 50);
+        });
+      } catch (err) {
+        console.error('Error loading missed notifications:', err);
+      }
+    };
+
+    loadMissedNotifications();
+  }, [profile?.role, formatCurrency]);
 
   const navGroups: NavGroup[] = [
     {
@@ -684,7 +788,94 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-4" ref={userMenuRef}>
+            <div className="flex items-center gap-4">
+              {/* Notification Bell (Only Admin/Super Admin) */}
+              {(profile?.role === 'admin' || profile?.role === 'super_admin') && (
+                <div className="relative" ref={notificationsRef}>
+                  <button
+                    onClick={() => setShowNotifications(!showNotifications)}
+                    className="p-2 bg-white border border-gray-200 rounded-xl hover:border-amber-300 transition-all shadow-sm hover:shadow-md relative"
+                  >
+                    <Bell className="w-5 h-5 text-gray-700" />
+                    {sessionNotifications.length > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[9px] text-white font-bold flex items-center justify-center">
+                          {sessionNotifications.length}
+                        </span>
+                      </span>
+                    )}
+                  </button>
+
+                  {showNotifications && (
+                    <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-fadeIn">
+                      <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
+                        <h3 className="font-bold text-gray-900">{t('Notificaciones')}</h3>
+                        <span className="text-xs text-gray-500 font-medium bg-gray-100 px-2 py-1 rounded-full">
+                          {sessionNotifications.length}
+                        </span>
+                      </div>
+                      <div className="max-h-[60vh] overflow-y-auto">
+                        {sessionNotifications.length === 0 ? (
+                          <div className="text-center py-6 text-gray-500 text-sm">
+                            {t('No hay notificaciones recientes')}
+                          </div>
+                        ) : (
+                          sessionNotifications.map(notif => (
+                            <div key={notif.id} className="px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors relative group">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSessionNotifications(prev => prev.filter(n => n.id !== notif.id));
+                                  const dismissed = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
+                                  if (!dismissed.includes(notif.id)) dismissed.push(notif.id);
+                                  if (dismissed.length > 1000) dismissed.splice(0, dismissed.length - 1000);
+                                  localStorage.setItem('dismissedNotifications', JSON.stringify(dismissed));
+                                }}
+                                title="Ocultar"
+                                className="absolute right-3 top-3 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                              
+                              <p className={`text-sm font-bold flex items-center gap-1 ${
+                                notif.type === 'sale' ? 'text-green-600' : 
+                                notif.type === 'cash_open' ? 'text-amber-500' : 'text-red-500'
+                              }`}>
+                                {notif.type === 'sale' ? '💰 ' + t('Nueva Venta Realizada') :
+                                 notif.type === 'cash_open' ? '🔓 ' + t('Apertura de Caja') :
+                                 '🔐 ' + t('Cierre de Caja')}
+                              </p>
+                              
+                              {notif.amount && (
+                                <p className="text-sm text-gray-900 font-medium mt-1">
+                                  {notif.type === 'sale' ? t('Monto:') : t('Saldo Inicial:')} {notif.amount}
+                                </p>
+                              )}
+                              
+                              <p className="text-xs text-gray-400 mt-1">
+                                {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      {sessionNotifications.length > 0 && (
+                        <div className="p-2 border-t border-gray-100 mt-1">
+                          <button 
+                            onClick={() => onViewChange('analytics')}
+                            className="w-full py-2 text-xs text-center text-blue-600 hover:text-blue-800 hover:bg-blue-50 font-semibold transition-colors rounded-lg"
+                          >
+                            Ir a Estadísticas
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div ref={userMenuRef}>
               {profile && (
                 <div className="relative">
                   <button
@@ -762,6 +953,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                   )}
                 </div>
               )}
+              </div>
             </div>
 
           </div>

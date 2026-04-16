@@ -439,6 +439,7 @@ export function CashRegisterDashboard() {
           order_number,
           created_at,
           status,
+          payment_method,
           order_items (
             quantity,
             unit_price,
@@ -456,6 +457,30 @@ export function CashRegisterDashboard() {
       const orderTotal = (orders || []).reduce((sum, order) => sum + order.total, 0);
       const orderCount = orders?.length || 0;
 
+      // Payment breakdown
+      const paymentLabel = (method: string | null) => {
+        if (currentLanguage === 'fr') {
+          switch (method) { case 'cash': return 'Espèces'; case 'card': return 'Carte bancaire'; case 'digital': return 'Paiement digital'; default: return 'Non spécifié'; }
+        }
+        switch (method) { case 'cash': return 'Efectivo'; case 'card': return 'Tarjeta bancaria'; case 'digital': return 'Pago digital'; default: return 'No especificado'; }
+      };
+      const payBreak: Record<string, { count: number; total: number }> = {};
+      (orders || []).forEach((o: any) => {
+        const k = o.payment_method || 'unknown';
+        if (!payBreak[k]) payBreak[k] = { count: 0, total: 0 };
+        payBreak[k].count++;
+        payBreak[k].total += o.total || 0;
+      });
+      const payBreakHtml = Object.entries(payBreak).map(([method, d]) => `
+        <tr>
+          <td>${paymentLabel(method)}</td>
+          <td style="text-align:center">${d.count}</td>
+          <td style="text-align:right; font-weight:bold">${formatCurrency(d.total)}</td>
+          <td style="text-align:right">${orderTotal > 0 ? ((d.total / orderTotal) * 100).toFixed(1) + '%' : '0%'}</td>
+        </tr>`).join('');
+
+      const locale = currentLanguage === 'fr' ? 'fr-FR' : 'es-ES';
+
       // Create professional invoice-style print content
       const printContent = `
         <div class="report">
@@ -467,7 +492,7 @@ export function CashRegisterDashboard() {
 
           <div class="info-section">
             <div class="info-item">
-              <strong>${new Date(day.date).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')}</strong>
+              <strong>${new Date(day.date).toLocaleDateString(locale)}</strong>
               <span>${t('Fecha del Reporte')}</span>
             </div>
             <div class="info-item">
@@ -504,6 +529,19 @@ export function CashRegisterDashboard() {
             </div>
           </div>
 
+          <div class="section-title">${currentLanguage === 'fr' ? 'PAIEMENTS PAR MÉTHODE' : 'PAGOS POR MÉTODO DE PAGO'}</div>
+          <div class="table-container">
+            <table>
+              <thead><tr>
+                <th>${currentLanguage === 'fr' ? 'Méthode' : 'Método'}</th>
+                <th style="text-align:center">${currentLanguage === 'fr' ? 'Nb ventes' : 'N° ventas'}</th>
+                <th style="text-align:right">${currentLanguage === 'fr' ? 'Total' : 'Total'}</th>
+                <th style="text-align:right">%</th>
+              </tr></thead>
+              <tbody>${payBreakHtml}</tbody>
+            </table>
+          </div>
+
           <div class="section-title">${t('DETALLE DE SESIONES')}</div>
           <div class="table-container">
             <table>
@@ -521,9 +559,9 @@ export function CashRegisterDashboard() {
                 ${day.sessions.map((session: CashSession, index: number) => `
                   <tr>
                     <td>${index + 1}</td>
-                    <td>${new Date(session.opened_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td>${new Date(session.opened_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</td>
                     <td>${formatCurrency(session.opening_amount)}</td>
-                    <td>${session.closed_at ? new Date(session.closed_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                    <td>${session.closed_at ? new Date(session.closed_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                     <td>${session.closing_amount ? formatCurrency(session.closing_amount) : '-'}</td>
                     <td>${session.closed_at ? t('Cerrada') : t('Abierta')}</td>
                   </tr>
@@ -539,6 +577,7 @@ export function CashRegisterDashboard() {
                 <tr>
                   <th>${t('N° Pedido')}</th>
                   <th>${t('Hora')}</th>
+                  <th>${currentLanguage === 'fr' ? 'Mode de paiement' : 'Método de pago'}</th>
                   <th>${t('Productos')}</th>
                   <th>${t('Total')}</th>
                 </tr>
@@ -547,7 +586,14 @@ export function CashRegisterDashboard() {
                 ${(orders || []).map(order => `
                   <tr>
                     <td>${order.order_number ? order.order_number.toString().padStart(3, '0') : order.id.slice(-8)}</td>
-                    <td>${new Date(order.created_at).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td>${new Date(order.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</td>
+                    <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;background:${
+                      (order as any).payment_method === 'cash' ? '#dcfce7' :
+                      (order as any).payment_method === 'card' ? '#dbeafe' : '#fef9c3'
+                    };color:${
+                      (order as any).payment_method === 'cash' ? '#166534' :
+                      (order as any).payment_method === 'card' ? '#1e40af' : '#713f12'
+                    }">${paymentLabel((order as any).payment_method)}</span></td>
                     <td>${order.order_items.map((item: any) => {
                       const prodInfo = item.products || item.products_product_id;
                       const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
@@ -557,7 +603,7 @@ export function CashRegisterDashboard() {
                   </tr>
                 `).join('')}
                 <tr class="total-row">
-                  <td colspan="3" style="text-align: right; font-weight: bold;">${t('TOTAL DEL DÍA')}</td>
+                  <td colspan="4" style="text-align: right; font-weight: bold;">${t('TOTAL DEL DÍA')}</td>
                   <td style="font-weight: bold; font-size: 16px;">${formatCurrency(orderTotal)}</td>
                 </tr>
               </tbody>
@@ -576,7 +622,7 @@ export function CashRegisterDashboard() {
 
           <div class="footer">
             <p>${t('Este documento es oficial y forma parte del registro contable de LIN-Caisse')}</p>
-            <p>${t('Reporte generado el')} ${new Date().toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')}</p>
+            <p>${t('Reporte generado el')} ${new Date().toLocaleString(locale)}</p>
           </div>
         </div>
       `;
@@ -1182,48 +1228,167 @@ function DailyHistorySection() {
     }
   };
 
-  const printSummary = (day: any) => {
-    // Determine locale for date formatting based on current language
+  const printSummary = async (day: any) => {
     const dateLocale = currentLanguage === 'fr' ? 'fr-FR' : 'es-ES';
 
-    const printContent = `
-      <div style="font-family: Arial, sans-serif; padding: 20px; text-align: center;">
-        <h2>${t('cash.report_title')}</h2>
-        <p><strong>${t('Fecha')}:</strong> ${new Date(day.date).toLocaleDateString(dateLocale)}</p>
-        <hr style="margin: 15px 0;" />
-        
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-          <tr>
-            <td style="text-align: left; padding: 5px;">${t('Aperturas')}:</td>
-            <td style="text-align: right; padding: 5px;">${formatCurrency(day.totalOpening)}</td>
-          </tr>
-          <tr>
-            <td style="text-align: left; padding: 5px;">${t('Ventas')} (${day.salesCount}):</td>
-            <td style="text-align: right; padding: 5px;">${formatCurrency(day.totalSales)}</td>
-          </tr>
-          <tr>
-            <td style="text-align: left; padding: 5px;">${t('Retiros')}:</td>
-            <td style="text-align: right; padding: 5px; color: red;">-${formatCurrency(day.totalWithdrawals)}</td>
-          </tr>
-          <tr>
-             <td colspan="2"><hr/></td>
-          </tr>
-          <tr style="font-weight: bold; font-size: 1.2em;">
-            <td style="text-align: left; padding: 5px;">${t('cash.net_balance')}:</td>
-            <td style="text-align: right; padding: 5px;">${formatCurrency(day.totalOpening + day.totalSales - day.totalWithdrawals)}</td>
-          </tr>
-        </table>
-        
-        <p style="font-size: 12px; color: #666;">${t('Generado el')} ${new Date().toLocaleString(dateLocale)}</p>
-      </div>
-    `;
+    const paymentLabel = (method: string | null) => {
+      if (currentLanguage === 'fr') {
+        switch (method) { case 'cash': return 'Esp\u00e8ces'; case 'card': return 'Carte bancaire'; case 'digital': return 'Paiement digital'; default: return 'Non sp\u00e9cifi\u00e9'; }
+      }
+      switch (method) { case 'cash': return 'Efectivo'; case 'card': return 'Tarjeta bancaria'; case 'digital': return 'Pago digital'; default: return 'No especificado'; }
+    };
 
-    const win = window.open('', '', 'width=400,height=600');
-    if (win) {
-      win.document.write('<html><head><title>' + t('cash.report_title') + '</title></head><body>' + printContent + '</body></html>');
-      win.document.close();
-      win.focus();
-      win.print();
+    try {
+      // Parse the date properly (YYYY-MM-DD stored as en-CA locale)
+      const [year, month, dayNum] = day.date.split('-').map(Number);
+      const startOfDay = new Date(year, month - 1, dayNum, 0, 0, 0, 0);
+      const endOfDay = new Date(year, month - 1, dayNum, 23, 59, 59, 999);
+
+      // Fetch all orders of the day with items and payment method
+      const { data: orders } = await supabase
+        .from('orders')
+        .select(`
+          id, total, order_number, created_at, employee_id, payment_method,
+          order_items (
+            quantity,
+            unit_price,
+            products!product_id(name)
+          )
+        `)
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString())
+        .eq('status', 'completed')
+        .order('created_at', { ascending: true });
+
+      // Fetch employee names
+      const empIds = [...new Set((orders || []).map((o: any) => o.employee_id).filter(Boolean))];
+      const empMap: Record<string, string> = {};
+      if (empIds.length > 0) {
+        const { data: emps } = await supabase.from('employee_profiles').select('id, full_name').in('id', empIds);
+        (emps || []).forEach((e: any) => { empMap[e.id] = e.full_name; });
+      }
+
+      const totalSales = (orders || []).reduce((s: number, o: any) => s + (o.total || 0), 0);
+
+      // Payment breakdown
+      const payBreak: Record<string, { count: number; total: number }> = {};
+      (orders || []).forEach((o: any) => {
+        const k = o.payment_method || 'unknown';
+        if (!payBreak[k]) payBreak[k] = { count: 0, total: 0 };
+        payBreak[k].count++;
+        payBreak[k].total += o.total || 0;
+      });
+
+      const payBreakHtml = Object.entries(payBreak).map(([method, d]) => `
+        <tr>
+          <td>${paymentLabel(method)}</td>
+          <td style="text-align:center">${d.count}</td>
+          <td style="text-align:right;font-weight:bold">${formatCurrency(d.total)}</td>
+          <td style="text-align:right">${totalSales > 0 ? ((d.total / totalSales) * 100).toFixed(1) + '%' : '0%'}</td>
+        </tr>`).join('');
+
+      const ordersHtml = (orders || []).map((order: any) => {
+        const items = order.order_items?.map((item: any) => {
+          const prodInfo = item.products || item.products_product_id;
+          const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
+          return `${item.quantity}x ${pName || t('Producto')}`;
+        }).join('<br/>') || '-';
+        const badgeColor = order.payment_method === 'cash' ? '#dcfce7:#166534' : order.payment_method === 'card' ? '#dbeafe:#1e40af' : '#fef9c3:#713f12';
+        const [bg, fg] = badgeColor.split(':');
+        return `<tr>
+          <td>${order.order_number ? order.order_number.toString().padStart(3, '0') : order.id.slice(-8)}</td>
+          <td>${new Date(order.created_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}</td>
+          <td>${empMap[order.employee_id] || 'N/A'}</td>
+          <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;background:${bg};color:${fg}">${paymentLabel(order.payment_method)}</span></td>
+          <td>${items}</td>
+          <td style="font-weight:bold">${formatCurrency(order.total)}</td>
+        </tr>`;
+      }).join('');
+
+      const printContent = `
+        <div style="font-family:Arial,sans-serif;max-width:210mm;margin:0 auto;padding:20px">
+          <div style="text-align:center;border-bottom:2px solid #333;padding-bottom:15px;margin-bottom:20px">
+            <h1 style="margin:0;font-size:24px;color:#333">LIN-Caisse</h1>
+            <p style="color:#666;margin:4px 0">${currentLanguage === 'fr' ? 'Historique Quotidien Global' : 'Historial Diario Global'}</p>
+            <p style="color:#444;font-weight:bold;margin:4px 0">${new Date(day.date + 'T12:00:00').toLocaleDateString(dateLocale, { weekday:'long', year:'numeric', month:'long', day:'numeric' })}</p>
+          </div>
+
+          <div style="display:flex;gap:15px;margin-bottom:20px;background:#f8f9fa;padding:15px;border-radius:8px">
+            <div style="flex:1;text-align:center">
+              <div style="font-size:20px;font-weight:bold;color:#333">${(orders || []).length}</div>
+              <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Commandes' : 'Pedidos'}</div>
+            </div>
+            <div style="flex:1;text-align:center">
+              <div style="font-size:20px;font-weight:bold;color:#166534">${formatCurrency(totalSales)}</div>
+              <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Total ventes' : 'Total ventas'}</div>
+            </div>
+            <div style="flex:1;text-align:center">
+              <div style="font-size:20px;font-weight:bold;color:#dc2626">${formatCurrency(day.totalWithdrawals)}</div>
+              <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Retraits' : 'Retiros'}</div>
+            </div>
+            <div style="flex:1;text-align:center">
+              <div style="font-size:20px;font-weight:bold;color:#1e40af">${formatCurrency(day.totalOpening + totalSales - day.totalWithdrawals)}</div>
+              <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Balance nette' : 'Balance neta'}</div>
+            </div>
+          </div>
+
+          <h3 style="font-size:14px;font-weight:bold;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:8px">
+            ${currentLanguage === 'fr' ? 'PAIEMENTS PAR MÉTHODE' : 'PAGOS POR MÉTODO'}
+          </h3>
+          <table style="width:100%;border-collapse:collapse;margin-bottom:20px;border:1px solid #ddd;border-radius:8px;overflow:hidden">
+            <thead><tr style="background:#f8f9fa">
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Méthode' : 'Método'}</th>
+              <th style="padding:8px 12px;text-align:center;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Nb ventes' : 'N° ventas'}</th>
+              <th style="padding:8px 12px;text-align:right;font-size:12px;color:#555">Total</th>
+              <th style="padding:8px 12px;text-align:right;font-size:12px;color:#555">%</th>
+            </tr></thead>
+            <tbody>${payBreakHtml}</tbody>
+          </table>
+
+          <h3 style="font-size:14px;font-weight:bold;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:8px">
+            ${currentLanguage === 'fr' ? 'DÉTAIL DES COMMANDES' : 'DETALLE DE PEDIDOS'}
+          </h3>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #ddd;border-radius:8px;overflow:hidden">
+            <thead><tr style="background:#f8f9fa">
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'N° Cmd' : 'N° Ped'}</th>
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Heure' : 'Hora'}</th>
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Employé' : 'Empleado'}</th>
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Paiement' : 'Pago'}</th>
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Articles' : 'Artículos'}</th>
+              <th style="padding:8px 12px;text-align:right;font-size:12px;color:#555">Total</th>
+            </tr></thead>
+            <tbody>${ordersHtml}
+              <tr style="background:#e9ecef;font-weight:bold">
+                <td colspan="5" style="padding:10px 12px;text-align:right">${currentLanguage === 'fr' ? 'TOTAL DU JOUR' : 'TOTAL DEL DÍA'}</td>
+                <td style="padding:10px 12px;text-align:right;font-size:15px">${formatCurrency(totalSales)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-top:40px;display:flex;justify-content:space-between">
+            <div style="width:200px;text-align:center;border-top:1px solid #333;padding-top:8px">
+              <p style="font-size:12px;color:#666">${currentLanguage === 'fr' ? 'Signature Employé' : 'Firma del Empleado'}</p>
+            </div>
+            <div style="width:200px;text-align:center;border-top:1px solid #333;padding-top:8px">
+              <p style="font-size:12px;color:#666">${currentLanguage === 'fr' ? 'Signature Admin' : 'Firma del Administrador'}</p>
+            </div>
+          </div>
+
+          <div style="margin-top:30px;text-align:center;border-top:1px solid #ddd;padding-top:15px;color:#888;font-size:11px">
+            <p>${currentLanguage === 'fr' ? 'Document officiel LIN-Caisse' : 'Documento oficial LIN-Caisse'}</p>
+            <p>${currentLanguage === 'fr' ? 'Généré le' : 'Generado el'} ${new Date().toLocaleString(dateLocale)}</p>
+          </div>
+        </div>`;
+
+      const win = window.open('', '', 'width=900,height=800');
+      if (win) {
+        win.document.write(`<html><head><title>${currentLanguage === 'fr' ? 'Rapport Journalier' : 'Reporte Diario'}</title><style>@media print{body{-webkit-print-color-adjust:exact}}</style></head><body>${printContent}</body></html>`);
+        win.document.close();
+        win.focus();
+        setTimeout(() => { win.print(); }, 300);
+      }
+    } catch (err) {
+      console.error('Error generating global daily report:', err);
     }
   };
 

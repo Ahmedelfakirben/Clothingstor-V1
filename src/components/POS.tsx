@@ -39,6 +39,9 @@ export function POS() {
   const [sizes, setSizes] = useState<ProductSize[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedSize, setSelectedSize] = useState<string>('all');
+  const [showSizeDropdown, setShowSizeDropdown] = useState(false);
+  const sizeDropdownRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   // Pagination state removed
@@ -117,6 +120,17 @@ export function POS() {
       fetchSizes(),
       fetchCustomers()
     ]).finally(() => setDataLoading(false));
+  }, []);
+
+  // Close size dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (sizeDropdownRef.current && !sizeDropdownRef.current.contains(e.target as Node)) {
+        setShowSizeDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const fetchCustomers = async () => {
@@ -311,6 +325,29 @@ export function POS() {
 
   const productSizes = (productId: string) => sizes.filter(s => s.product_id === productId);
 
+  // All distinct size names that currently have stock (for the filter pill list)
+  const availableSizeNames: string[] = [...new Set(
+    sizes
+      .filter(s => s.stock > 0)
+      .map(s => s.size_name)
+  )].sort((a, b) => {
+    // Try numeric sort first (XS < S < M < L < XL etc won't sort numerically, fallback to string)
+    const numA = parseFloat(a); const numB = parseFloat(b);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    const order = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+    const iA = order.indexOf(a.toUpperCase()); const iB = order.indexOf(b.toUpperCase());
+    if (iA !== -1 && iB !== -1) return iA - iB;
+    return a.localeCompare(b);
+  });
+
+  // Products visible after category AND size filters
+  const filteredProducts = products.filter(product => {
+    if (selectedSize === 'all') return true;
+    return sizes.some(
+      s => s.product_id === product.id && s.size_name === selectedSize && s.stock > 0
+    );
+  });
+
   // ... (handleCheckout logic remains) - RESTORING
   const handleCheckout = () => {
     if (cart.length === 0) {
@@ -340,6 +377,11 @@ export function POS() {
 
     if (amount > total) {
       toast.error(t('pos.amount_greater_total'));
+      return;
+    }
+
+    if (amount < total && !customerId) {
+      toast.error(t('Debe asignar un cliente para realizar un pago anticipado o parcial'));
       return;
     }
 
@@ -817,22 +859,67 @@ export function POS() {
     <div className="flex flex-col h-[calc(100vh-8rem)] bg-gray-50">
       {/* Filtros de categoría móvil */}
       {/* Sección de Categorías Móvil - Diseño Minimalista */}
-      <div className="bg-white border-b border-gray-200 px-3 py-4">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="bg-white border-b border-gray-200 px-3 py-3">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide items-center">
+          {/* Todos category */}
           <button
             onClick={() => setSelectedCategory('all')}
-            className={`px-6 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${selectedCategory === 'all'
+            className={`px-5 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 flex-shrink-0 ${selectedCategory === 'all'
               ? 'gradient-primary text-white shadow-md scale-105'
               : 'bg-gray-50 text-gray-700 border border-gray-200'
               }`}
           >
             {t('Todos')}
           </button>
+
+          {/* Size dropdown — next to Todos */}
+          {availableSizeNames.length > 0 && (
+            <div ref={sizeDropdownRef} className="relative flex-shrink-0">
+              <button
+                onClick={() => setShowSizeDropdown(p => !p)}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-200 ${
+                  selectedSize !== 'all'
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-md'
+                    : 'bg-gray-50 text-gray-700 border-gray-200'
+                }`}
+              >
+                <Tag className="w-3.5 h-3.5" />
+                {selectedSize !== 'all' ? selectedSize : (currentLanguage === 'fr' ? 'Taille' : 'Talla')}
+                <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${showSizeDropdown ? 'rotate-90' : ''}`} />
+              </button>
+              {showSizeDropdown && (
+                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-2 min-w-[12rem] max-h-60 overflow-y-auto">
+                  <button
+                    onClick={() => { setSelectedSize('all'); setShowSizeDropdown(false); }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      selectedSize === 'all' ? 'bg-amber-50 text-amber-700 font-bold' : 'hover:bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    {currentLanguage === 'fr' ? '✓ Toutes les tailles' : '✓ Todas las tallas'}
+                  </button>
+                  <div className="my-1 border-t border-gray-100" />
+                  {availableSizeNames.map(sn => (
+                    <button
+                      key={sn}
+                      onClick={() => { setSelectedSize(sn); setShowSizeDropdown(false); }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedSize === sn ? 'bg-amber-50 text-amber-700 font-bold' : 'hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      {selectedSize === sn ? '✓ ' : ''}{sn}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Rest of categories */}
           {categories.map(cat => (
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-6 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 ${selectedCategory === cat.id
+              className={`px-5 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300 flex-shrink-0 ${selectedCategory === cat.id
                 ? 'gradient-primary text-white shadow-md scale-105'
                 : 'bg-gray-50 text-gray-700 border border-gray-200'
                 }`}
@@ -846,7 +933,7 @@ export function POS() {
       {/* Lista de productos móvil */}
       <div className="flex-1 overflow-y-auto p-3">
         <div className="space-y-2">
-          {products.map(product => {
+          {filteredProducts.map(product => {
             const productSizesList = productSizes(product.id);
 
             const displayStock = productSizesList.length > 0
@@ -1084,8 +1171,9 @@ export function POS() {
           </div>
           {/* Sección de Categorías - Diseño Minimalista Moderno */}
           <div className="bg-white border-b border-gray-200">
-            <div className="max-w-7xl mx-auto px-8 py-6">
+            <div className="max-w-7xl mx-auto px-8 py-4">
               <div className="flex items-center justify-center gap-3 flex-wrap">
+                {/* Todos */}
                 <button
                   onClick={() => setSelectedCategory('all')}
                   className={`px-8 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300 ${selectedCategory === 'all'
@@ -1095,6 +1183,50 @@ export function POS() {
                 >
                   Todos
                 </button>
+
+                {/* Size dropdown — inline next to Todos */}
+                {availableSizeNames.length > 0 && (
+                  <div ref={sizeDropdownRef} className="relative">
+                    <button
+                      onClick={() => setShowSizeDropdown(p => !p)}
+                      className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm tracking-wide border transition-all duration-300 ${
+                        selectedSize !== 'all'
+                          ? 'bg-amber-500 text-white border-amber-500 shadow-md scale-105'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:shadow-md border-gray-200'
+                      }`}
+                    >
+                      <Tag className="w-4 h-4" />
+                      {selectedSize !== 'all' ? selectedSize : (currentLanguage === 'fr' ? 'Taille' : 'Talla')}
+                      <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${showSizeDropdown ? 'rotate-90' : ''}`} />
+                    </button>
+                    {showSizeDropdown && (
+                      <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 p-2 min-w-[11rem] max-h-72 overflow-y-auto">
+                        <button
+                          onClick={() => { setSelectedSize('all'); setShowSizeDropdown(false); }}
+                          className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors mb-1 ${
+                            selectedSize === 'all' ? 'bg-amber-50 text-amber-700' : 'hover:bg-gray-50 text-gray-600'
+                          }`}
+                        >
+                          {currentLanguage === 'fr' ? '✔ Toutes les tailles' : '✔ Todas las tallas'}
+                        </button>
+                        <div className="border-t border-gray-100 mb-1" />
+                        {availableSizeNames.map(sn => (
+                          <button
+                            key={sn}
+                            onClick={() => { setSelectedSize(sn); setShowSizeDropdown(false); }}
+                            className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                              selectedSize === sn ? 'bg-amber-50 text-amber-700' : 'hover:bg-gray-50 text-gray-700'
+                            }`}
+                          >
+                            {selectedSize === sn ? '✔ ' : ''}{sn}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Categories */}
                 {categories.map(cat => (
                   <button
                     key={cat.id}
@@ -1113,7 +1245,7 @@ export function POS() {
 
           <div className="flex-1 overflow-auto p-4">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {products.map(product => {
+              {filteredProducts.map(product => {
                 const productSizesList = productSizes(product.id);
 
                 const displayStock = productSizesList.length > 0
@@ -1708,19 +1840,21 @@ export function POS() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {t('Monto a Pagar (Anticipo)')}
               </label>
+              {!customerId && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
+                  <p className="text-sm text-orange-800 font-medium">
+                    ⚠️ {t('Asigne un cliente para permitir pagos parciales o anticipos.')}
+                  </p>
+                </div>
+              )}
               <div className="relative">
-                {/* Currency symbol can be part of formatCurrency, but inside input we often just show number. 
-                      Ideally we show the symbol outside or use a specialized input. 
-                      For now, I will remove the hardcoded '$' and rely on placeholder or use currency context if available. 
-                      The user mentioned currency is selectable in system. 
-                      I will replace the hardcoded $ span with a dynamic one from useCurrency hook if possible, or just remove it if it conflicts.
-                  */}
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">{formatCurrency(0).replace(/\d|[.,]/g, '').trim() || '$'}</span>
                 <input
                   type="number"
                   value={paymentAmount}
+                  disabled={!customerId}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="w-full pl-16 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none font-bold text-lg"
+                  className="w-full pl-16 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none font-bold text-lg disabled:opacity-60 disabled:cursor-not-allowed"
                   placeholder="0.00"
                 />
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2">
@@ -1732,13 +1866,14 @@ export function POS() {
                   </button>
                   <button
                     onClick={() => setPaymentAmount((total / 2).toFixed(2))}
-                    className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-bold text-gray-700 transition"
+                    disabled={!customerId}
+                    className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded-md font-bold text-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     50%
                   </button>
                 </div>
               </div>
-              {parseFloat(paymentAmount) < total && parseFloat(paymentAmount) > 0 && (
+              {parseFloat(paymentAmount) < total && parseFloat(paymentAmount) > 0 && customerId && (
                 <p className="text-sm text-orange-600 font-bold mt-2 flex items-center gap-1">
                   <div className="w-2 h-2 rounded-full bg-orange-500"></div>
                   Pendiente: {formatCurrency(total - parseFloat(paymentAmount || '0'))}
@@ -1837,14 +1972,14 @@ export function POS() {
 
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => processOrder('preparing', false)}
+                onClick={() => processOrder((pendingOrderData as any).paymentStatus === 'partial' ? 'preparing' : 'completed', false)}
                 disabled={loading}
                 className="px-6 py-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all font-bold text-gray-700 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? '...' : t('Después')}
               </button>
               <button
-                onClick={() => processOrder('completed', true)}
+                onClick={() => processOrder((pendingOrderData as any).paymentStatus === 'partial' ? 'preparing' : 'completed', true)}
                 disabled={loading}
                 className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-xl transition-all font-bold shadow-xl hover:shadow-2xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >

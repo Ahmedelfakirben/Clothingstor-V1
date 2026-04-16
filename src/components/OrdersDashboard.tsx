@@ -50,6 +50,8 @@ interface OrderItem {
   quantity: number;
   unit_price?: number;
   subtotal?: number;
+  product_id: string;
+  size_id?: string | null;
   products: {
     name: string;
   };
@@ -389,6 +391,8 @@ export function OrdersDashboard() {
           customers(name),
           order_items(
             id,
+            product_id,
+            size_id,
             quantity,
             unit_price,
             subtotal,
@@ -628,6 +632,27 @@ export function OrdersDashboard() {
         });
 
       if (insertError) throw insertError;
+
+      // Restablecer el stock de los productos cancelados
+      const stockRestorePromises = orderToDelete.order_items.map(async (item) => {
+        try {
+          if (item.size_id) {
+            await supabase.rpc('increment_product_size_stock', {
+              p_size_id: item.size_id,
+              p_quantity: item.quantity
+            });
+          } else if (item.product_id) {
+            await supabase.rpc('increment_product_stock', {
+              p_product_id: item.product_id,
+              p_quantity: item.quantity
+            });
+          }
+        } catch (err) {
+          console.error('Error restaurando stock para item:', item, err);
+        }
+      });
+
+      await Promise.all(stockRestorePromises);
 
       // Soft Delete: Marcar como cancelada en la tabla orders
       const { error: updateOrderError } = await supabase

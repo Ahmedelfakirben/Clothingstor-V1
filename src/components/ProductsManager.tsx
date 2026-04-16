@@ -9,6 +9,8 @@ import { LoadingSpinner } from './LoadingSpinner';
 import IndividualUnitsManager from './IndividualUnitsManager';
 import { BarcodeScanner } from './BarcodeScanner';
 import { ImageGalleryModal } from './ImageGalleryModal';
+import { History } from 'lucide-react';
+import ProductHistoryModal from './ProductHistoryModal';
 
 
 interface Category {
@@ -58,11 +60,14 @@ export function ProductsManager() {
   const { formatCurrency } = useCurrency();
   const { profile } = useAuth();
   const isCashier = profile?.role === 'cashier';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [sizes, setSizes] = useState<ProductSize[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showNewProduct, setShowNewProduct] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [selectedProductForHistory, setSelectedProductForHistory] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState<{
     name: string;
     description: string;
@@ -646,6 +651,7 @@ export function ProductsManager() {
         purchase_price: newProduct.purchase_price,
         available: newProduct.available ?? true,
         needs_validation: isCashier,
+        created_by: profile?.id,
       };
 
       // Solo agregar campos opcionales si tienen valor válido
@@ -1860,6 +1866,18 @@ export function ProductsManager() {
                   >
                     <Package className="w-5 h-5" />
                   </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setSelectedProductForHistory(product);
+                        setShowHistoryModal(true);
+                      }}
+                      className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors"
+                      title={t('Ver Historial del Producto')}
+                    >
+                      <History className="w-5 h-5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => startEditingProduct(product)}
                     className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
@@ -2155,6 +2173,18 @@ export function ProductsManager() {
                       >
                         <Package className="w-5 h-5" />
                       </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => {
+                            setSelectedProductForHistory(product);
+                            setShowHistoryModal(true);
+                          }}
+                          className="text-amber-600 hover:text-amber-800"
+                          title={t('Ver Historial del Producto')}
+                        >
+                          <History className="w-5 h-5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => startEditingProduct(product)}
                         className="text-blue-600 hover:text-blue-800"
@@ -2307,6 +2337,21 @@ export function ProductsManager() {
           galleryImages={galleryModalImages}
           title={galleryModalProduct.name}
           onClose={() => setGalleryModalOpen(false)}
+        />
+      )}
+      
+      {showHistoryModal && selectedProductForHistory && (
+        <ProductHistoryModal
+          productId={selectedProductForHistory.id}
+          productName={selectedProductForHistory.name}
+          currentStock={sizes.filter(s => s.product_id === selectedProductForHistory.id).length > 0
+            ? sizes.filter(s => s.product_id === selectedProductForHistory.id).reduce((sum, s) => sum + s.stock, 0)
+            : (selectedProductForHistory.stock || 0)
+          }
+          onClose={() => {
+            setShowHistoryModal(false);
+            setSelectedProductForHistory(null);
+          }}
         />
       )}
     </div>

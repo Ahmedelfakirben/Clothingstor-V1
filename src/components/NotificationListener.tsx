@@ -181,6 +181,16 @@ export function NotificationListener() {
                         // 3. Notificación nativa (Windows/Android)
                         sendSystemNotification(amount);
 
+                        // Enviar al navbar
+                        const event = new CustomEvent('global-new-notification', { 
+                            detail: { 
+                                id: Date.now().toString() + Math.random(), 
+                                amount, 
+                                createdAt: new Date().toISOString() 
+                            } 
+                        });
+                        window.dispatchEvent(event);
+
                         // 4. Parpadeo de título
                         startTitleBlinking(`💰 Venta: ${amount}`);
 
@@ -250,6 +260,17 @@ export function NotificationListener() {
             playNotificationSound();
             triggerVibration();
             sendSystemNotification(amount);
+            
+            // Enviar al navbar
+            const event = new CustomEvent('global-new-notification', { 
+                detail: { 
+                    id: Date.now().toString() + Math.random(), 
+                    amount, 
+                    createdAt: new Date().toISOString() 
+                } 
+            });
+            window.dispatchEvent(event);
+
             startTitleBlinking(`💰 Venta: ${amount}`);
 
             toast.custom((t) => (
