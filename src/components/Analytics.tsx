@@ -75,6 +75,7 @@ interface FinancialSummary {
   sales: number;
   expenses: number;
   cogs: number;
+  returns: number;
   profit: number;
   profit_margin: number;
 }
@@ -607,6 +608,7 @@ export function Analytics() {
           sales: totalSales, 
           expenses: totalExpenses, 
           cogs: finalCogs, 
+          returns: totalReturns,
           profit, 
           profit_margin: (totalSales - totalReturns) > 0 ? (profit / (totalSales - totalReturns)) * 100 : 0 
         };
@@ -660,6 +662,7 @@ export function Analytics() {
         sales: totalSales,
         expenses: totalExpenses,
         cogs: finalCogs,
+        returns: totalReturns,
         profit,
         profit_margin: (totalSales - totalReturns) > 0 ? (profit / (totalSales - totalReturns)) * 100 : 0,
       });
@@ -2603,6 +2606,10 @@ export function Analytics() {
               <div className="flex justify-between">
                 <span className="text-sm text-gray-600">{t('Costo (Productos):')}</span>
                 <span className="font-semibold text-amber-600">{formatCurrency(customSummary.cogs)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-sm text-gray-600">{t('Devoluciones:')}</span>
+                <span className="font-semibold text-orange-600">-{formatCurrency(customSummary.returns)}</span>
               </div>
               <div className="flex justify-between border-t pt-2">
                 <span className="text-sm font-medium text-gray-900">{t('Beneficio:')}</span>
