@@ -1415,7 +1415,7 @@ export function Analytics() {
     }
   };
 
-  const generateMonthlyReport = async (monthlySummary: FinancialSummary, monthStart?: Date, monthEnd?: Date) => {
+  const generateMonthlyReport = async (summary: FinancialSummary, monthStart?: Date, monthEnd?: Date) => {
     try {
       toast.loading(t('reports.generating_monthly'), { id: 'monthly-report' });
 
@@ -1612,16 +1612,16 @@ export function Analytics() {
         [t('reports.monthly_financial_summary')],
         [''],
         [t('reports.indicator'), t('reports.value'), t('reports.detail'), t('reports.trend')],
-        [t('reports.total_sales'), formatCurrency(monthlySummary.sales), t('reports.gross_income_month'), '📈'],
+        [t('reports.total_sales'), formatCurrency(summary.sales), t('reports.gross_income_month'), '📈'],
         [t('reports.total_expenses'), formatCurrency(summary.expenses), `${expenses?.length || 0} ${t('reports.expenses_registered')}`, '📉'],
         [(currentLanguage as string) === 'fr' ? 'Retours / Remboursements' : 'Devoluciones / Reembolsos', formatCurrency((returns || []).reduce((s, r) => s + (r.total_refund || 0), 0)), `${(returns || []).length} ${t('reports.returns_registered') || 'devoluciones'}`, '🔄'],
-        [(currentLanguage as string) === 'fr' ? 'Coût des Produits (COGS)' : 'Costo de Productos (COGS)', formatCurrency(summary.cogs), (currentLanguage as string) === 'fr' ? "Prix d'achat des articles vendus (ajusté)" : 'Precio de compra de artículos vendidos (ajustado)', '🏷️'],
+        [(currentLanguage as string) === 'fr' ? 'Coût des Productos (COGS)' : 'Costo de Productos (COGS)', formatCurrency(summary.cogs), (currentLanguage as string) === 'fr' ? "Prix d'achat des articles vendus (ajusté)" : 'Precio de compra de artículos vendidos (ajustado)', '🏷️'],
         [t('reports.net_profit'), formatCurrency(summary.profit), t('reports.sales_minus_expenses'), '🎯'],
-        [t('reports.profit_margin'), `${monthlySummary.profit_margin.toFixed(2)}%`, t('reports.monthly_operational_efficiency'), '⭐'],
+        [t('reports.profit_margin'), `${summary.profit_margin.toFixed(2)}%`, t('reports.monthly_operational_efficiency'), '⭐'],
         [t('reports.operation_days'), new Set(Object.values(dailySessions).map((emp: any) => emp.date)).size, t('reports.days_with_activity'), '🗓️'],
         [t('reports.active_employees'), Object.keys(dailySessions).length, t('reports.with_sessions_this_month'), '👥'],
         [t('reports.total_sessions'), Object.values(dailySessions).reduce((sum: number, emp: any) => sum + emp.sessions.length, 0), t('reports.cash_openings'), '💼'],
-        [t('reports.daily_average'), formatCurrency(monthlySummary.sales / new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()), t('reports.average_sales_per_day'), '📅'],
+        [t('reports.daily_average'), formatCurrency(summary.sales / new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()), t('reports.average_sales_per_day'), '📅'],
         [''],
         [(currentLanguage as string) === 'fr' ? '━━ PAIEMENTS PAR MÉTHODE ━━' : '━━ PAGOS POR MÉTODO ━━', '', '', ''],
         [(currentLanguage as string) === 'fr' ? 'Méthode' : 'Método', (currentLanguage as string) === 'fr' ? 'Nombre de ventes' : 'N° de ventas', 'Total', '%'],
@@ -1629,7 +1629,7 @@ export function Analytics() {
           paymentLabel(method),
           data.count,
           formatCurrency(data.total),
-          monthlySummary.sales > 0 ? `${((data.total / monthlySummary.sales) * 100).toFixed(1)}%` : '0%'
+          summary.sales > 0 ? `${((data.total / summary.sales) * 100).toFixed(1)}%` : '0%'
         ])
       ];
 
@@ -1796,13 +1796,13 @@ export function Analytics() {
           paymentLabel(method),
           data.count,
           formatCurrency(data.total),
-          monthlySummary.sales > 0 ? `${((data.total / monthlySummary.sales) * 100).toFixed(1)}%` : '0%'
+          summary.sales > 0 ? `${((data.total / summary.sales) * 100).toFixed(1)}%` : '0%'
         ]),
         [''],
         [
           (currentLanguage as string) === 'fr' ? 'TOTAL' : 'TOTAL',
           (orders || []).length,
-          formatCurrency(monthlySummary.sales),
+          formatCurrency(summary.sales),
           '100%'
         ]
       ];
