@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Building2, MapPin, Phone, Save, AlertCircle } from 'lucide-react';
+import { Building2, MapPin, Phone, Save, AlertCircle, Instagram } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
@@ -10,6 +10,7 @@ interface CompanySettings {
   company_name: string;
   address: string;
   phone: string;
+  instagram_link?: string;
   language?: 'es' | 'fr';
 }
 
@@ -146,6 +147,7 @@ export function CompanySettings() {
         company_name: settings.company_name.trim(),
         address: settings.address ? settings.address.trim() : null,
         phone: settings.phone ? settings.phone.trim() : null,
+        instagram_link: settings.instagram_link ? settings.instagram_link.trim() : null,
       };
 
       console.log('💾 COMPANY SETTINGS: Saving company settings:', settingsData);
@@ -353,6 +355,22 @@ export function CompanySettings() {
               placeholder="Ej: +34 000 000 000"
             />
             <p className="text-xs text-gray-500 mt-1">{t('Número de contacto para clientes')}</p>
+          </div>
+
+          {/* Instagram */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+              <Instagram className="w-4 h-4 text-gray-500" />
+              {t('Enlace de Instagram')}
+            </label>
+            <input
+              type="url"
+              value={settings.instagram_link || ''}
+              onChange={(e) => setSettings({ ...settings, instagram_link: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Ej: https://www.instagram.com/tu_tienda"
+            />
+            <p className="text-xs text-gray-500 mt-1">{t('Enlace directo a tu perfil de Instagram')}</p>
           </div>
         </div>
 
