@@ -2449,9 +2449,9 @@ export function ProductsManager() {
 
       {galleryModalOpen && galleryModalProduct && (
         <ImageGalleryModal
-          mainImage={galleryModalProduct.image_url}
+          product={galleryModalProduct as any}
+          productSizes={sizes.filter(s => s.product_id === galleryModalProduct.id) as any}
           galleryImages={galleryModalImages}
-          title={galleryModalProduct.name}
           onClose={() => setGalleryModalOpen(false)}
         />
       )}

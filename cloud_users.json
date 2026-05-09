@@ -1,0 +1,344 @@
+[
+  {
+    "id": "3cc1f239-4959-4da7-a71e-d1df4c09fc7c",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "malak2@gmail.com",
+    "email_confirmed_at": "2026-04-18T09:17:31.979131Z",
+    "phone": "",
+    "confirmed_at": "2026-04-18T09:17:31.979131Z",
+    "last_sign_in_at": "2026-05-07T10:33:02.689835Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "malak2@gmail.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "3cc1f239-4959-4da7-a71e-d1df4c09fc7c"
+    },
+    "identities": null,
+    "created_at": "2026-04-18T09:17:31.939682Z",
+    "updated_at": "2026-05-07T15:18:11.854517Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "2a7c431f-c532-4057-ac89-07a87019337d",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "malak1@gmail.com",
+    "email_confirmed_at": "2026-04-18T09:03:53.671389Z",
+    "phone": "",
+    "confirmed_at": "2026-04-18T09:03:53.671389Z",
+    "last_sign_in_at": "2026-05-07T15:21:29.113511Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "malak1@gmail.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "2a7c431f-c532-4057-ac89-07a87019337d"
+    },
+    "identities": null,
+    "created_at": "2026-04-18T09:03:53.607135Z",
+    "updated_at": "2026-05-07T20:13:52.42301Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "8dc390b6-26f8-4586-95c7-1f22ee8f7653",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "test3@elfakir.com",
+    "email_confirmed_at": "2026-03-28T14:16:13.193538Z",
+    "phone": "",
+    "confirmed_at": "2026-03-28T14:16:13.193538Z",
+    "last_sign_in_at": "2026-03-28T21:12:37.906705Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "test3@elfakir.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "8dc390b6-26f8-4586-95c7-1f22ee8f7653"
+    },
+    "identities": null,
+    "created_at": "2026-03-28T14:16:13.141758Z",
+    "updated_at": "2026-03-28T21:12:37.90892Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "c37145a1-3cb2-4561-8f57-822f8c1deb3b",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "fatimaharrouss@gmail.com",
+    "email_confirmed_at": "2026-03-14T13:16:33.54414Z",
+    "phone": "",
+    "confirmed_at": "2026-03-14T13:16:33.54414Z",
+    "last_sign_in_at": "2026-04-05T10:37:11.809873Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "fatimaharrouss@gmail.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "c37145a1-3cb2-4561-8f57-822f8c1deb3b"
+    },
+    "identities": null,
+    "created_at": "2026-03-14T13:16:33.488852Z",
+    "updated_at": "2026-04-05T14:31:44.844105Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "0a1c26df-e42c-4470-9b5d-7ea895a12ae2",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "fatimaharrouss06@gmail.com",
+    "email_confirmed_at": "2026-03-13T22:28:33.458994Z",
+    "phone": "",
+    "confirmed_at": "2026-03-13T22:28:33.458994Z",
+    "last_sign_in_at": "2026-03-13T22:28:33.468858Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "fatimaharrouss06@gmail.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "0a1c26df-e42c-4470-9b5d-7ea895a12ae2"
+    },
+    "identities": null,
+    "created_at": "2026-03-13T22:28:33.418868Z",
+    "updated_at": "2026-03-13T22:28:33.476289Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "b174a18e-ac85-47ec-a367-878c0a26d9ee",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "test2@elfakir.com",
+    "email_confirmed_at": "2026-03-08T22:53:31.972831Z",
+    "phone": "",
+    "confirmed_at": "2026-03-08T22:53:31.972831Z",
+    "last_sign_in_at": "2026-03-08T22:53:47.851066Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "test2@elfakir.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "b174a18e-ac85-47ec-a367-878c0a26d9ee"
+    },
+    "identities": null,
+    "created_at": "2026-03-08T22:53:31.930662Z",
+    "updated_at": "2026-03-08T22:53:47.915059Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "4eeaa125-2124-410f-9ddd-a83b7827421c",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "test@elfakir.com",
+    "email_confirmed_at": "2026-03-06T22:07:24.548621Z",
+    "phone": "",
+    "confirmed_at": "2026-03-06T22:07:24.548621Z",
+    "last_sign_in_at": "2026-03-06T22:07:24.55979Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "test@elfakir.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "4eeaa125-2124-410f-9ddd-a83b7827421c"
+    },
+    "identities": null,
+    "created_at": "2026-03-06T22:07:24.512609Z",
+    "updated_at": "2026-03-06T22:07:24.599429Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "c1c04753-952e-4183-9785-16b61f28adac",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "fadoua1@gmail.com",
+    "email_confirmed_at": "2026-03-03T17:04:15.524349Z",
+    "phone": "",
+    "confirmed_at": "2026-03-03T17:04:15.524349Z",
+    "last_sign_in_at": "2026-04-09T10:31:16.632433Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "fadoua1@gmail.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "c1c04753-952e-4183-9785-16b61f28adac"
+    },
+    "identities": null,
+    "created_at": "2026-03-03T17:04:15.449226Z",
+    "updated_at": "2026-04-17T19:51:21.512722Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "3c759b9a-c5de-4ea4-8782-f9f159f226bc",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "fatinelaoula@outlook.fr",
+    "email_confirmed_at": "2026-03-01T22:22:12.514528Z",
+    "phone": "",
+    "confirmed_at": "2026-03-01T22:22:12.514528Z",
+    "last_sign_in_at": "2026-03-01T22:22:28.674997Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "fatinelaoula@outlook.fr",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "3c759b9a-c5de-4ea4-8782-f9f159f226bc"
+    },
+    "identities": null,
+    "created_at": "2026-03-01T22:22:12.463657Z",
+    "updated_at": "2026-03-01T22:25:55.304739Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "6c0b5727-5c9b-4209-9448-eaf1c4e4e969",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "caisse@shoppingbylina.com",
+    "email_confirmed_at": "2026-01-16T12:55:47.721112Z",
+    "phone": "",
+    "confirmed_at": "2026-01-16T12:55:47.721112Z",
+    "last_sign_in_at": "2026-01-16T12:55:47.733693Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "caisse@shoppingbylina.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "6c0b5727-5c9b-4209-9448-eaf1c4e4e969"
+    },
+    "identities": null,
+    "created_at": "2026-01-16T12:55:47.689063Z",
+    "updated_at": "2026-01-16T12:55:47.742314Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "aa076616-cc7c-491a-8981-169c269b96cb",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "ahmedelfakirben@gmail.com",
+    "email_confirmed_at": "2026-01-01T14:05:43.135136Z",
+    "phone": "",
+    "confirmed_at": "2026-01-01T14:05:43.135136Z",
+    "last_sign_in_at": "2026-05-02T20:19:53.155126Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email",
+        "google"
+      ]
+    },
+    "user_metadata": {
+      "avatar_url": "https://lh3.googleusercontent.com/a/ACg8ocKIYBPHpYOIK6Yb61neOpH1JMY3Qdv5rW8kajklkCJ-FquqcQ=s96-c",
+      "email": "ahmedelfakirben@gmail.com",
+      "email_verified": true,
+      "full_name": "El Fakir Ahmed",
+      "iss": "https://accounts.google.com",
+      "name": "El Fakir Ahmed",
+      "phone_verified": false,
+      "picture": "https://lh3.googleusercontent.com/a/ACg8ocKIYBPHpYOIK6Yb61neOpH1JMY3Qdv5rW8kajklkCJ-FquqcQ=s96-c",
+      "provider_id": "105235506975577706903",
+      "sub": "105235506975577706903"
+    },
+    "identities": null,
+    "created_at": "2026-01-01T14:05:43.074775Z",
+    "updated_at": "2026-05-02T22:49:39.17394Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "ac91e159-63ba-4d1b-8ce9-c23c4f00da0e",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "admin1@elfakir.com",
+    "email_confirmed_at": "2025-12-24T16:33:58.955258Z",
+    "phone": "",
+    "confirmed_at": "2025-12-24T16:33:58.955258Z",
+    "last_sign_in_at": "2026-04-23T08:43:26.709081Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email": "admin1@elfakir.com",
+      "email_verified": true,
+      "phone_verified": false,
+      "sub": "ac91e159-63ba-4d1b-8ce9-c23c4f00da0e"
+    },
+    "identities": null,
+    "created_at": "2025-12-24T16:33:58.932467Z",
+    "updated_at": "2026-05-07T20:23:49.931271Z",
+    "is_anonymous": false
+  },
+  {
+    "id": "9ba834ce-1eff-4e2c-bf4a-a2275f91c129",
+    "aud": "authenticated",
+    "role": "authenticated",
+    "email": "admin@elfakir.com",
+    "email_confirmed_at": "2025-12-15T14:20:31.819238Z",
+    "phone": "",
+    "confirmed_at": "2025-12-15T14:20:31.819238Z",
+    "last_sign_in_at": "2026-05-02T19:15:59.430249Z",
+    "app_metadata": {
+      "provider": "email",
+      "providers": [
+        "email"
+      ]
+    },
+    "user_metadata": {
+      "email_verified": true
+    },
+    "identities": null,
+    "created_at": "2025-12-15T14:20:31.780552Z",
+    "updated_at": "2026-05-07T21:38:39.952786Z",
+    "is_anonymous": false
+  }
+]

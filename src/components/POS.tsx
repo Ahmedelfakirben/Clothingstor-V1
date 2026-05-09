@@ -2082,9 +2082,9 @@ export function POS() {
 
       {galleryModalOpen && galleryModalProduct && (
         <ImageGalleryModal
-          mainImage={galleryModalProduct.image_url}
+          product={galleryModalProduct}
+          productSizes={sizes.filter(s => s.product_id === galleryModalProduct.id)}
           galleryImages={galleryModalImages}
-          title={galleryModalProduct.name}
           onClose={() => setGalleryModalOpen(false)}
         />
       )}
