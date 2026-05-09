@@ -236,18 +236,26 @@ export function CashRegisterDashboard() {
 
         const totalSales = (todayOrders || []).reduce((sum, o) => sum + Number(o.total), 0);
 
-        // C. Total Withdrawals Today (Linked to today's sessions or just globally today?)
-        // Ideally linked to sessions opened today, or created_at today. 
-        // Let's use created_at for global consistency.
+        // C. Total Withdrawals Today
         const { data: todayWithdrawals } = await supabase
           .from('cash_withdrawals')
-          .select('amount')
+          .select('amount, reason')
           .gte('created_at', todayCommon)
           .lte('created_at', todayCommon + 'T23:59:59');
 
-        const totalWithdrawals = (todayWithdrawals || []).reduce((sum, w) => sum + Number(w.amount), 0);
+        let totalWithdrawals = 0;
+        let totalReturns = 0;
 
-        const globalDailyBalance = totalOpenings + totalSales - totalWithdrawals;
+        (todayWithdrawals || []).forEach(w => {
+          const isReturn = w.reason?.toLowerCase().includes('retour') || w.reason?.toLowerCase().includes('devolución');
+          if (isReturn) {
+            totalReturns += Number(w.amount);
+          } else {
+            totalWithdrawals += Number(w.amount);
+          }
+        });
+
+        const globalDailyBalance = totalOpenings + totalSales - totalWithdrawals - totalReturns;
 
         setCurrentCashStatus({
           currentAmount: globalDailyBalance,
@@ -313,12 +321,22 @@ export function CashRegisterDashboard() {
         // 2. Fetch withdrawals for this session
         const { data: withdrawals } = await supabase
           .from('cash_withdrawals')
-          .select('amount')
+          .select('amount, reason')
           .eq('session_id', latestSession.id);
 
-        const currentWithdrawals = (withdrawals || []).reduce((sum, w) => sum + w.amount, 0);
+        let currentWithdrawals = 0;
+        let currentReturns = 0;
 
-        const realTimeBalance = (latestSession.opening_amount || 0) + currentSales - currentWithdrawals;
+        (withdrawals || []).forEach(w => {
+          const isReturn = w.reason?.toLowerCase().includes('retour') || w.reason?.toLowerCase().includes('devolución');
+          if (isReturn) {
+            currentReturns += w.amount || 0;
+          } else {
+            currentWithdrawals += w.amount || 0;
+          }
+        });
+
+        const realTimeBalance = (latestSession.opening_amount || 0) + currentSales - currentWithdrawals - currentReturns;
 
         setCurrentCashStatus({
           currentAmount: realTimeBalance,
@@ -398,18 +416,32 @@ export function CashRegisterDashboard() {
 
       dayData.totalSales = (orders || []).reduce((sum, order) => sum + order.total, 0);
 
-      // Obtener retiros del día
-      const sessionIds = dayData.sessions.map((s: CashSession) => s.id);
+      // Obtener retiros del día (incluyendo los no vinculados a sesión pero del mismo empleado)
       const { data: dayWithdrawals } = await supabase
         .from('cash_withdrawals')
-        .select('amount')
-        .in('session_id', sessionIds);
+        .select('amount, reason')
+        .eq('withdrawn_by', dayData.employee_id)
+        .gte('withdrawn_at', startOfDay.toISOString())
+        .lte('withdrawn_at', endOfDay.toISOString());
 
-      dayData.totalWithdrawals = (dayWithdrawals || []).reduce((sum, w) => sum + w.amount, 0);
+      dayData.totalWithdrawals = 0;
+      dayData.totalReturns = 0;
+
+      (dayWithdrawals || []).forEach(w => {
+        const isReturn = w.reason?.toLowerCase().includes('retour') || w.reason?.toLowerCase().includes('devolución');
+        if (isReturn) {
+          dayData.totalReturns += w.amount || 0;
+        } else {
+          dayData.totalWithdrawals += w.amount || 0;
+        }
+      });
+
+      // Also fetch from order_returns to be sure (optional if withdrawals are 1:1)
+      // Since POS does both, counting withdrawals is enough for the BALANCE.
 
       // Calcular cierre esperado y diferencia
-      // Cierre esperado = Apertura + Ventas - Retiros
-      dayData.expectedClosing = dayData.totalOpening + dayData.totalSales - dayData.totalWithdrawals;
+      // Cierre esperado = Apertura + Ventas - Retiros - Devoluciones
+      dayData.expectedClosing = dayData.totalOpening + dayData.totalSales - dayData.totalWithdrawals - dayData.totalReturns;
       // Diferencia = Cierre Real - Cierre Esperado
       dayData.difference = dayData.totalClosing - dayData.expectedClosing;
     }
@@ -452,6 +484,18 @@ export function CashRegisterDashboard() {
         .eq('status', 'completed');
 
       if (error) throw error;
+
+      // Fetch returns for the entire day
+      const { data: dayReturns } = await supabase
+        .from('order_returns')
+        .select(`
+          id, total_refund, quantity_returned, reason, created_at,
+          products(name),
+          product_sizes(size_name)
+        `)
+        .eq('employee_id', day.employee_id)
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString());
 
       // Calculate order totals
       const orderTotal = (orders || []).reduce((sum, order) => sum + order.total, 0);
@@ -524,6 +568,10 @@ export function CashRegisterDashboard() {
               <span>${t('Balance del Día')}</span>
             </div>
             <div class="summary-item">
+              <strong style="color:#f59e0b">${formatCurrency(day.totalReturns)}</strong>
+              <span>${currentLanguage === 'fr' ? 'Retours' : 'Devoluciones'}</span>
+            </div>
+            <div class="summary-item">
               <strong>${day.sessions.length}</strong>
               <span>${t('Sesiones de Caja')}</span>
             </div>
@@ -566,6 +614,33 @@ export function CashRegisterDashboard() {
                     <td>${session.closed_at ? t('Cerrada') : t('Abierta')}</td>
                   </tr>
                 `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section-title">${currentLanguage === 'fr' ? 'DÉTAIL DES RETOURS' : 'DETALLE DE DEVOLUCIONES'}</div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>${currentLanguage === 'fr' ? 'Produit' : 'Producto'}</th>
+                  <th style="text-align:center">${currentLanguage === 'fr' ? 'Cant.' : 'Cant.'}</th>
+                  <th style="text-align:right">${currentLanguage === 'fr' ? 'Remboursement' : 'Reembolso'}</th>
+                  <th>${currentLanguage === 'fr' ? 'Raison' : 'Razón'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(dayReturns || []).length > 0 ? dayReturns?.map((ret: any) => `
+                  <tr>
+                    <td>${ret.products?.name || 'N/A'}${ret.product_sizes?.size_name ? ` (${ret.product_sizes.size_name})` : ''}</td>
+                    <td style="text-align:center">${ret.quantity_returned}</td>
+                    <td style="text-align:right;font-weight:bold;color:#dc2626">${formatCurrency(ret.total_refund)}</td>
+                    <td>${ret.reason || '-'}</td>
+                  </tr>
+                `).join('') : `<tr><td colspan="4" style="text-align:center;padding:10px;color:#888">${currentLanguage === 'fr' ? 'Aucun retour' : 'Sin devoluciones'}</td></tr>`}
+              </tbody>
+            </table>
+          </div>
               </tbody>
             </table>
           </div>
@@ -962,6 +1037,9 @@ export function CashRegisterDashboard() {
                     {t('Retiros')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    {currentLanguage === 'fr' ? 'Retours' : 'Devoluciones'}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     {t('Cierre Esperado')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -996,8 +1074,11 @@ export function CashRegisterDashboard() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
                       {formatCurrency(day.totalSales || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-orange-600">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-red-600">
                       {formatCurrency(day.totalWithdrawals || 0)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-orange-600">
+                      {formatCurrency(day.totalReturns || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                       {formatCurrency(day.expectedClosing || 0)}
@@ -1174,8 +1255,14 @@ function DailyHistorySection() {
       // 3. Fetch Withdrawals
       const { data: withdrawals } = await supabase
         .from('cash_withdrawals')
-        .select('id, amount, withdrawn_at')
+        .select('id, amount, withdrawn_at, reason')
         .gte('withdrawn_at', dateStr);
+
+      // 4. Fetch Returns (Directly)
+      const { data: returns } = await supabase
+        .from('order_returns')
+        .select('id, total_refund, created_at')
+        .gte('created_at', dateStr);
 
       // Aggregate by Date
       const dateMap = new Map();
@@ -1190,6 +1277,8 @@ function DailyHistorySection() {
             salesCount: 0,
             totalSales: 0,
             totalWithdrawals: 0,
+            totalReturns: 0,
+            returnsCount: 0,
             sessionsCount: 0
           });
         }
@@ -1214,7 +1303,24 @@ function DailyHistorySection() {
       (withdrawals || []).forEach(w => {
         const d = new Date(w.withdrawn_at).toLocaleDateString('en-CA');
         const entry = getEntry(d);
-        entry.totalWithdrawals += w.amount || 0;
+        // We only add to totalWithdrawals if it's NOT a return, 
+        // because we will handle returns separately for clarity, 
+        // OR we can keep them in withdrawals but show them separately.
+        // The user says "returns don't show up", likely they want a separate line.
+        
+        // Check if this withdrawal is a return based on common reason patterns
+        const isReturn = w.reason?.toLowerCase().includes('retour') || w.reason?.toLowerCase().includes('devolución');
+        
+        if (!isReturn) {
+          entry.totalWithdrawals += w.amount || 0;
+        }
+      });
+
+      (returns || []).forEach(r => {
+        const d = new Date(r.created_at).toLocaleDateString('en-CA');
+        const entry = getEntry(d);
+        entry.totalReturns += r.total_refund || 0;
+        entry.returnsCount++;
       });
 
       const sortedHistory = Array.from(dateMap.values())
@@ -1259,6 +1365,17 @@ function DailyHistorySection() {
         .lte('created_at', endOfDay.toISOString())
         .eq('status', 'completed')
         .order('created_at', { ascending: true });
+
+      // Fetch all returns of the day
+      const { data: dayReturns } = await supabase
+        .from('order_returns')
+        .select(`
+          id, total_refund, quantity_returned, reason,
+          products(name),
+          product_sizes(size_name)
+        `)
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString());
 
       // Fetch employee names
       const empIds = [...new Set((orders || []).map((o: any) => o.employee_id).filter(Boolean))];
@@ -1305,6 +1422,17 @@ function DailyHistorySection() {
         </tr>`;
       }).join('');
 
+      const returnsHtml = (dayReturns || []).map((ret: any) => {
+        const pName = ret.products?.name || t('Producto');
+        const sName = ret.product_sizes?.size_name;
+        return `<tr>
+          <td>${pName}${sName ? ` (${sName})` : ''}</td>
+          <td style="text-align:center">${ret.quantity_returned}</td>
+          <td style="text-align:right;font-weight:bold;color:#dc2626">${formatCurrency(ret.total_refund)}</td>
+          <td>${ret.reason || '-'}</td>
+        </tr>`;
+      }).join('');
+
       const printContent = `
         <div style="font-family:Arial,sans-serif;max-width:210mm;margin:0 auto;padding:20px">
           <div style="text-align:center;border-bottom:2px solid #333;padding-bottom:15px;margin-bottom:20px">
@@ -1327,7 +1455,11 @@ function DailyHistorySection() {
               <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Retraits' : 'Retiros'}</div>
             </div>
             <div style="flex:1;text-align:center">
-              <div style="font-size:20px;font-weight:bold;color:#1e40af">${formatCurrency(day.totalOpening + totalSales - day.totalWithdrawals)}</div>
+              <div style="font-size:20px;font-weight:bold;color:#f59e0b">${formatCurrency(day.totalReturns)}</div>
+              <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Retours' : 'Devoluciones'}</div>
+            </div>
+            <div style="flex:1;text-align:center">
+              <div style="font-size:20px;font-weight:bold;color:#1e40af">${formatCurrency(day.totalOpening + totalSales - day.totalWithdrawals - day.totalReturns)}</div>
               <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Balance nette' : 'Balance neta'}</div>
             </div>
           </div>
@@ -1362,6 +1494,21 @@ function DailyHistorySection() {
                 <td colspan="5" style="padding:10px 12px;text-align:right">${currentLanguage === 'fr' ? 'TOTAL DU JOUR' : 'TOTAL DEL DÍA'}</td>
                 <td style="padding:10px 12px;text-align:right;font-size:15px">${formatCurrency(totalSales)}</td>
               </tr>
+            </tbody>
+          </table>
+
+          <h3 style="font-size:14px;font-weight:bold;color:#333;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:8px">
+            ${currentLanguage === 'fr' ? 'DÉTAIL DES RETOURS' : 'DETALLE DE DEVOLUCIONES'}
+          </h3>
+          <table style="width:100%;border-collapse:collapse;border:1px solid #ddd;border-radius:8px;overflow:hidden;margin-bottom:20px">
+            <thead><tr style="background:#f8f9fa">
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Produit' : 'Producto'}</th>
+              <th style="padding:8px 12px;text-align:center;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Cant.' : 'Cant.'}</th>
+              <th style="padding:8px 12px;text-align:right;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Remboursement' : 'Reembolso'}</th>
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Raison' : 'Razón'}</th>
+            </tr></thead>
+            <tbody>
+              ${returnsHtml || `<tr><td colspan="4" style="padding:10px;text-align:center;color:#888;font-size:12px">${currentLanguage === 'fr' ? 'Aucun retour' : 'Sin devoluciones'}</td></tr>`}
             </tbody>
           </table>
 
@@ -1410,6 +1557,7 @@ function DailyHistorySection() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('cash.total_openings_sum')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('cash.total_sales_sum')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('cash.total_withdrawals_sum')}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{currentLanguage === 'fr' ? 'Retours' : 'Devoluciones'}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('cash.theoretical_balance')}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Acciones')}</th>
             </tr>
@@ -1428,7 +1576,8 @@ function DailyHistorySection() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatCurrency(day.totalOpening)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">{formatCurrency(day.totalSales)} <span className="text-xs text-gray-400">({day.salesCount})</span></td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">{formatCurrency(day.totalWithdrawals)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{formatCurrency(day.totalOpening + day.totalSales - day.totalWithdrawals)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600">{formatCurrency(day.totalReturns)} <span className="text-xs text-gray-400">({day.returnsCount})</span></td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{formatCurrency(day.totalOpening + day.totalSales - day.totalWithdrawals - day.totalReturns)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <button
                       onClick={() => printSummary(day)}

@@ -44,7 +44,10 @@ export function POS() {
   const sizeDropdownRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
-  // Pagination state removed
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [productSearch, setProductSearch] = useState('');
+  const ITEMS_PER_PAGE = 20;
   const [error, setError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<string>(''); // For partial payments
@@ -269,33 +272,53 @@ export function POS() {
   };
 
   const fetchInitialProducts = async () => {
-    await fetchProducts();
+    await fetchProducts(1);
   };
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (page = currentPage, search = productSearch) => {
     try {
-      let query = supabase
-        .from('products')
-        .select('*')
-        .eq('available', true)
-        // .gt('stock', 0) // ELIMINADO para ver productos con stock en tallas
-        .order('name');
+      setLoading(true);
+      
+      let query = selectedSize !== 'all'
+        ? supabase.from('products').select('*, product_sizes!inner(*)', { count: 'exact' })
+        : supabase.from('products').select('*, product_sizes(*)', { count: 'exact' });
+
+      query = query.eq('available', true);
 
       if (selectedCategory !== 'all') {
         query = query.eq('category_id', selectedCategory);
       }
 
-      const { data, error } = await query;
+      if (selectedSize !== 'all') {
+        query = query.eq('product_sizes.size_name', selectedSize);
+      }
+
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,barcode.ilike.%${search}%,brand.ilike.%${search}%`);
+      }
+
+      query = query.order('name');
+
+      const from = (page - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+
+      const { data, count, error } = await query.range(from, to);
 
       if (error) throw error;
 
       if (data) {
         setProducts(data);
+        setTotalProducts(count || 0);
+        
+        const allSizes = data.flatMap((p: any) => p.product_sizes || []);
+        setSizes(allSizes);
       }
     } catch (err) {
       console.error('Error fetching products:', err);
       toast.error(t('pos.error_loading_products'));
       setError(t('pos.error_loading_products'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -314,14 +337,20 @@ export function POS() {
     }
   };
 
-  // Cargar productos y categorías iniciales
-  useEffect(() => {
-    fetchCategories();
-    fetchSizes(); // Asegurar carga de tallas para calcular stock correcto
-    fetchInitialProducts();
-  }, [selectedCategory]);
 
-  // handleLoadMore removed
+  // Refresh products when filters or search change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCurrentPage(1);
+      fetchProducts(1, productSearch);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [selectedCategory, selectedSize, productSearch]);
+
+  // Handle page changes
+  useEffect(() => {
+    fetchProducts(currentPage, productSearch);
+  }, [currentPage]);
 
   const productSizes = (productId: string) => sizes.filter(s => s.product_id === productId);
 
@@ -1155,7 +1184,10 @@ export function POS() {
                   ref={barcodeInputRef}
                   type="text"
                   value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  onChange={(e) => {
+                    setBarcodeInput(e.target.value);
+                    setProductSearch(e.target.value);
+                  }}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none"
                   placeholder={t('Escanear código de barras o escribir...')}
                   autoFocus
@@ -1245,7 +1277,7 @@ export function POS() {
 
           <div className="flex-1 overflow-auto p-4">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {filteredProducts.map(product => {
+              {products.map(product => {
                 const productSizesList = productSizes(product.id);
 
                 const displayStock = productSizesList.length > 0
@@ -1269,17 +1301,6 @@ export function POS() {
                             src={product.image_url}
                             alt={product.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            onError={(e) => {
-                              const img = e.currentTarget;
-                              const parent = img.parentElement;
-                              if (parent) {
-                                parent.innerHTML = '';
-                                const fallbackIcon = document.createElement('div');
-                                fallbackIcon.className = "w-full h-full flex items-center justify-center text-gray-300";
-                                fallbackIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>';
-                                parent.appendChild(fallbackIcon);
-                              }
-                            }}
                           />
                         </>
                       ) : (
@@ -1288,8 +1309,22 @@ export function POS() {
                         </div>
                       )}
 
+                      {/* Sizes Badges - OVER IMAGE */}
+                      <div className="absolute bottom-2 left-2 flex flex-wrap gap-1 z-20 max-w-[80%]">
+                        {productSizesList.filter(s => s.stock > 0).slice(0, 6).map(s => (
+                          <span key={s.id} className="px-1.5 py-0.5 bg-white/90 text-gray-900 text-[10px] font-bold rounded border border-gray-200 shadow-sm">
+                            {s.size_name}
+                          </span>
+                        ))}
+                        {productSizesList.filter(s => s.stock > 0).length > 6 && (
+                          <span className="px-1.5 py-0.5 bg-white/90 text-gray-900 text-[10px] font-bold rounded border border-gray-200 shadow-sm">
+                            +
+                          </span>
+                        )}
+                      </div>
+
                       {/* Stock Badge */}
-                      <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-gray-100">
+                      <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-gray-100 z-20">
                         <div className={`w-2 h-2 rounded-full ${(!displayStock || displayStock > 10) ? 'bg-green-500' : displayStock > 0 ? 'bg-amber-500' : 'bg-red-500'}`}></div>
                         <span className="text-xs font-semibold text-gray-700">{displayStock}</span>
                       </div>
@@ -1367,7 +1402,28 @@ export function POS() {
               })}
             </div>
 
-            {/* Load More button removed */}
+            {/* Pagination Controls */}
+            {totalProducts > ITEMS_PER_PAGE && (
+              <div className="mt-8 mb-4 flex items-center justify-center gap-4">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1 || loading}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {t('common.previous')}
+                </button>
+                <span className="text-sm text-gray-500 font-medium">
+                  {t('common.page')} {currentPage} {t('common.of')} {Math.ceil(totalProducts / ITEMS_PER_PAGE)}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => p + 1)}
+                  disabled={currentPage >= Math.ceil(totalProducts / ITEMS_PER_PAGE) || loading}
+                  className="px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {t('common.next')}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

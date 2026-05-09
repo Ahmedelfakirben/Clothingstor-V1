@@ -36,6 +36,7 @@ interface Product {
   purchase_price?: number;
   created_at?: string;
   needs_validation?: boolean;
+  product_sizes?: ProductSize[];
 }
 
 interface ProductSize {
@@ -115,6 +116,13 @@ export function ProductsManager() {
   const [selectedProductForUnits, setSelectedProductForUnits] = useState<Product | null>(null);
   const [scanTarget, setScanTarget] = useState<'main' | 'size'>('main');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedSize, setSelectedSize] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const ITEMS_PER_PAGE = 20;
+  const [availableSizes, setAvailableSizes] = useState<string[]>([]);
 
   // Estados para galería de imágenes
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
@@ -168,8 +176,7 @@ export function ProductsManager() {
 
   useEffect(() => {
     fetchCategories();
-    fetchProducts();
-    fetchSizes();
+    fetchInitialData();
 
     // Suscripción Realtime para Productos y Tallas
     const productsChannel = supabase
@@ -179,7 +186,7 @@ export function ProductsManager() {
         { event: '*', schema: 'public', table: 'products' },
         (payload) => {
           console.log('🔄 Cambio en Productos recibido:', payload);
-          fetchProducts(); // Refetch completo para simplicidad y consistencia
+          fetchProducts(currentPage); // Refresh current page
         }
       )
       .subscribe();
@@ -191,7 +198,8 @@ export function ProductsManager() {
         { event: '*', schema: 'public', table: 'product_sizes' },
         (payload) => {
           console.log('🔄 Cambio en Tallas recibido:', payload);
-          fetchSizes();
+          fetchProducts(currentPage);
+          fetchUniqueSizes();
         }
       )
       .subscribe();
@@ -201,6 +209,38 @@ export function ProductsManager() {
       supabase.removeChannel(sizesChannel);
     };
   }, []);
+
+  const fetchInitialData = async () => {
+    await Promise.all([
+      fetchUniqueSizes(),
+      fetchProducts(1)
+    ]);
+  };
+
+  const fetchUniqueSizes = async () => {
+    const { data, error } = await supabase
+      .from('product_sizes')
+      .select('size_name');
+    
+    if (!error && data) {
+      const unique = Array.from(new Set(data.map(s => s.size_name))).sort();
+      setAvailableSizes(unique);
+    }
+  };
+
+  // Efecto para filtros y búsqueda (Debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCurrentPage(1);
+      fetchProducts(1);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm, selectedCategory, selectedSize, sortBy]);
+
+  // Efecto para cambio de página
+  useEffect(() => {
+    fetchProducts(currentPage);
+  }, [currentPage]);
 
   // Vista previa para nueva imagen de producto
   useEffect(() => {
@@ -294,14 +334,52 @@ export function ProductsManager() {
     }
   };
 
-  const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-    if (data) setProducts(data);
+  const fetchProducts = async (page = currentPage) => {
+    setLoadingProducts(true);
+    try {
+      // Si hay filtro de talla, usamos !inner para filtrar el padre por el hijo
+      let query = selectedSize !== 'all' 
+        ? supabase.from('products').select('*, product_sizes!inner(*)', { count: 'exact' })
+        : supabase.from('products').select('*, product_sizes(*)', { count: 'exact' });
+
+      // Filtros
+      if (selectedCategory !== 'all') {
+        query = query.eq('category_id', selectedCategory);
+      }
+
+      if (selectedSize !== 'all') {
+        query = query.eq('product_sizes.size_name', selectedSize);
+      }
+
+      if (searchTerm) {
+        query = query.or(`name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`);
+      }
+
+      // Orden
+      const isAsc = sortBy === 'name-asc' || sortBy === 'oldest';
+      const col = (sortBy === 'name-asc' || sortBy === 'name-desc') ? 'name' : 'created_at';
+      query = query.order(col, { ascending: isAsc });
+
+      // Paginación
+      const from = (page - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+      
+      const { data, count, error } = await query.range(from, to);
+
+      if (error) throw error;
+
+      setProducts(data || []);
+      setTotalCount(count || 0);
+    } catch (error: any) {
+      console.error('Error fetching products:', error);
+      toast.error(t('Error al cargar productos'));
+    } finally {
+      setLoadingProducts(false);
+    }
   };
 
   const fetchSizes = async () => {
-    const { data } = await supabase.from('product_sizes').select('*');
-    if (data) setSizes(data);
+    // Ya no lo necesitamos globalmente si los traemos con el producto
   };
 
   const handleAddSize = () => {
@@ -1302,36 +1380,51 @@ export function ProductsManager() {
     return categories.find(c => c.id === categoryId)?.name || t('Sin categoría');
   };
 
-  const getProductSizes = (productId: string) => {
-    return sizes.filter(s => s.product_id === productId);
+  const getProductSizes = (product: Product) => {
+    return product.product_sizes || [];
   };
 
-  const filteredProducts = products.filter(product => {
-    const search = searchTerm.toLowerCase();
-    if (!search) return true;
+  const Pagination = () => {
+    const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+    if (totalPages <= 1) return null;
+
     return (
-      product.name.toLowerCase().includes(search) ||
-      (product.barcode && product.barcode.toLowerCase().includes(search)) ||
-      (product.brand && product.brand.toLowerCase().includes(search))
+      <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between bg-gray-50/50 gap-4">
+        <div className="text-sm text-gray-500">
+          {t('common.showing')} <span className="font-medium">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, totalCount)}</span> {t('common.of')} <span className="font-medium">{totalCount}</span> {t('common.products')}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg bg-white text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors text-sm font-medium"
+          >
+            {t('common.previous')}
+          </button>
+          <div className="flex items-center gap-2 px-3">
+            <span className="text-xs text-gray-500 uppercase tracking-wider">{t('common.page')}</span>
+            <span className="font-bold text-sm text-amber-600">{currentPage}</span>
+            <span className="text-xs text-gray-400">/</span>
+            <span className="font-medium text-sm text-gray-600">{totalPages}</span>
+          </div>
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages || totalPages === 0}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg bg-white text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors text-sm font-medium"
+          >
+            {t('common.next')}
+          </button>
+        </div>
+      </div>
     );
-  }).sort((a, b) => {
-    if (sortBy === 'name-asc') {
-      return a.name.localeCompare(b.name);
-    }
-    if (sortBy === 'name-desc') {
-      return b.name.localeCompare(a.name);
-    }
-    if (sortBy === 'newest') {
-      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-    }
-    if (sortBy === 'oldest') {
-      return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
-    }
-    return 0;
-  });
+  };
+
+  // filteredProducts ya no es necesario porque filtramos en el servidor
+  const displayProducts = products;
 
   return (
-    <div className="p-6">
+    <>
+      <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900">{t('Gestión de Productos')}</h2>
         <button
@@ -1790,6 +1883,26 @@ export function ProductsManager() {
             />
           </div>
           <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white shadow-sm text-sm text-gray-700 outline-none min-w-[140px]"
+          >
+            <option value="all">{t('Todas las categorías')}</option>
+            {categories.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.name}</option>
+            ))}
+          </select>
+          <select
+            value={selectedSize}
+            onChange={(e) => setSelectedSize(e.target.value)}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white shadow-sm text-sm text-gray-700 outline-none min-w-[120px]"
+          >
+            <option value="all">{t('Todas las tallas')}</option>
+            {availableSizes.map(size => (
+              <option key={size} value={size}>{size}</option>
+            ))}
+          </select>
+          <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
             className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white shadow-sm text-sm text-gray-700 outline-none"
@@ -1800,9 +1913,10 @@ export function ProductsManager() {
             <option value="name-desc">{t('Nombre (Z-A)')}</option>
           </select>
         </div>
+          {loadingProducts && <LoadingSpinner size="sm" />}
         {/* Vista Móvil (Tarjetas) */}
         <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
-          {filteredProducts.map(product => (
+          {displayProducts.map(product => (
             <div key={product.id} className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 flex gap-4">
               {/* Imagen */}
               <div
@@ -1834,14 +1948,14 @@ export function ProductsManager() {
                   <h3 className="font-bold text-gray-900 truncate">{product.name}</h3>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-lg font-bold text-amber-600">{formatCurrency(product.base_price)}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${(getProductSizes(product.id).length > 0
-                      ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${(getProductSizes(product).length > 0
+                      ? getProductSizes(product).reduce((sum, s) => sum + s.stock, 0)
                       : (product.stock || 0)) > 0
                       ? 'bg-green-100 text-green-800'
                       : 'bg-red-100 text-red-800'
                       }`}>
-                      Stock: {getProductSizes(product.id).length > 0
-                        ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
+                      Stock: {getProductSizes(product).length > 0
+                        ? getProductSizes(product).reduce((sum, s) => sum + s.stock, 0)
                         : (product.stock || 0)
                       }
                     </span>
@@ -1897,6 +2011,7 @@ export function ProductsManager() {
             </div>
           ))}
         </div>
+        <Pagination />
 
         {/* Vista Desktop (Tabla) */}
         <table className="w-full hidden md:table">
@@ -1914,7 +2029,7 @@ export function ProductsManager() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {filteredProducts.map(product => (
+            {displayProducts.map(product => (
               <tr key={product.id} className="hover:bg-gray-50">
                 <td className="px-6 py-4">
                   {/* Image Column */}
@@ -2026,9 +2141,9 @@ export function ProductsManager() {
                       <>
                         <div className="font-medium text-gray-900">{product.name}</div>
                         <div className="text-sm text-gray-500 line-clamp-2">{product.description}</div>
-                        {getProductSizes(product.id).length > 0 && (
+                        {getProductSizes(product).length > 0 && (
                           <div className="mt-1 flex flex-wrap gap-1">
-                            {getProductSizes(product.id).map(s => (
+                            {getProductSizes(product).map(s => (
                               <span key={s.id} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                 {s.size_name} ({s.stock})
                               </span>
@@ -2111,12 +2226,12 @@ export function ProductsManager() {
                       title={isCashier ? t('No tienes permisos para establecer stock') : ''}
                     />
                   ) : (
-                    <span className={`font-medium ${(getProductSizes(product.id).length > 0
-                      ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
+                    <span className={`font-medium ${(getProductSizes(product).length > 0
+                      ? getProductSizes(product).reduce((sum, s) => sum + s.stock, 0)
                       : (product.stock || 0)) < 5 ? 'text-red-600' : 'text-gray-900'
                       }`}>
-                      {getProductSizes(product.id).length > 0
-                        ? getProductSizes(product.id).reduce((sum, s) => sum + s.stock, 0)
+                      {getProductSizes(product).length > 0
+                        ? getProductSizes(product).reduce((sum, s) => sum + s.stock, 0)
                         : (product.stock || 0)
                       }
                     </span>
@@ -2208,6 +2323,7 @@ export function ProductsManager() {
             ))}
           </tbody>
         </table>
+        <Pagination />
       </div>
 
       {/* Modal for Individual Units Management */}
@@ -2344,8 +2460,8 @@ export function ProductsManager() {
         <ProductHistoryModal
           productId={selectedProductForHistory.id}
           productName={selectedProductForHistory.name}
-          currentStock={sizes.filter(s => s.product_id === selectedProductForHistory.id).length > 0
-            ? sizes.filter(s => s.product_id === selectedProductForHistory.id).reduce((sum, s) => sum + s.stock, 0)
+          currentStock={getProductSizes(selectedProductForHistory).length > 0
+            ? getProductSizes(selectedProductForHistory).reduce((sum, s) => sum + s.stock, 0)
             : (selectedProductForHistory.stock || 0)
           }
           onClose={() => {
@@ -2354,6 +2470,7 @@ export function ProductsManager() {
           }}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 }

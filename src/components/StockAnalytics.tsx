@@ -141,7 +141,7 @@ export function StockAnalytics() {
             // 2. Fetch Sizes (for sized products)
             const { data: sizes, error: sizesError } = await supabase
                 .from('product_sizes')
-                .select('product_id, size_name, stock');
+                .select('*'); // Seleccionamos todo para evitar errores de nombre de columna
 
             if (sizesError) throw sizesError;
 
@@ -155,7 +155,11 @@ export function StockAnalytics() {
 
                 if (productSizes && productSizes.length > 0) {
                     currentStock = productSizes.reduce((sum, s) => sum + s.stock, 0);
-                    sizesList = productSizes.map(s => ({ name: s.size_name, stock: s.stock }));
+                    // Aceptamos tanto 'size' como 'size_name'
+                    sizesList = productSizes.map(s => ({ 
+                        name: (s as any).size_name || (s as any).size || '', 
+                        stock: s.stock 
+                    }));
                 }
 
                 let status: 'ok' | 'low' | 'out' | 'validate' = 'ok';

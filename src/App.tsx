@@ -31,9 +31,6 @@ import { supabase } from './lib/supabase';
 function AppContent() {
   const { user, profile, loading } = useAuth();
   const [currentView, setCurrentView] = useState('pos');
-  const [showOpenCashModal, setShowOpenCashModal] = useState(false);
-  const [openingAmount, setOpeningAmount] = useState('');
-  const [openingLoading, setOpeningLoading] = useState(false);
   const [userPermissions, setUserPermissions] = useState<{ [key: string]: boolean }>({});
   const hasRedirectedRef = useRef(false);
 
@@ -143,54 +140,9 @@ function AppContent() {
     }
   }, [profile, userPermissions, currentView]);
 
-  useEffect(() => {
-    const checkOpenCashSession = async () => {
-      if (!user || !profile) return;
-      if (profile.role !== 'cashier') return;
-      try {
-        const { data, error } = await supabase
-          .from('cash_register_sessions')
-          .select('id, status, closed_at')
-          .eq('employee_id', user.id)
-          .eq('status', 'open')
-          .is('closed_at', null)
-          .limit(1);
-        if (error) throw error;
-        const hasOpen = data && data.length > 0;
-        setShowOpenCashModal(!hasOpen);
-      } catch (err) {
-        console.error('Error verificando sesión de caja:', err);
-      }
-    };
-    checkOpenCashSession();
-  }, [user, profile]);
 
-  const handleOpenCashSubmit = async () => {
-    if (!user) return;
-    const amount = parseFloat(openingAmount);
-    if (isNaN(amount) || amount < 0) {
-      toast.error('Ingrese un monto válido (>= 0)');
-      return;
-    }
-    setOpeningLoading(true);
-    try {
-      const { error } = await supabase
-        .from('cash_register_sessions')
-        .insert({
-          employee_id: user.id,
-          opening_amount: amount,
-          status: 'open',
-        });
-      if (error) throw error;
-      toast.success('Apertura de caja registrada');
-      setShowOpenCashModal(false);
-    } catch (err: any) {
-      console.error('Error registrando apertura de caja:', err);
-      toast.error(`No se pudo abrir caja: ${err.message || err}`);
-    } finally {
-      setOpeningLoading(false);
-    }
-  };
+
+
 
   if (loading) {
     return (
@@ -237,41 +189,7 @@ function AppContent() {
         </Suspense>
       </div>
 
-      {showOpenCashModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Apertura de Caja</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Indique el monto inicial en caja para comenzar su turno.
-            </p>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Monto inicial</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={openingAmount}
-              onChange={(e) => setOpeningAmount(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded mb-4"
-              placeholder="0.00"
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded"
-                onClick={() => setShowOpenCashModal(false)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded"
-                onClick={handleOpenCashSubmit}
-                disabled={openingLoading}
-              >
-                {openingLoading ? 'Guardando...' : 'Aceptar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       <Toaster
         position="top-right"

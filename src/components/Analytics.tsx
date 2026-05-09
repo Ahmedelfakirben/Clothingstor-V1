@@ -575,7 +575,13 @@ export function Analytics() {
           .from('expenses').select('amount')
           .gte('created_at', period.start.toISOString())
           .lte('created_at', period.end.toISOString());
+        const { data: returns } = await supabase
+          .from('order_returns').select('total_refund')
+          .gte('created_at', period.start.toISOString())
+          .lte('created_at', period.end.toISOString());
+
         const totalSales = sales?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
+        const totalReturns = returns?.reduce((sum, ret) => sum + (ret.total_refund || 0), 0) || 0;
         let totalCogs = 0;
         sales?.forEach(order => {
           order.order_items?.forEach((item: any) => {
@@ -584,7 +590,7 @@ export function Analytics() {
           });
         });
         const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
-        const profit = totalSales - totalCogs - totalExpenses;
+        const profit = totalSales - totalCogs - totalExpenses - totalReturns;
         return { period: period.name, sales: totalSales, expenses: totalExpenses, cogs: totalCogs, profit, profit_margin: totalSales > 0 ? (profit / totalSales) * 100 : 0 };
       })
     );
@@ -604,7 +610,13 @@ export function Analytics() {
         .from('expenses').select('amount')
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
+      const { data: returns } = await supabase
+        .from('order_returns').select('total_refund')
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString());
+      
       const totalSales = sales?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
+      const totalReturns = returns?.reduce((sum, ret) => sum + (ret.total_refund || 0), 0) || 0;
       let totalCogs = 0;
       sales?.forEach(order => {
         order.order_items?.forEach((item: any) => {
@@ -613,7 +625,7 @@ export function Analytics() {
         });
       });
       const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
-      const profit = totalSales - totalCogs - totalExpenses;
+      const profit = totalSales - totalCogs - totalExpenses - totalReturns;
       setCustomSummary({
         period: '',
         sales: totalSales,
@@ -813,6 +825,18 @@ export function Analytics() {
         throw new Error(`Error fetching orders: ${ordersErr.message}`);
       }
 
+      // Get returns for today
+      const { data: returns } = await supabase
+        .from('order_returns')
+        .select(`
+          id, total_refund, quantity_returned, reason, created_at,
+          products(name),
+          product_sizes(size_name)
+        `)
+        .gte('created_at', dayStart.toISOString())
+        .lte('created_at', dayEnd.toISOString())
+        .order('created_at', { ascending: true });
+
       // Calculate totals
       const totalSales = (orders || []).reduce((sum, order) => sum + order.total, 0);
       const totalExpenses = (expenses || []).reduce((sum, exp) => sum + exp.amount, 0);
@@ -825,7 +849,8 @@ export function Analytics() {
         });
       });
 
-      const profit = totalSales - totalCogs - totalExpenses;
+      const totalReturns = (returns || []).reduce((sum, ret) => sum + (ret.total_refund || 0), 0);
+      const profit = totalSales - totalCogs - totalExpenses - totalReturns;
 
       // Group sessions by employee
       const employeeSessions = (sessions || []).reduce((acc: Record<string, {
@@ -909,8 +934,9 @@ export function Analytics() {
         [t('reports.indicator'), t('reports.value'), t('reports.detail')],
         [t('reports.total_sales'), formatCurrency(totalSales), `${(orders || []).length} ${t('reports.orders_completed')}`],
         [t('reports.total_expenses'), formatCurrency(totalExpenses), `${(expenses || []).length} ${t('reports.expenses_registered')}`],
+        [t('Devoluciones'), formatCurrency(totalReturns), `${(returns || []).length} ${t('reports.returns_registered') || 'devoluciones'}`],
         [t('Costo de Productos (COGS)'), formatCurrency(totalCogs), t('Costo de compra de los artículos vendidos')],
-        [t('reports.net_profit'), formatCurrency(profit), `${((profit / totalSales) * 100 || 0).toFixed(2)}% ${t('reports.margin')}`],
+        [t('reports.net_profit'), formatCurrency(profit), `${(totalSales > 0 ? (profit / totalSales) * 100 : 0).toFixed(2)}% ${t('reports.margin')}`],
         [t('reports.products_sold'), orders?.reduce((sum, order) =>
           sum + (order.order_items?.reduce((itemSum: number, item: any) => itemSum + item.quantity, 0) || 0), 0) || 0, t('reports.units')],
         [t('reports.active_employees'), Object.keys(employeeSessions).length, t('reports.with_cash_sessions')],
@@ -993,6 +1019,32 @@ export function Analytics() {
         XLSX.utils.book_append_sheet(wb, wsExpenses, t('reports.expenses_sheet'));
       }
 
+      // Returns Detail Sheet
+      if (returns && returns.length > 0) {
+        const returnsData = [
+          [t('reports.detailed_returns_breakdown') || 'Detalle de Devoluciones'],
+          [''],
+          [t('reports.time'), t('Producto'), t('Cantidad'), t('reports.amount'), t('reports.reason')],
+          ...returns.map(ret => {
+            const pSizes: any = ret.product_sizes;
+            const sizeName = Array.isArray(pSizes) ? pSizes[0]?.size_name : pSizes?.size_name;
+            const pInfo: any = ret.products;
+            const productName = Array.isArray(pInfo) ? pInfo[0]?.name : pInfo?.name;
+            return [
+              new Date(ret.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+              `${productName || 'N/A'}${sizeName ? ` (${sizeName})` : ''}`,
+              ret.quantity_returned,
+              formatCurrency(ret.total_refund),
+              ret.reason || '-'
+            ];
+          })
+        ];
+
+        const wsReturns = XLSX.utils.aoa_to_sheet(returnsData);
+        wsReturns['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+        XLSX.utils.book_append_sheet(wb, wsReturns, (currentLanguage as string) === 'fr' ? 'Retours' : 'Devoluciones');
+      }
+
       // Generate filename with timestamp
       const timestamp = dayStart.toISOString().split('T')[0];
       const filename = `Reporte_Diario_${timestamp}.xlsx`;
@@ -1059,6 +1111,18 @@ export function Analytics() {
             unit_price,
             products!product_id(name)
           )
+        `)
+        .gte('created_at', weekStart.toISOString())
+        .lte('created_at', weekEnd.toISOString())
+        .order('created_at', { ascending: true });
+
+      // Get returns for the week
+      const { data: returns } = await supabase
+        .from('order_returns')
+        .select(`
+          id, total_refund, quantity_returned, reason, created_at,
+          products(name),
+          product_sizes(size_name)
         `)
         .gte('created_at', weekStart.toISOString())
         .lte('created_at', weekEnd.toISOString())
@@ -1154,7 +1218,8 @@ export function Analytics() {
         [t('reports.indicator'), t('reports.value'), t('reports.detail'), t('reports.comparison')],
         [t('reports.total_sales'), `$${summary.sales.toFixed(2)}`, t('reports.gross_income_week'), '📈'],
         [t('reports.total_expenses'), `$${summary.expenses.toFixed(2)}`, `${expenses?.length || 0} ${t('reports.expenses_registered')}`, '📉'],
-        [t('reports.net_profit'), `$${summary.profit.toFixed(2)}`, t('reports.sales_minus_expenses'), '🎯'],
+        [t('Devoluciones'), formatCurrency((returns || []).reduce((s, r) => s + (r.total_refund || 0), 0)), `${(returns || []).length} ${t('reports.returns_registered') || 'devoluciones'}`, '🔄'],
+        [t('reports.net_profit'), `$${(summary.profit - (returns || []).reduce((s, r) => s + (r.total_refund || 0), 0)).toFixed(2)}`, t('reports.sales_minus_expenses'), '🎯'],
         [t('reports.profit_margin'), `${summary.profit_margin.toFixed(2)}%`, t('reports.operational_efficiency'), '⭐'],
         [t('reports.active_employees'), Object.keys(dailySessions).length, t('reports.with_activity_week'), '👥'],
         [t('reports.cash_sessions'), Object.values(dailySessions).reduce((sum: number, emp: any) => sum + emp.sessions.length, 0), t('reports.total_cash_openings'), '💼'],
@@ -1230,6 +1295,32 @@ export function Analytics() {
           { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }
         ];
         XLSX.utils.book_append_sheet(wb, wsExpenses, t('reports.detailed_expenses_sheet'));
+      }
+
+      // Returns Detail Sheet
+      if (returns && returns.length > 0) {
+        const returnsData = [
+          [t('reports.weekly_returns_breakdown') || 'Desglose Semanal de Devoluciones'],
+          [''],
+          [t('reports.date'), t('Producto'), t('Cantidad'), t('reports.amount'), t('reports.reason')],
+          ...returns.map(ret => {
+            const pSizes: any = ret.product_sizes;
+            const sizeName = Array.isArray(pSizes) ? pSizes[0]?.size_name : pSizes?.size_name;
+            const pInfo: any = ret.products;
+            const productName = Array.isArray(pInfo) ? pInfo[0]?.name : pInfo?.name;
+            return [
+              new Date(ret.created_at).toLocaleDateString('es-ES'),
+              `${productName || 'N/A'}${sizeName ? ` (${sizeName})` : ''}`,
+              ret.quantity_returned,
+              formatCurrency(ret.total_refund),
+              ret.reason || '-'
+            ];
+          })
+        ];
+
+        const wsReturns = XLSX.utils.aoa_to_sheet(returnsData);
+        wsReturns['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+        XLSX.utils.book_append_sheet(wb, wsReturns, (currentLanguage as string) === 'fr' ? 'Retours' : 'Devoluciones');
       }
 
       // Detailed Operations sheet
@@ -1332,6 +1423,18 @@ export function Analytics() {
         .gte('created_at', monthStart.toISOString())
         .lte('created_at', monthEnd.toISOString())
         .eq('status', 'completed')
+        .order('created_at', { ascending: true });
+
+      // Get all returns for the month
+      const { data: returns } = await supabase
+        .from('order_returns')
+        .select(`
+          id, total_refund, quantity_returned, reason, created_at,
+          products(name),
+          product_sizes(size_name)
+        `)
+        .gte('created_at', monthStart.toISOString())
+        .lte('created_at', monthEnd.toISOString())
         .order('created_at', { ascending: true });
 
       if (ordersErr) {
@@ -1471,8 +1574,9 @@ export function Analytics() {
         [t('reports.indicator'), t('reports.value'), t('reports.detail'), t('reports.trend')],
         [t('reports.total_sales'), formatCurrency(monthlySummary.sales), t('reports.gross_income_month'), '📈'],
         [t('reports.total_expenses'), formatCurrency(monthlySummary.expenses), `${expenses?.length || 0} ${t('reports.expenses_registered')}`, '📉'],
+        [(currentLanguage as string) === 'fr' ? 'Retours / Remboursements' : 'Devoluciones / Reembolsos', formatCurrency((returns || []).reduce((s, r) => s + (r.total_refund || 0), 0)), `${(returns || []).length} ${t('reports.returns_registered') || 'devoluciones'}`, '🔄'],
         [(currentLanguage as string) === 'fr' ? 'Coût des Produits (COGS)' : 'Costo de Productos (COGS)', formatCurrency(totalCogsMonth), (currentLanguage as string) === 'fr' ? "Prix d'achat des articles vendus" : 'Precio de compra de artículos vendidos', '🏷️'],
-        [t('reports.net_profit'), formatCurrency(monthlySummary.profit), t('reports.sales_minus_expenses'), '🎯'],
+        [t('reports.net_profit'), formatCurrency(monthlySummary.profit - (returns || []).reduce((s, r) => s + (r.total_refund || 0), 0)), t('reports.sales_minus_expenses'), '🎯'],
         [t('reports.profit_margin'), `${monthlySummary.profit_margin.toFixed(2)}%`, t('reports.monthly_operational_efficiency'), '⭐'],
         [t('reports.operation_days'), new Set(Object.values(dailySessions).map((emp: any) => emp.date)).size, t('reports.days_with_activity'), '🗓️'],
         [t('reports.active_employees'), Object.keys(dailySessions).length, t('reports.with_sessions_this_month'), '👥'],
@@ -1549,6 +1653,32 @@ export function Analytics() {
           { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }
         ];
         XLSX.utils.book_append_sheet(wb, wsPerformance, t('reports.daily_performance_sheet'));
+      }
+
+      // Returns Detail Sheet
+      if (returns && returns.length > 0) {
+        const returnsData = [
+          [t('reports.monthly_returns_breakdown') || 'Desglose Mensual de Devoluciones'],
+          [''],
+          [t('reports.date'), t('Producto'), t('Cantidad'), t('reports.amount'), t('reports.reason')],
+          ...returns.map(ret => {
+            const pSizes: any = ret.product_sizes;
+            const sizeName = Array.isArray(pSizes) ? pSizes[0]?.size_name : pSizes?.size_name;
+            const pInfo: any = ret.products;
+            const productName = Array.isArray(pInfo) ? pInfo[0]?.name : pInfo?.name;
+            return [
+              new Date(ret.created_at).toLocaleDateString('es-ES'),
+              `${productName || 'N/A'}${sizeName ? ` (${sizeName})` : ''}`,
+              ret.quantity_returned,
+              formatCurrency(ret.total_refund),
+              ret.reason || '-'
+            ];
+          })
+        ];
+
+        const wsReturns = XLSX.utils.aoa_to_sheet(returnsData);
+        wsReturns['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }];
+        XLSX.utils.book_append_sheet(wb, wsReturns, (currentLanguage as string) === 'fr' ? 'Retours' : 'Devoluciones');
       }
 
       // Monthly Expenses Breakdown
@@ -1698,7 +1828,7 @@ export function Analytics() {
       toast.loading(t('reports.generating_excel'), { id: 'export' });
 
       // Fetch all data
-      const [ordersData, sessionsData, expensesData, employeesData, productsData] = await Promise.all([
+      const results = await Promise.all([
         supabase.from('orders').select(`
           id, total, status, created_at, employee_id,
           order_items (
@@ -1719,10 +1849,15 @@ export function Analytics() {
         supabase.from('products').select(`
           id, name, base_price, available, created_at,
           categories!inner(name)
-        `)
+        `),
+        supabase.from('order_returns').select(`
+          id, total_refund, quantity_returned, reason, created_at,
+          products(name),
+          product_sizes(size_name)
+        `).order('created_at', { ascending: false })
       ]);
 
-      // Create workbook
+      const [ordersData, sessionsData, expensesData, employeesData, productsData, returnsData] = results;
       const wb = XLSX.utils.book_new();
 
       // Company Header Sheet
@@ -1852,6 +1987,26 @@ export function Analytics() {
         }));
         const wsProducts = XLSX.utils.json_to_sheet(productsFormatted);
         XLSX.utils.book_append_sheet(wb, wsProducts, t('reports.products_sheet'));
+      }
+
+      // Returns sheet
+      if (returnsData.data) {
+        const returnsFormatted = returnsData.data.map(ret => {
+          const pSizes: any = ret.product_sizes;
+          const sizeName = Array.isArray(pSizes) ? pSizes[0]?.size_name : pSizes?.size_name;
+          const pInfo: any = ret.products;
+          const productName = Array.isArray(pInfo) ? pInfo[0]?.name : pInfo?.name;
+          return {
+            [t('reports.id')]: ret.id.slice(-8),
+            [t('Producto')]: `${productName || 'N/A'}${sizeName ? ` (${sizeName})` : ''}`,
+            [t('Cantidad')]: ret.quantity_returned,
+            [t('reports.amount')]: formatCurrency(ret.total_refund),
+            [t('reports.reason')]: ret.reason || '-',
+            [t('reports.date')]: new Date(ret.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')
+          };
+        });
+        const wsReturns = XLSX.utils.json_to_sheet(returnsFormatted);
+        XLSX.utils.book_append_sheet(wb, wsReturns, (currentLanguage as string) === 'fr' ? 'Retours' : 'Devoluciones');
       }
 
       // Financial Summary sheet

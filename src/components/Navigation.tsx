@@ -734,6 +734,30 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         printWindow.onafterprint = () => printWindow.close();
       }
 
+      // ACTUALIZAR SESIONES EN LA BASE DE DATOS
+      // Cerramos todas las sesiones abiertas del día laboral
+      const { error: updateErr } = await supabase
+        .from('cash_register_sessions')
+        .update({
+          status: 'closed',
+          closed_at: new Date().toISOString(),
+          closing_amount: 0 // Por defecto 0
+        })
+        .in('id', sessionIds);
+
+      if (updateErr) throw updateErr;
+
+      // Asignamos el monto real solo a la última sesión para evitar duplicar montos en el dashboard
+      const { error: finalUpdateErr } = await supabase
+        .from('cash_register_sessions')
+        .update({
+          closing_amount: amount,
+          notes: `Cierre de caja completo. Diferencia: ${difference}`
+        })
+        .eq('id', sessionIds[sessionIds.length - 1]);
+
+      if (finalUpdateErr) throw finalUpdateErr;
+
       toast.success(t('Cierre de caja registrado e impreso.'));
       setShowCloseCashModal(false);
       await signOut();
