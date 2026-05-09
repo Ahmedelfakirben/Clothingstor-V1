@@ -576,7 +576,7 @@ export function Analytics() {
           .gte('created_at', period.start.toISOString())
           .lte('created_at', period.end.toISOString());
         const { data: returns } = await supabase
-          .from('order_returns').select('total_refund')
+          .from('order_returns').select('total_refund, quantity_returned, products(purchase_price)')
           .gte('created_at', period.start.toISOString())
           .lte('created_at', period.end.toISOString());
 
@@ -590,8 +590,26 @@ export function Analytics() {
           });
         });
         const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
-        const profit = totalSales - totalCogs - totalExpenses - totalReturns;
-        return { period: period.name, sales: totalSales, expenses: totalExpenses, cogs: totalCogs, profit, profit_margin: totalSales > 0 ? (profit / totalSales) * 100 : 0 };
+        
+        // Ajustar COGS: restar el costo de los productos que fueron devueltos (ya no es un costo de venta)
+        let returnedCogs = 0;
+        returns?.forEach((ret: any) => {
+          const pInfo: any = ret.products;
+          const purchasePrice = Array.isArray(pInfo) ? pInfo[0]?.purchase_price : pInfo?.purchase_price;
+          returnedCogs += (purchasePrice || 0) * (ret.quantity_returned || 0);
+        });
+
+        const finalCogs = Math.max(0, totalCogs - returnedCogs);
+        const profit = totalSales - totalReturns - finalCogs - totalExpenses;
+        
+        return { 
+          period: period.name, 
+          sales: totalSales, 
+          expenses: totalExpenses, 
+          cogs: finalCogs, 
+          profit, 
+          profit_margin: (totalSales - totalReturns) > 0 ? (profit / (totalSales - totalReturns)) * 100 : 0 
+        };
       })
     );
     setFinancialSummary(summaries);
@@ -611,7 +629,7 @@ export function Analytics() {
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
       const { data: returns } = await supabase
-        .from('order_returns').select('total_refund')
+        .from('order_returns').select('total_refund, quantity_returned, products(purchase_price)')
         .gte('created_at', start.toISOString())
         .lte('created_at', end.toISOString());
       
@@ -625,14 +643,25 @@ export function Analytics() {
         });
       });
       const totalExpenses = expenses?.reduce((sum, exp) => sum + exp.amount, 0) || 0;
-      const profit = totalSales - totalCogs - totalExpenses - totalReturns;
+
+      // Ajustar COGS para el resumen personalizado
+      let returnedCogs = 0;
+      returns?.forEach((ret: any) => {
+        const pInfo: any = ret.products;
+        const purchasePrice = Array.isArray(pInfo) ? pInfo[0]?.purchase_price : pInfo?.purchase_price;
+        returnedCogs += (purchasePrice || 0) * (ret.quantity_returned || 0);
+      });
+
+      const finalCogs = Math.max(0, totalCogs - returnedCogs);
+      const profit = totalSales - totalReturns - finalCogs - totalExpenses;
+
       setCustomSummary({
         period: '',
         sales: totalSales,
         expenses: totalExpenses,
-        cogs: totalCogs,
+        cogs: finalCogs,
         profit,
-        profit_margin: totalSales > 0 ? (profit / totalSales) * 100 : 0,
+        profit_margin: (totalSales - totalReturns) > 0 ? (profit / (totalSales - totalReturns)) * 100 : 0,
       });
     } catch (err) {
       console.error('Error fetching custom summary:', err);
@@ -850,7 +879,17 @@ export function Analytics() {
       });
 
       const totalReturns = (returns || []).reduce((sum, ret) => sum + (ret.total_refund || 0), 0);
-      const profit = totalSales - totalCogs - totalExpenses - totalReturns;
+      
+      // Ajustar COGS Diario
+      let returnedCogs = 0;
+      returns?.forEach((ret: any) => {
+        const pInfo: any = ret.products;
+        const purchasePrice = Array.isArray(pInfo) ? pInfo[0]?.purchase_price : pInfo?.purchase_price;
+        returnedCogs += (purchasePrice || 0) * (ret.quantity_returned || 0);
+      });
+      
+      const finalCogs = Math.max(0, totalCogs - returnedCogs);
+      const profit = totalSales - totalReturns - finalCogs - totalExpenses;
 
       // Group sessions by employee
       const employeeSessions = (sessions || []).reduce((acc: Record<string, {
@@ -935,7 +974,7 @@ export function Analytics() {
         [t('reports.total_sales'), formatCurrency(totalSales), `${(orders || []).length} ${t('reports.orders_completed')}`],
         [t('reports.total_expenses'), formatCurrency(totalExpenses), `${(expenses || []).length} ${t('reports.expenses_registered')}`],
         [t('Devoluciones'), formatCurrency(totalReturns), `${(returns || []).length} ${t('reports.returns_registered') || 'devoluciones'}`],
-        [t('Costo de Productos (COGS)'), formatCurrency(totalCogs), t('Costo de compra de los artículos vendidos')],
+        [t('Costo de Productos (COGS)'), formatCurrency(finalCogs), t('Costo de compra de los artículos vendidos (ajustado por devoluciones)')],
         [t('reports.net_profit'), formatCurrency(profit), `${(totalSales > 0 ? (profit / totalSales) * 100 : 0).toFixed(2)}% ${t('reports.margin')}`],
         [t('reports.products_sold'), orders?.reduce((sum, order) =>
           sum + (order.order_items?.reduce((itemSum: number, item: any) => itemSum + item.quantity, 0) || 0), 0) || 0, t('reports.units')],
@@ -1109,7 +1148,8 @@ export function Analytics() {
           order_items (
             quantity,
             unit_price,
-            products!product_id(name)
+            purchase_price,
+            products!product_id(name, purchase_price)
           )
         `)
         .gte('created_at', weekStart.toISOString())
@@ -1121,7 +1161,7 @@ export function Analytics() {
         .from('order_returns')
         .select(`
           id, total_refund, quantity_returned, reason, created_at,
-          products(name),
+          products(name, purchase_price),
           product_sizes(size_name)
         `)
         .gte('created_at', weekStart.toISOString())
@@ -1219,7 +1259,7 @@ export function Analytics() {
         [t('reports.total_sales'), `$${summary.sales.toFixed(2)}`, t('reports.gross_income_week'), '📈'],
         [t('reports.total_expenses'), `$${summary.expenses.toFixed(2)}`, `${expenses?.length || 0} ${t('reports.expenses_registered')}`, '📉'],
         [t('Devoluciones'), formatCurrency((returns || []).reduce((s, r) => s + (r.total_refund || 0), 0)), `${(returns || []).length} ${t('reports.returns_registered') || 'devoluciones'}`, '🔄'],
-        [t('reports.net_profit'), `$${(summary.profit - (returns || []).reduce((s, r) => s + (r.total_refund || 0), 0)).toFixed(2)}`, t('reports.sales_minus_expenses'), '🎯'],
+        [t('reports.net_profit'), formatCurrency(summary.profit), t('reports.sales_minus_expenses'), '🎯'],
         [t('reports.profit_margin'), `${summary.profit_margin.toFixed(2)}%`, t('reports.operational_efficiency'), '⭐'],
         [t('reports.active_employees'), Object.keys(dailySessions).length, t('reports.with_activity_week'), '👥'],
         [t('reports.cash_sessions'), Object.values(dailySessions).reduce((sum: number, emp: any) => sum + emp.sessions.length, 0), t('reports.total_cash_openings'), '💼'],
@@ -1430,7 +1470,7 @@ export function Analytics() {
         .from('order_returns')
         .select(`
           id, total_refund, quantity_returned, reason, created_at,
-          products(name),
+          products(name, purchase_price),
           product_sizes(size_name)
         `)
         .gte('created_at', monthStart.toISOString())
@@ -1573,10 +1613,10 @@ export function Analytics() {
         [''],
         [t('reports.indicator'), t('reports.value'), t('reports.detail'), t('reports.trend')],
         [t('reports.total_sales'), formatCurrency(monthlySummary.sales), t('reports.gross_income_month'), '📈'],
-        [t('reports.total_expenses'), formatCurrency(monthlySummary.expenses), `${expenses?.length || 0} ${t('reports.expenses_registered')}`, '📉'],
+        [t('reports.total_expenses'), formatCurrency(summary.expenses), `${expenses?.length || 0} ${t('reports.expenses_registered')}`, '📉'],
         [(currentLanguage as string) === 'fr' ? 'Retours / Remboursements' : 'Devoluciones / Reembolsos', formatCurrency((returns || []).reduce((s, r) => s + (r.total_refund || 0), 0)), `${(returns || []).length} ${t('reports.returns_registered') || 'devoluciones'}`, '🔄'],
-        [(currentLanguage as string) === 'fr' ? 'Coût des Produits (COGS)' : 'Costo de Productos (COGS)', formatCurrency(totalCogsMonth), (currentLanguage as string) === 'fr' ? "Prix d'achat des articles vendus" : 'Precio de compra de artículos vendidos', '🏷️'],
-        [t('reports.net_profit'), formatCurrency(monthlySummary.profit - (returns || []).reduce((s, r) => s + (r.total_refund || 0), 0)), t('reports.sales_minus_expenses'), '🎯'],
+        [(currentLanguage as string) === 'fr' ? 'Coût des Produits (COGS)' : 'Costo de Productos (COGS)', formatCurrency(summary.cogs), (currentLanguage as string) === 'fr' ? "Prix d'achat des articles vendus (ajusté)" : 'Precio de compra de artículos vendidos (ajustado)', '🏷️'],
+        [t('reports.net_profit'), formatCurrency(summary.profit), t('reports.sales_minus_expenses'), '🎯'],
         [t('reports.profit_margin'), `${monthlySummary.profit_margin.toFixed(2)}%`, t('reports.monthly_operational_efficiency'), '⭐'],
         [t('reports.operation_days'), new Set(Object.values(dailySessions).map((emp: any) => emp.date)).size, t('reports.days_with_activity'), '🗓️'],
         [t('reports.active_employees'), Object.keys(dailySessions).length, t('reports.with_sessions_this_month'), '👥'],

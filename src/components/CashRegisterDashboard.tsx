@@ -50,6 +50,9 @@ export function CashRegisterDashboard() {
   const [totals, setTotals] = useState({
     totalOpening: 0,
     totalClosing: 0,
+    totalSales: 0,
+    totalWithdrawals: 0,
+    totalReturns: 0,
     balance: 0,
   });
 
@@ -126,14 +129,8 @@ export function CashRegisterDashboard() {
 
       setSessions(data || []);
 
-      // Calcular totales
-      const totalOpening = (data || []).reduce((sum, s) => sum + (s.opening_amount || 0), 0);
-      const totalClosing = (data || []).reduce((sum, s) => sum + (s.closing_amount || 0), 0);
-      setTotals({
-        totalOpening,
-        totalClosing,
-        balance: totalClosing - totalOpening,
-      });
+      // Los totales se calcularán de forma más precisa en groupSessionsByDay
+      // para incluir ventas, retiros y devoluciones reales del periodo filtrado.
     } catch (err) {
       console.error('Error fetching cash sessions:', err);
       toast.error(t('Error al cargar sesiones de caja'));
@@ -397,7 +394,13 @@ export function CashRegisterDashboard() {
       return acc;
     }, {});
 
-    // Calcular ventas y retiros para cada día
+    // Calcular ventas y retiros para cada día y acumulados globales
+    let globalOpening = 0;
+    let globalClosing = 0;
+    let globalSales = 0;
+    let globalWithdrawals = 0;
+    let globalReturns = 0;
+
     for (const employeeKey of Object.keys(grouped)) {
       const dayData = grouped[employeeKey];
       const startOfDay = new Date(dayData.date);
@@ -436,15 +439,26 @@ export function CashRegisterDashboard() {
         }
       });
 
-      // Also fetch from order_returns to be sure (optional if withdrawals are 1:1)
-      // Since POS does both, counting withdrawals is enough for the BALANCE.
-
       // Calcular cierre esperado y diferencia
-      // Cierre esperado = Apertura + Ventas - Retiros - Devoluciones
       dayData.expectedClosing = dayData.totalOpening + dayData.totalSales - dayData.totalWithdrawals - dayData.totalReturns;
-      // Diferencia = Cierre Real - Cierre Esperado
       dayData.difference = dayData.totalClosing - dayData.expectedClosing;
+
+      // Acumular para totales globales
+      globalOpening += dayData.totalOpening;
+      globalClosing += dayData.totalClosing;
+      globalSales += dayData.totalSales;
+      globalWithdrawals += dayData.totalWithdrawals;
+      globalReturns += dayData.totalReturns;
     }
+
+    setTotals({
+      totalOpening: globalOpening,
+      totalClosing: globalClosing,
+      totalSales: globalSales,
+      totalWithdrawals: globalWithdrawals,
+      totalReturns: globalReturns,
+      balance: globalSales - globalWithdrawals - globalReturns,
+    });
 
     const dailyArray = Object.values(grouped).sort((a: any, b: any) => {
       // Sort by date desc, then by employee name
@@ -564,7 +578,9 @@ export function CashRegisterDashboard() {
               <span>${t('Total Final')}</span>
             </div>
             <div class="summary-item">
-              <strong>${formatCurrency(day.totalClosing - day.totalOpening)}</strong>
+              <strong style="color:${day.totalSales - day.totalReturns - day.totalWithdrawals >= 0 ? '#10b981' : '#ef4444'}">
+                ${formatCurrency(day.totalSales - day.totalReturns - day.totalWithdrawals)}
+              </strong>
               <span>${t('Balance del Día')}</span>
             </div>
             <div class="summary-item">
@@ -873,7 +889,7 @@ export function CashRegisterDashboard() {
       </div>
 
       {/* Totales */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
         <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="w-5 h-5 text-green-600" />
@@ -881,13 +897,15 @@ export function CashRegisterDashboard() {
           </div>
           <p className="text-2xl font-bold text-green-600">{formatCurrency(totals.totalOpening)}</p>
         </div>
+        
         <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="w-5 h-5 text-blue-600" />
-            <span className="text-sm font-medium text-gray-700">{t('Total Cierres')}</span>
+            <span className="text-sm font-medium text-gray-700">{t('Total Fermetures')}</span>
           </div>
           <p className="text-2xl font-bold text-blue-600">{formatCurrency(totals.totalClosing)}</p>
         </div>
+
         <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="w-5 h-5 text-amber-600" />
@@ -896,11 +914,26 @@ export function CashRegisterDashboard() {
           <p className={`text-2xl font-bold ${totals.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(totals.balance)}
           </p>
+          <div className="mt-2 pt-2 border-t border-gray-100 flex flex-col gap-1">
+            <div className="flex justify-between text-[10px]">
+              <span className="text-gray-500">{t('Ventas')}:</span>
+              <span className="font-semibold text-green-600">+{formatCurrency(totals.totalSales)}</span>
+            </div>
+            <div className="flex justify-between text-[10px]">
+              <span className="text-gray-500">{currentLanguage === 'fr' ? 'Retours' : 'Devoluciones'}:</span>
+              <span className="font-semibold text-red-600">-{formatCurrency(totals.totalReturns)}</span>
+            </div>
+            <div className="flex justify-between text-[10px]">
+              <span className="text-gray-500">{t('Retiros')}:</span>
+              <span className="font-semibold text-orange-600">-{formatCurrency(totals.totalWithdrawals)}</span>
+            </div>
+          </div>
         </div>
+
         <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="w-5 h-5 text-purple-600" />
-            <span className="text-sm font-medium text-gray-700">{t('Estado Actual')}</span>
+            <span className="text-sm font-medium text-gray-700">{t('État Actuel')}</span>
           </div>
           <p className="text-2xl font-bold text-purple-600">{formatCurrency(currentCashStatus.currentAmount)}</p>
           <p className="text-xs text-gray-500">
