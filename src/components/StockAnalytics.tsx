@@ -4,10 +4,11 @@ import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save, CheckCircle, History as HistoryIcon, RefreshCw } from 'lucide-react';
+import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save, CheckCircle, History as HistoryIcon, RefreshCw, ArrowUpDown, FileDown, ArrowUp, ArrowDown } from 'lucide-react';
 import IndividualUnitsManager from './IndividualUnitsManager';
 import { toast } from 'react-hot-toast';
 import ProductHistoryModal from './ProductHistoryModal';
+import * as XLSX from 'xlsx';
 
 
 
@@ -66,6 +67,7 @@ export function StockAnalytics() {
     const [editPrice, setEditPrice] = useState(0);
     const [editStock, setEditStock] = useState(0);
     const [isEditingStock, setIsEditingStock] = useState(false);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof StockItem; direction: 'asc' | 'desc' } | null>(null);
     const [showSizesManager, setShowSizesManager] = useState(false);
 
     const handleSelectItem = (item: StockItem | null) => {
@@ -303,6 +305,37 @@ export function StockAnalytics() {
         }
     };
 
+    const handleSort = (key: keyof StockItem) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+        setCurrentPage(1);
+    };
+
+    const handleExportExcel = () => {
+        const exportData = filteredItems.map(item => ({
+            [t('Producto')]: item.name,
+            [t('Código')]: item.barcode || '-',
+            [t('Categoría')]: categories.find(c => c.id === item.categoryId)?.name || '-',
+            [t('Stock')]: item.totalStock,
+            [t('Vendidos')]: item.sold,
+            [t('Costo')]: item.purchasePrice,
+            [t('Precio')]: item.basePrice,
+            [t('Valor Stock')]: item.value,
+            [t('Estado')]: item.status.toUpperCase(),
+            [t('Creado por')]: item.createdByName,
+            [t('Fecha Reg.')]: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-'
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Inventario");
+        XLSX.writeFile(wb, `Inventario_${new Date().toISOString().split('T')[0]}.xlsx`);
+        toast.success(t('Excel generado correctamente'));
+    };
+
     const filteredItems = stockItems
         .filter(item => {
             if (filter === 'low') return item.status === 'low';
@@ -324,6 +357,20 @@ export function StockAnalytics() {
                 item.name.toLowerCase().includes(searchLower) ||
                 (item.barcode && item.barcode.toLowerCase().includes(searchLower))
             );
+        })
+        .sort((a, b) => {
+            if (!sortConfig) return 0;
+            const { key, direction } = sortConfig;
+            
+            let aValue = a[key];
+            let bValue = b[key];
+
+            if (aValue === undefined) aValue = '';
+            if (bValue === undefined) bValue = '';
+
+            if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+            return 0;
         });
 
     const totalPages = Math.ceil(filteredItems.length / pageSize);
@@ -424,9 +471,18 @@ export function StockAnalytics() {
                                 <Archive className="w-5 h-5 text-gray-500" />
                                 {t('stock.inventory_status')}
                             </h2>
-                            <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                                {filteredItems.length} {t('Productos')}
-                            </span>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={handleExportExcel}
+                                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm text-sm font-bold"
+                                >
+                                    <FileDown className="w-4 h-4" />
+                                    Excel
+                                </button>
+                                <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                                    {filteredItems.length} {t('Productos')}
+                                </span>
+                            </div>
                         </div>
 
                         {/* Advanced Filters */}
@@ -502,14 +558,54 @@ export function StockAnalytics() {
                         <table className="w-full">
                             <thead className="bg-gray-50 border-b border-gray-100">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Producto')}</th>
+                                    <th 
+                                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-amber-600 transition-colors"
+                                        onClick={() => handleSort('name')}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            {t('Producto')}
+                                            {sortConfig?.key === 'name' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                                        </div>
+                                    </th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Creado por')}</th>
-                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Fecha Reg.')}</th>
+                                    <th 
+                                        className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-amber-600 transition-colors"
+                                        onClick={() => handleSort('createdAt')}
+                                    >
+                                        <div className="flex items-center justify-center gap-1">
+                                            {t('Fecha Reg.')}
+                                            {sortConfig?.key === 'createdAt' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                                        </div>
+                                    </th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Última Modif.')}</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Modif. por')}</th>
-                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Stock')}</th>
-                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Vendidos')}</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('Valor Venta')}</th>
+                                    <th 
+                                        className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-amber-600 transition-colors"
+                                        onClick={() => handleSort('totalStock')}
+                                    >
+                                        <div className="flex items-center justify-center gap-1">
+                                            {t('Stock')}
+                                            {sortConfig?.key === 'totalStock' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-amber-600 transition-colors"
+                                        onClick={() => handleSort('sold')}
+                                    >
+                                        <div className="flex items-center justify-center gap-1">
+                                            {t('Vendidos')}
+                                            {sortConfig?.key === 'sold' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                                        </div>
+                                    </th>
+                                    <th 
+                                        className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:text-amber-600 transition-colors"
+                                        onClick={() => handleSort('value')}
+                                    >
+                                        <div className="flex items-center justify-end gap-1">
+                                            {t('Valor Venta')}
+                                            {sortConfig?.key === 'value' ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                                        </div>
+                                    </th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Estado')}</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Acciones')}</th>
                                 </tr>
