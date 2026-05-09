@@ -165,6 +165,7 @@ export function Analytics() {
   const [categoryData, setCategoryData] = useState<any[]>([]);
   const [paymentData, setPaymentData] = useState<any[]>([]);
   const [profitData, setProfitData] = useState<any[]>([]);
+  const [channelData, setChannelData] = useState<any[]>([]);
 
   // --- Dynamic period filter state ---
   const todayStr = new Date().toISOString().split('T')[0];
@@ -299,6 +300,36 @@ export function Analytics() {
       }
     } catch (err) {
       console.error('Error fetching chart data:', err);
+    }
+
+    try {
+      const last30Days = new Date();
+      last30Days.setDate(last30Days.getDate() - 30);
+
+      // 3. Channel Data
+      const { data: channelOrders } = await supabase
+        .from('orders')
+        .select('service_type, total')
+        .eq('status', 'completed')
+        .gte('created_at', last30Days.toISOString());
+      
+      const channelMap = (channelOrders || []).reduce((acc: any, order) => {
+        // Map service_type to channel name
+        const channel = order.service_type === 'website' ? t('pos.channel_website') : t('pos.channel_store');
+        acc[channel] = (acc[channel] || 0) + order.total;
+        return acc;
+      }, {});
+
+      const colors = ['#ec4899', '#8b5cf6']; // Pink for store, Purple for web
+      const formattedChannelData = Object.entries(channelMap).map(([name, value], index) => ({ 
+        name, 
+        value,
+        color: colors[index % colors.length]
+      }));
+
+      setChannelData(formattedChannelData);
+    } catch (err) {
+      console.error('Error fetching channel data:', err);
     }
   };
 
@@ -1028,6 +1059,7 @@ export function Analytics() {
                 [t('reports.date')]: new Date(order.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
                 [t('reports.employee')]: (order.employee_profiles as any)?.full_name || 'N/A',
                 [t('Estado')]: order.status,
+                [t('Canal')]: order.service_type === 'website' ? (currentLanguage === 'fr' ? 'Site Web' : 'Web') : (currentLanguage === 'fr' ? 'Boutique' : 'Tienda'),
                 [t('Producto')]: pName || t('reports.product'),
                 [t('Cantidad')]: item.quantity,
                 [t('Precio Unit.')]: formatCurrency(item.unit_price),
@@ -1379,6 +1411,7 @@ export function Analytics() {
                 [t('reports.date')]: order.created_at ? new Date(order.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR') : '',
                 [t('reports.employee')]: (order.employee_profiles as any)?.full_name || 'N/A',
                 [t('Estado')]: order.status || '',
+                [t('Canal')]: order.service_type === 'website' ? (currentLanguage === 'fr' ? 'Site Web' : 'Web') : (currentLanguage === 'fr' ? 'Boutique' : 'Tienda'),
                 [t('Producto')]: pName || t('reports.product'),
                 [t('Cantidad')]: item.quantity || 0,
                 [t('Precio Unit.')]: formatCurrency(item.unit_price || 0),
@@ -1773,6 +1806,7 @@ export function Analytics() {
                 [t('reports.date')]: new Date(order.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR'),
                 [t('reports.employee')]: (order.employee_profiles as any)?.full_name || 'N/A',
                 [t('Estado')]: order.status,
+                [t('Canal')]: order.service_type === 'website' ? (currentLanguage === 'fr' ? 'Site Web' : 'Web') : (currentLanguage === 'fr' ? 'Boutique' : 'Tienda'),
                 [t('Producto')]: pName || t('reports.product'),
                 [t('Cantidad')]: item.quantity,
                 [t('Precio Unit.')]: formatCurrency(item.unit_price),
@@ -2462,6 +2496,51 @@ export function Analytics() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Gráfico de Ventas por Canal (NUEVO) */}
+        <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">{t('analytics.sales_by_channel')}</h3>
+              <p className="text-sm text-gray-500">{t('analytics.channel_comparison')}</p>
+            </div>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={channelData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={8}
+                  dataKey="value"
+                >
+                  {channelData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  formatter={(val: any) => formatCurrency(Number(val))}
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            {/* Legend costumizada */}
+            <div className="mt-4 space-y-2">
+              {channelData.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{backgroundColor: item.color}}></div>
+                    <span className="text-gray-600">{item.name}</span>
+                  </div>
+                  <span className="font-bold text-gray-900">{formatCurrency(item.value)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

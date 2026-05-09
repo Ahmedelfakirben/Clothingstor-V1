@@ -16,6 +16,7 @@ interface CartContextType {
   total: number;
   paymentMethod: 'cash' | 'card' | 'digital' | null;
   serviceType: 'dine_in' | 'takeaway';
+  saleChannel: 'store' | 'website';
   tableId: string | null;
   activeOrderId: string | null;
   customerId: string | null;
@@ -26,6 +27,7 @@ interface CartContextType {
   setItemDiscount: (index: number, type: 'none' | 'percent' | 'fixed', value: number) => void;
   setPaymentMethod: (method: 'cash' | 'card' | 'digital' | null) => void;
   setServiceType: (type: 'dine_in' | 'takeaway') => void;
+  setSaleChannel: (channel: 'store' | 'website') => void;
   setTableId: (tableId: string | null) => void;
   setActiveOrderId: (orderId: string | null) => void;
   setCustomerId: (customerId: string | null) => void;
@@ -44,6 +46,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'digital' | null>(null);
   const [serviceType, setServiceType] = useState<'dine_in' | 'takeaway'>('takeaway');
+  const [saleChannel, setSaleChannel] = useState<'store' | 'website'>('store');
   const [tableId, setTableId] = useState<string | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -102,6 +105,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setPaymentMethod(null);
     setTableId(null);
     setServiceType('takeaway');
+    setSaleChannel('store');
     setActiveOrderId(null);
     setCustomerId(null);
   }, []);
@@ -119,6 +123,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         total,
         paymentMethod,
         serviceType,
+        saleChannel,
         tableId,
         activeOrderId,
         customerId,
@@ -129,6 +134,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setItemDiscount,
         setPaymentMethod,
         setServiceType,
+        setSaleChannel,
         setTableId,
         setActiveOrderId,
         setCustomerId,

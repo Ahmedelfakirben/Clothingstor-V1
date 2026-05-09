@@ -912,6 +912,13 @@ export function OrdersDashboard() {
                             {order.payment_status === 'partial' ? t('orders.partial_payment') : t('orders.pending_payment')}
                           </span>
                         )}
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${
+                          order.service_type === 'website' 
+                            ? 'bg-purple-100 text-purple-800' 
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {order.service_type === 'website' ? '🌐 ' + t('pos.channel_website') : '🏪 ' + t('pos.channel_store')}
+                        </span>
                       </div>
 
                       <p className="text-sm font-bold bg-gradient-to-r from-amber-700 to-orange-700 bg-clip-text text-transparent">

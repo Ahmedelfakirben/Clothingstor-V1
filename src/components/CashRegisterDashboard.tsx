@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Calendar, DollarSign, Filter, RefreshCw, Printer } from 'lucide-react';
+import { Calendar, DollarSign, Filter, RefreshCw, Printer, Shield, Info } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { LoadingSpinner } from './LoadingSpinner';
 
@@ -361,7 +361,7 @@ export function CashRegisterDashboard() {
 
   const groupSessionsByDay = async () => {
     const grouped = sessions.reduce((acc: any, session) => {
-      const date = new Date(session.opened_at).toDateString();
+      const date = session.opened_at.split('T')[0];
       const employeeKey = `${date}-${session.employee_id}`;
 
       if (!acc[employeeKey]) {
@@ -880,7 +880,6 @@ export function CashRegisterDashboard() {
   };
 
 
-
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -901,7 +900,7 @@ export function CashRegisterDashboard() {
         <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="w-5 h-5 text-blue-600" />
-            <span className="text-sm font-medium text-gray-700">{t('Total Fermetures')}</span>
+            <span className="text-sm font-medium text-gray-700">{t('Total Cierres')}</span>
           </div>
           <p className="text-2xl font-bold text-blue-600">{formatCurrency(totals.totalClosing)}</p>
         </div>
@@ -909,7 +908,17 @@ export function CashRegisterDashboard() {
         <div className="bg-white p-4 rounded-lg shadow-sm border">
           <div className="flex items-center gap-2 mb-2">
             <DollarSign className="w-5 h-5 text-amber-600" />
-            <span className="text-sm font-medium text-gray-700">{t('Balance')}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-medium text-gray-700">{t('Balance')}</span>
+              <div className="group relative">
+                <Info className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900 text-white text-[10px] rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 leading-relaxed">
+                  {currentLanguage === 'fr' 
+                    ? "Le balance représente le flux net (Ventes - Retours - Retraits). Il n'inclut pas le montant d'ouverture."
+                    : "El balance representa el flujo neto (Ventas - Devoluciones - Retiros). No incluye el monto de apertura."}
+                </div>
+              </div>
+            </div>
           </div>
           <p className={`text-2xl font-bold ${totals.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(totals.balance)}
@@ -928,6 +937,9 @@ export function CashRegisterDashboard() {
               <span className="font-semibold text-orange-600">-{formatCurrency(totals.totalWithdrawals)}</span>
             </div>
           </div>
+          <p className="mt-2 text-[9px] text-gray-400 italic">
+            * {currentLanguage === 'fr' ? "Exclut le montant d'ouverture" : "Excluye el monto de apertura"}
+          </p>
         </div>
 
         <div className="bg-white p-4 rounded-lg shadow-sm border">
@@ -1088,7 +1100,7 @@ export function CashRegisterDashboard() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {dailySessions.map((day: any) => (
-                  <tr key={day.date} className="hover:bg-gray-50">
+                  <tr key={`${day.date}-${day.employee_id}`} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {profile?.role === 'admin' || profile?.role === 'super_admin' ? day.employee_profiles?.full_name || 'N/A' : t('Tú')}
                     </td>
@@ -1255,47 +1267,58 @@ export function CashRegisterDashboard() {
 
 // Sub-component for Daily History to keep main component clean
 function DailyHistorySection() {
-  const { t, currentLanguage } = useLanguage(); // Added currentLanguage for date locale
+  const { t, currentLanguage } = useLanguage();
   const { formatCurrency } = useCurrency();
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Date filters for global history - 7 days default
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     fetchGlobalHistory();
-  }, []);
+  }, [startDate, endDate]);
 
   const fetchGlobalHistory = async () => {
     try {
       setLoading(true);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
+      const startStr = startDate;
+      const endStr = endDate + 'T23:59:59';
 
       // 1. Fetch Sessions
       const { data: sessions } = await supabase
         .from('cash_register_sessions')
         .select('*')
-        .gte('opened_at', dateStr)
+        .gte('opened_at', startStr)
+        .lte('opened_at', endStr)
         .order('opened_at', { ascending: false });
 
       // 2. Fetch Orders
       const { data: orders } = await supabase
         .from('orders')
         .select('id, total, created_at, status')
-        .gte('created_at', dateStr)
+        .gte('created_at', startStr)
+        .lte('created_at', endStr)
         .eq('status', 'completed');
 
       // 3. Fetch Withdrawals
       const { data: withdrawals } = await supabase
         .from('cash_withdrawals')
         .select('id, amount, withdrawn_at, reason')
-        .gte('withdrawn_at', dateStr);
+        .gte('withdrawn_at', startStr)
+        .lte('withdrawn_at', endStr);
 
       // 4. Fetch Returns (Directly)
       const { data: returns } = await supabase
         .from('order_returns')
         .select('id, total_refund, created_at')
-        .gte('created_at', dateStr);
+        .gte('created_at', startStr)
+        .lte('created_at', endStr);
 
       // Aggregate by Date
       const dateMap = new Map();
@@ -1450,6 +1473,7 @@ function DailyHistorySection() {
           <td>${new Date(order.created_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}</td>
           <td>${empMap[order.employee_id] || 'N/A'}</td>
           <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;background:${bg};color:${fg}">${paymentLabel(order.payment_method)}</span></td>
+          <td style="font-size:11px;font-weight:bold">${order.service_type === 'website' ? (currentLanguage === 'fr' ? 'Site Web' : 'Web') : (currentLanguage === 'fr' ? 'Boutique' : 'Tienda')}</td>
           <td>${items}</td>
           <td style="font-weight:bold">${formatCurrency(order.total)}</td>
         </tr>`;
@@ -1519,12 +1543,13 @@ function DailyHistorySection() {
               <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Heure' : 'Hora'}</th>
               <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Employé' : 'Empleado'}</th>
               <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Paiement' : 'Pago'}</th>
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Canal' : 'Canal'}</th>
               <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Articles' : 'Artículos'}</th>
               <th style="padding:8px 12px;text-align:right;font-size:12px;color:#555">Total</th>
             </tr></thead>
             <tbody>${ordersHtml}
               <tr style="background:#e9ecef;font-weight:bold">
-                <td colspan="5" style="padding:10px 12px;text-align:right">${currentLanguage === 'fr' ? 'TOTAL DU JOUR' : 'TOTAL DEL DÍA'}</td>
+                <td colspan="6" style="padding:10px 12px;text-align:right">${currentLanguage === 'fr' ? 'TOTAL DU JOUR' : 'TOTAL DEL DÍA'}</td>
                 <td style="padding:10px 12px;text-align:right;font-size:15px">${formatCurrency(totalSales)}</td>
               </tr>
             </tbody>
@@ -1574,11 +1599,45 @@ function DailyHistorySection() {
 
   return (
     <div className="mt-8 bg-white p-6 rounded-lg shadow-sm border">
-      <div className="flex items-center gap-2 mb-4">
-        <Calendar className="w-6 h-6 text-gray-700" />
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">{t('cash.daily_history_title')}</h2>
-          <p className="text-sm text-gray-500">{t('cash.daily_history_subtitle')}</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-6 h-6 text-gray-700" />
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{t('cash.daily_history_title')}</h2>
+            <p className="text-sm text-gray-500">
+              {currentLanguage === 'fr' 
+                ? "Résumé des 7 derniers jours (Tous les employés)" 
+                : "Resumen de los últimos 7 días (Todos los empleados)"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500 uppercase">{t('Desde')}</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500 uppercase">{t('Hasta')}</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-amber-500 outline-none"
+            />
+          </div>
+          <button
+            onClick={fetchGlobalHistory}
+            className="p-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
+            title={t('Actualizar')}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
       </div>
 

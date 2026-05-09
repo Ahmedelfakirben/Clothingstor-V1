@@ -87,7 +87,7 @@ export default function ProductHistoryModal({ productId, productName, currentSto
               type: 'sale',
               date: item.orders.created_at,
               quantity: item.quantity,
-              price: item.price,
+              price: item.unit_price,
               employeeName: item.orders.employee_id ? profileMap.get(item.orders.employee_id) || tf('Vendedor Desconocido', 'Vendeur Inconnu') : tf('Sin Asignar', 'Non Assigné')
             });
           }
@@ -114,7 +114,7 @@ export default function ProductHistoryModal({ productId, productName, currentSto
         .select(`
           id,
           quantity,
-          price,
+          unit_price,
           orders!inner (
             status,
             created_at,

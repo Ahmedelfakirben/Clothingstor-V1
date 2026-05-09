@@ -813,9 +813,9 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
             </div>
 
             <div className="flex items-center gap-4">
-              {/* Notification Bell (Only Admin/Super Admin) */}
+              {/* Notification Bell (Only Admin/Super Admin) - Desktop Only */}
               {(profile?.role === 'admin' || profile?.role === 'super_admin') && (
-                <div className="relative" ref={notificationsRef}>
+                <div className="hidden lg:block relative" ref={notificationsRef}>
                   <button
                     onClick={() => setShowNotifications(!showNotifications)}
                     className="p-2 bg-white border border-gray-200 rounded-xl hover:border-amber-300 transition-all shadow-sm hover:shadow-md relative"
@@ -926,6 +926,69 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
 
                       {/* Mobile Navigation (Only visible on mobile) */}
                       <div className="lg:hidden px-2 py-2 border-b border-gray-200 max-h-[60vh] overflow-y-auto">
+                        {/* Mobile Notifications Section */}
+                        {(profile?.role === 'admin' || profile?.role === 'super_admin') && (
+                          <div className="mb-4">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">{t('Notificaciones')}</p>
+                            <button
+                              onClick={() => setShowNotifications(!showNotifications)}
+                              className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100 hover:bg-amber-50 transition-all group"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="relative">
+                                  <Bell className="w-5 h-5 text-gray-700" />
+                                  {sessionNotifications.length > 0 && (
+                                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 text-[8px] text-white font-bold flex items-center justify-center">
+                                        {sessionNotifications.length}
+                                      </span>
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-sm font-bold text-gray-700">{t('Ver Notificaciones')}</span>
+                              </div>
+                              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showNotifications ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {showNotifications && (
+                              <div className="mt-2 space-y-2 max-h-64 overflow-y-auto pr-1">
+                                {sessionNotifications.length === 0 ? (
+                                  <p className="text-center py-4 text-xs text-gray-500 italic">{t('No hay notificaciones')}</p>
+                                ) : (
+                                  sessionNotifications.map(notif => (
+                                    <div key={notif.id} className="p-3 bg-white border border-gray-100 rounded-xl relative group animate-fadeIn">
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSessionNotifications(prev => prev.filter(n => n.id !== notif.id));
+                                          const dismissed = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
+                                          if (!dismissed.includes(notif.id)) dismissed.push(notif.id);
+                                          localStorage.setItem('dismissedNotifications', JSON.stringify(dismissed));
+                                        }}
+                                        className="absolute right-2 top-2 text-gray-300 hover:text-red-500"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                      <p className={`text-[11px] font-bold mb-1 ${
+                                        notif.type === 'sale' ? 'text-green-600' : 
+                                        notif.type === 'cash_open' ? 'text-amber-500' : 'text-red-500'
+                                      }`}>
+                                        {notif.type === 'sale' ? '💰 ' + t('Venta') :
+                                         notif.type === 'cash_open' ? '🔓 ' + t('Apertura') : '🔐 ' + t('Cierre')}
+                                      </p>
+                                      {notif.amount && <p className="text-xs font-bold text-gray-900">{notif.amount}</p>}
+                                      <p className="text-[10px] text-gray-400 mt-1">
+                                        {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                      </p>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {navGroups.map(group => {
                           const visibleItems = group.items.filter(item => userPermissions[item.id] === true);
                           if (visibleItems.length === 0) return null;

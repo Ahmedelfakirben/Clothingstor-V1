@@ -26,6 +26,8 @@ export function POS() {
     setPaymentMethod,
     clearCart,
     setServiceType,
+    setSaleChannel,
+    saleChannel,
     setTableId,
     activeOrderId,
     setActiveOrderId,
@@ -57,11 +59,13 @@ export function POS() {
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [pendingOrderData, setPendingOrderData] = useState<{
     orderDate: Date;
-    orderNumber: string;
+    orderNumber?: string;
     items: Array<{ name: string; size?: string; quantity: number; price: number }>;
     total: number;
     paymentMethod: string;
     cashierName: string;
+    amountPaid?: number;
+    paymentStatus?: string;
   } | null>(null);
   const [existingItems, setExistingItems] = useState<Array<{ name: string; size?: string; quantity: number; price: number; subtotal: number }>>([]);
   const [existingOrderTotal, setExistingOrderTotal] = useState<number>(0);
@@ -439,7 +443,7 @@ export function POS() {
       customerName: customerId ? customers.find(c => c.id === customerId)?.name : undefined
     };
 
-    setPendingOrderData(ticketData as any);
+    setPendingOrderData(ticketData);
 
     setShowValidationModal(true);
   };
@@ -550,9 +554,8 @@ export function POS() {
         pendingOrderData.paymentMethod === 'Tarjeta' ? 'card' : 'digital';
 
       // Access extra properties from ticketData that might be "hidden" by the type
-      const pData = pendingOrderData as any;
-      const amountPaid = pData.amountPaid !== undefined ? pData.amountPaid : pData.total;
-      const paymentStatus = pData.paymentStatus || 'paid';
+      const amountPaid = pendingOrderData.amountPaid !== undefined ? pendingOrderData.amountPaid : pendingOrderData.total;
+      const paymentStatus = pendingOrderData.paymentStatus || 'paid';
 
       // Preparar items para la BD (con descuento por producto aplicado)
       const orderItemsPayload = cart.map(item => {
@@ -580,7 +583,7 @@ export function POS() {
           customer_id: customerId, // Save the customer connection!
           total: pendingOrderData.total,
           payment_method: paymentMethodDB,
-          service_type: 'takeaway',
+          service_type: saleChannel,
           table_id: null,
         })
         .select('id,total,created_at,order_number')
@@ -1683,6 +1686,32 @@ export function POS() {
           </div>
 
           <div className="p-5 border-t border-gray-200 bg-white space-y-4">
+            {/* Canal de Venta Selector */}
+            <div className="flex gap-2 p-1.5 bg-gray-50 rounded-xl border border-gray-200">
+              <button
+                onClick={() => setSaleChannel('store')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                  saleChannel === 'store'
+                    ? 'bg-white text-pink-600 shadow-sm border border-pink-100 ring-1 ring-pink-50'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4" />
+                {t('pos.channel_store')}
+              </button>
+              <button
+                onClick={() => setSaleChannel('website')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                  saleChannel === 'website'
+                    ? 'bg-white text-pink-600 shadow-sm border border-pink-100 ring-1 ring-pink-50'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                }`}
+              >
+                <Smartphone className="w-4 h-4" />
+                {t('pos.channel_website')}
+              </button>
+            </div>
+
             <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
               <div className="flex justify-between items-center text-2xl font-bold">
                 <span className="text-gray-800">{activeOrderId ? 'Añadir:' : 'Total:'}</span>

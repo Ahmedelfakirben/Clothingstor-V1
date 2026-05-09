@@ -4,9 +4,10 @@ import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save, CheckCircle } from 'lucide-react';
+import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save, CheckCircle, History as HistoryIcon, RefreshCw } from 'lucide-react';
 import IndividualUnitsManager from './IndividualUnitsManager';
 import { toast } from 'react-hot-toast';
+import ProductHistoryModal from './ProductHistoryModal';
 
 
 
@@ -23,6 +24,14 @@ interface StockItem {
     sold: number;
     sizes?: { name: string; stock: number }[];
     needs_validation?: boolean;
+    barcode?: string;
+    categoryId?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    createdBy?: string;
+    updatedBy?: string;
+    createdByName?: string;
+    updatedByName?: string;
 }
 
 interface BestSeller {
@@ -41,6 +50,16 @@ export function StockAnalytics() {
     const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'validate'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
+    const [categories, setCategories] = useState<any[]>([]);
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [sizeSearch, setSizeSearch] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize] = useState(20);
+    const [employeeMap, setEmployeeMap] = useState<Record<string, string>>({});
+
+    // History Modal State
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [itemForHistory, setItemForHistory] = useState<StockItem | null>(null);
 
     // Edit Modal States
     const [editCost, setEditCost] = useState(0);
@@ -130,10 +149,21 @@ export function StockAnalytics() {
         try {
             setLoading(true);
 
+            // 0. Fetch Categories and Employees
+            const [catsRes, empsRes] = await Promise.all([
+                supabase.from('categories').select('*').order('name'),
+                supabase.from('employee_profiles').select('id, full_name')
+            ]);
+            
+            setCategories(catsRes.data || []);
+            const empMap: Record<string, string> = {};
+            (empsRes.data || []).forEach(e => empMap[e.id] = e.full_name);
+            setEmployeeMap(empMap);
+
             // 1. Fetch Products
             const { data: products, error: prodError } = await supabase
                 .from('products')
-                .select('id, name, base_price, purchase_price, stock, image_url, needs_validation')
+                .select('id, name, base_price, purchase_price, stock, image_url, needs_validation, category_id, barcode, created_at, created_by, validated_by')
                 .eq('available', true);
 
             if (prodError) throw prodError;
@@ -157,7 +187,7 @@ export function StockAnalytics() {
                     currentStock = productSizes.reduce((sum, s) => sum + s.stock, 0);
                     // Aceptamos tanto 'size' como 'size_name'
                     sizesList = productSizes.map(s => ({ 
-                        name: (s as any).size_name || (s as any).size || '', 
+                        name: s.size_name || '', 
                         stock: s.stock 
                     }));
                 }
@@ -184,16 +214,25 @@ export function StockAnalytics() {
                     status,
                     sizes: sizesList.length > 0 ? sizesList : undefined,
                     sold: 0,
-                    needs_validation: product.needs_validation
+                    needs_validation: product.needs_validation,
+                    categoryId: product.category_id,
+                    barcode: product.barcode,
+                    createdAt: product.created_at,
+                    updatedAt: undefined, // Column does not exist in DB
+                    createdBy: (product as any).created_by,
+                    updatedBy: (product as any).validated_by,
+                    createdByName: empMap[(product as any).created_by] || t('Sistema'),
+                    updatedByName: empMap[(product as any).validated_by] || '-'
                 };
             });
 
 
 
-            // 5. Fetch ALL-TIME Sold Counts per Product
+            // 5. Fetch ALL-TIME Sold Counts per Product (Only completed orders)
             const { data: allSalesData } = await supabase
                 .from('order_items')
-                .select('product_id, quantity');
+                .select('product_id, quantity, orders!inner(status)')
+                .eq('orders.status', 'completed');
 
             const salesMap: Record<string, number> = {};
             if (allSalesData) {
@@ -271,7 +310,24 @@ export function StockAnalytics() {
             if (filter === 'validate') return item.status === 'validate';
             return true;
         })
-        .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        .filter(item => {
+            if (selectedCategory !== 'all' && item.categoryId !== selectedCategory) return false;
+            return true;
+        })
+        .filter(item => {
+            if (!sizeSearch) return true;
+            return item.sizes?.some(s => s.name.toLowerCase().includes(sizeSearch.toLowerCase()));
+        })
+        .filter(item => {
+            const searchLower = searchTerm.toLowerCase();
+            return (
+                item.name.toLowerCase().includes(searchLower) ||
+                (item.barcode && item.barcode.toLowerCase().includes(searchLower))
+            );
+        });
+
+    const totalPages = Math.ceil(filteredItems.length / pageSize);
+    const displayItems = filteredItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     return (
         <div className="space-y-6 animate-fadeIn pb-10">
@@ -360,35 +416,85 @@ export function StockAnalytics() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Main Stock Table */}
-                <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                            <Archive className="w-5 h-5 text-gray-500" />
-                            {t('stock.inventory_status')}
-                        </h2>
+                {/* Main Stock Table - Full Width */}
+                <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <div className="flex flex-col gap-6 mb-6">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <Archive className="w-5 h-5 text-gray-500" />
+                                {t('stock.inventory_status')}
+                            </h2>
+                            <span className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                                {filteredItems.length} {t('Productos')}
+                            </span>
+                        </div>
 
-                        <div className="flex gap-2">
+                        {/* Advanced Filters */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                             <div className="relative">
-                                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Buscar (Nombre/Código)')}</label>
+                                <div className="relative">
+                                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder={t('Nombre o Código...')}
+                                        value={searchTerm}
+                                        onChange={(e) => {
+                                            setSearchTerm(e.target.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 w-full bg-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Categoría')}</label>
+                                <select
+                                    value={selectedCategory}
+                                    onChange={(e) => {
+                                        setSelectedCategory(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                                >
+                                    <option value="all">{t('Todas las Categorías')}</option>
+                                    {categories.map(cat => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Filtrar por Talla')}</label>
                                 <input
                                     type="text"
-                                    placeholder={t('common.search')}
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 w-full sm:w-48"
+                                    placeholder={t('Ej: XL, 42...')}
+                                    value={sizeSearch}
+                                    onChange={(e) => {
+                                        setSizeSearch(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                                 />
                             </div>
-                            <select
-                                value={filter}
-                                onChange={(e) => setFilter(e.target.value as any)}
-                                className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-gray-50"
-                            >
-                                <option value="all">{t('Todos')}</option>
-                                <option value="low">{t('stock.low_stock')}</option>
-                                <option value="out">{t('stock.out_of_stock')}</option>
-                                <option value="validate">{t('stock.needs_validation')}</option>
-                            </select>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Estado')}</label>
+                                <select
+                                    value={filter}
+                                    onChange={(e) => {
+                                        setFilter(e.target.value as any);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                                >
+                                    <option value="all">{t('Todos los Estados')}</option>
+                                    <option value="low">{t('stock.low_stock')}</option>
+                                    <option value="out">{t('stock.out_of_stock')}</option>
+                                    <option value="validate">{t('stock.needs_validation')}</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -397,19 +503,24 @@ export function StockAnalytics() {
                             <thead className="bg-gray-50 border-b border-gray-100">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('Producto')}</th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Creado por')}</th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Fecha Reg.')}</th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Última Modif.')}</th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Modif. por')}</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Stock')}</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Vendidos')}</th>
                                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('Valor Venta')}</th>
                                     <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Estado')}</th>
+                                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">{t('Acciones')}</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {loading ? (
-                                    <tr><td colSpan={4} className="text-center py-8 text-gray-500">{t('common.loading')}</td></tr>
-                                ) : filteredItems.length === 0 ? (
-                                    <tr><td colSpan={4} className="text-center py-8 text-gray-500">{t('No se encontraron productos')}</td></tr>
+                                    <tr><td colSpan={10} className="text-center py-8 text-gray-500">{t('common.loading')}</td></tr>
+                                ) : displayItems.length === 0 ? (
+                                    <tr><td colSpan={10} className="text-center py-8 text-gray-500">{t('No se encontraron productos')}</td></tr>
                                 ) : (
-                                    filteredItems.map(item => (
+                                    displayItems.map(item => (
                                         <tr
                                             key={item.id}
                                             className="hover:bg-gray-50 transition-colors cursor-pointer group"
@@ -423,16 +534,35 @@ export function StockAnalytics() {
                                                         <Package className="w-5 h-5" />
                                                     </div>
                                                 )}
-                                                <span className="font-medium text-gray-900">{item.name}</span>
-                                                {item.sizes && item.sizes.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1 mt-1">
-                                                        {item.sizes.map((s, idx) => (
-                                                            <span key={idx} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                                                                {s.name}: {s.stock}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                <div>
+                                                    <span className="font-bold text-gray-900 block">{item.name}</span>
+                                                    {item.barcode && <span className="text-[10px] font-mono text-gray-400 block leading-none mt-0.5">{item.barcode}</span>}
+                                                    {item.sizes && item.sizes.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1 mt-1.5">
+                                                            {item.sizes.map((s, idx) => (
+                                                                <span key={idx} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-md font-bold">
+                                                                    {s.name}: {s.stock}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded whitespace-nowrap">
+                                                    {item.createdByName}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-center text-xs text-gray-500 whitespace-nowrap">
+                                                {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-center text-xs text-gray-500 whitespace-nowrap">
+                                                {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded whitespace-nowrap">
+                                                    {item.updatedByName}
+                                                </span>
                                             </td>
                                             <td className="px-4 py-3 text-center font-bold text-gray-700">{item.totalStock}</td>
                                             <td className="px-4 py-3 text-center font-medium text-blue-600">{item.sold}</td>
@@ -459,39 +589,112 @@ export function StockAnalytics() {
                                                     </span>
                                                 )}
                                             </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setItemForHistory(item);
+                                                        setShowHistoryModal(true);
+                                                    }}
+                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                    title={t('Ver Historial')}
+                                                >
+                                                    <HistoryIcon className="w-5 h-5" />
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))
                                 )}
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="mt-8 flex items-center justify-center gap-2">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="p-2 rounded-lg border border-gray-200 disabled:opacity-30 hover:bg-gray-50 transition-colors"
+                            >
+                                ←
+                            </button>
+                            
+                            <div className="flex gap-1">
+                                {[...Array(totalPages)].map((_, i) => {
+                                    const pageNum = i + 1;
+                                    // Show first, last, and pages around current
+                                    if (
+                                        pageNum === 1 || 
+                                        pageNum === totalPages || 
+                                        (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                    ) {
+                                        return (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                                className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${
+                                                    currentPage === pageNum 
+                                                    ? 'bg-amber-600 text-white shadow-md' 
+                                                    : 'text-gray-600 hover:bg-gray-100'
+                                                }`}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        );
+                                    }
+                                    if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                                        return <span key={pageNum} className="text-gray-400">...</span>;
+                                    }
+                                    return null;
+                                })}
+                            </div>
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className="p-2 rounded-lg border border-gray-200 disabled:opacity-30 hover:bg-gray-50 transition-colors"
+                            >
+                                →
+                            </button>
+                        </div>
+                    )}
                 </div>
 
-                {/* Best Sellers */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-fit">
+                {/* Best Sellers - Moved to Bottom (Full Width) */}
+                <div className="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 h-fit mt-6">
                     <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-6">
                         <TrendingUp className="w-5 h-5 text-green-500" />
                         {t('stock.best_sellers')} (30d)
                     </h2>
 
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         {loading ? (
-                            <p className="text-gray-500 text-center py-4">{t('common.loading')}</p>
+                            <p className="text-gray-500 text-center py-4 col-span-full">{t('common.loading')}</p>
                         ) : bestSellers.length === 0 ? (
-                            <p className="text-gray-500 text-center py-4">{t('No hay datos de ventas recientes')}</p>
+                            <p className="text-gray-500 text-center py-4 col-span-full">{t('No hay datos de ventas recientes')}</p>
                         ) : (
                             bestSellers.map((item, index) => (
-                                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm">
+                                <div key={index} className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100 relative overflow-hidden group hover:bg-white hover:shadow-md transition-all">
+                                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                                        <TrendingUp className="w-12 h-12 text-green-600" />
+                                    </div>
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-black text-sm shrink-0">
                                             {index + 1}
                                         </div>
+                                        <p className="font-black text-gray-900 text-sm line-clamp-1">{item.name}</p>
+                                    </div>
+                                    <div className="flex justify-between items-end mt-auto">
                                         <div>
-                                            <p className="font-bold text-gray-900 text-sm line-clamp-1">{item.name}</p>
-                                            <p className="text-xs text-gray-500">{item.quantity} {t('unidades')}</p>
+                                            <p className="text-xs text-gray-400 font-bold uppercase">{t('Vendidos')}</p>
+                                            <p className="text-lg font-black text-blue-600 leading-none">{item.quantity}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs text-gray-400 font-bold uppercase">{t('Total')}</p>
+                                            <p className="text-sm font-black text-green-600">{formatCurrency(item.revenue)}</p>
                                         </div>
                                     </div>
-                                    <p className="font-bold text-green-600 text-sm">{formatCurrency(item.revenue)}</p>
                                 </div>
                             ))
                         )}
@@ -619,6 +822,18 @@ export function StockAnalytics() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showHistoryModal && itemForHistory && (
+                <ProductHistoryModal
+                    productId={itemForHistory.id}
+                    productName={itemForHistory.name}
+                    currentStock={itemForHistory.totalStock}
+                    onClose={() => {
+                        setShowHistoryModal(false);
+                        setItemForHistory(null);
+                    }}
+                />
             )}
         </div>
     );
