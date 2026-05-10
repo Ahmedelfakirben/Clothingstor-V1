@@ -1237,24 +1237,9 @@ export function POS() {
           </div>
           {/* Sección de Categorías - Navegación Horizontal Compacta con Flechas */}
           <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-40 group/nav">
-            <div className="max-w-7xl mx-auto px-4 py-3 relative">
-              {/* Botón Izquierda */}
-              <button
-                onClick={() => categoryScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
-                className="absolute left-1 top-1/2 -translate-y-1/2 z-50 w-8 h-8 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-full flex items-center justify-center shadow-md text-gray-600 opacity-0 group-hover/nav:opacity-100 transition-opacity hover:bg-white hover:text-pink-600"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-
-              <div 
-                ref={categoryScrollRef}
-                className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 flex-nowrap scroll-smooth"
-                onWheel={(e) => {
-                  if (e.deltaY !== 0) {
-                    e.currentTarget.scrollLeft += e.deltaY;
-                  }
-                }}
-              >
+            <div className="max-w-7xl mx-auto px-4 py-3 relative flex items-center gap-2">
+              {/* Botones Fijos (Todos y Talla) para evitar clipping del dropdown */}
+              <div className="flex items-center gap-2 flex-shrink-0 pr-2 border-r border-gray-100">
                 {/* Todos */}
                 <button
                   onClick={() => setSelectedCategory('all')}
@@ -1282,7 +1267,7 @@ export function POS() {
                       <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${showSizeDropdown ? 'rotate-90' : ''}`} />
                     </button>
                     {showSizeDropdown && (
-                      <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 p-2 min-w-[11rem] max-h-72 overflow-y-auto">
+                      <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl z-[100] p-2 min-w-[11rem] max-h-72 overflow-y-auto">
                         <button
                           onClick={() => { setSelectedSize('all'); setShowSizeDropdown(false); }}
                           className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-colors mb-1 ${
@@ -1307,29 +1292,50 @@ export function POS() {
                     )}
                   </div>
                 )}
-
-                {/* Categories */}
-                {categories.map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedCategory(cat.id)}
-                    className={`flex-shrink-0 px-5 py-2 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 ${selectedCategory === cat.id
-                      ? 'gradient-primary text-white shadow-lg shadow-pink-200'
-                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
-                      }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
               </div>
 
-              {/* Botón Derecha */}
-              <button
-                onClick={() => categoryScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
-                className="absolute right-1 top-1/2 -translate-y-1/2 z-50 w-8 h-8 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-full flex items-center justify-center shadow-md text-gray-600 opacity-0 group-hover/nav:opacity-100 transition-opacity hover:bg-white hover:text-pink-600"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+              {/* Área Scrollable (Categorías) */}
+              <div className="relative flex-1 overflow-hidden">
+                {/* Botón Izquierda */}
+                <button
+                  onClick={() => categoryScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-50 w-7 h-7 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full flex items-center justify-center shadow-md text-gray-600 opacity-0 group-hover/nav:opacity-100 transition-opacity hover:bg-white hover:text-pink-600"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div 
+                  ref={categoryScrollRef}
+                  className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 flex-nowrap scroll-smooth px-2"
+                  onWheel={(e) => {
+                    if (e.deltaY !== 0) {
+                      e.currentTarget.scrollLeft += e.deltaY;
+                    }
+                  }}
+                >
+                  {/* Categories */}
+                  {categories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`flex-shrink-0 px-5 py-2 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 ${selectedCategory === cat.id
+                        ? 'gradient-primary text-white shadow-lg shadow-pink-200'
+                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
+                        }`}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Botón Derecha */}
+                <button
+                  onClick={() => categoryScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-50 w-7 h-7 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full flex items-center justify-center shadow-md text-gray-600 opacity-0 group-hover/nav:opacity-100 transition-opacity hover:bg-white hover:text-pink-600"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             
             {/* Custom CSS for hidden scrollbar */}
