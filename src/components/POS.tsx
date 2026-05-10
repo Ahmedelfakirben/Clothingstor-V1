@@ -1234,41 +1234,41 @@ export function POS() {
               </button>
             </form>
           </div>
-          {/* Sección de Categorías - Diseño Minimalista Moderno */}
-          <div className="bg-white border-b border-gray-200">
-            <div className="max-w-7xl mx-auto px-8 py-4">
-              <div className="flex items-center justify-center gap-3 flex-wrap">
+          {/* Sección de Categorías - Navegación Horizontal Compacta */}
+          <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-40">
+            <div className="max-w-7xl mx-auto px-4 py-3">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
                 {/* Todos */}
                 <button
                   onClick={() => setSelectedCategory('all')}
-                  className={`px-8 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300 ${selectedCategory === 'all'
-                    ? 'gradient-primary text-white shadow-md scale-105'
-                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:shadow-md border border-gray-200'
+                  className={`flex-shrink-0 px-5 py-2 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 ${selectedCategory === 'all'
+                    ? 'gradient-primary text-white shadow-lg shadow-pink-200'
+                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
                     }`}
                 >
-                  Todos
+                  {t('Todos')}
                 </button>
 
-                {/* Size dropdown — inline next to Todos */}
+                {/* Size dropdown */}
                 {availableSizeNames.length > 0 && (
-                  <div ref={sizeDropdownRef} className="relative">
+                  <div ref={sizeDropdownRef} className="relative flex-shrink-0">
                     <button
                       onClick={() => setShowSizeDropdown(p => !p)}
-                      className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm tracking-wide border transition-all duration-300 ${
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-xs uppercase tracking-wider border transition-all duration-300 ${
                         selectedSize !== 'all'
-                          ? 'bg-amber-500 text-white border-amber-500 shadow-md scale-105'
-                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:shadow-md border-gray-200'
+                          ? 'bg-amber-500 text-white border-amber-500 shadow-lg shadow-amber-200'
+                          : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'
                       }`}
                     >
-                      <Tag className="w-4 h-4" />
+                      <Tag className="w-3.5 h-3.5" />
                       {selectedSize !== 'all' ? selectedSize : (currentLanguage === 'fr' ? 'Taille' : 'Talla')}
-                      <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${showSizeDropdown ? 'rotate-90' : ''}`} />
+                      <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${showSizeDropdown ? 'rotate-90' : ''}`} />
                     </button>
                     {showSizeDropdown && (
                       <div className="absolute top-full left-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl z-50 p-2 min-w-[11rem] max-h-72 overflow-y-auto">
                         <button
                           onClick={() => { setSelectedSize('all'); setShowSizeDropdown(false); }}
-                          className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors mb-1 ${
+                          className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-colors mb-1 ${
                             selectedSize === 'all' ? 'bg-amber-50 text-amber-700' : 'hover:bg-gray-50 text-gray-600'
                           }`}
                         >
@@ -1279,7 +1279,7 @@ export function POS() {
                           <button
                             key={sn}
                             onClick={() => { setSelectedSize(sn); setShowSizeDropdown(false); }}
-                            className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                            className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${
                               selectedSize === sn ? 'bg-amber-50 text-amber-700' : 'hover:bg-gray-50 text-gray-700'
                             }`}
                           >
@@ -1296,9 +1296,9 @@ export function POS() {
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-8 py-3 rounded-xl font-semibold text-sm tracking-wide transition-all duration-300 ${selectedCategory === cat.id
-                      ? 'gradient-primary text-white shadow-md scale-105'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:shadow-md border border-gray-200'
+                    className={`flex-shrink-0 px-5 py-2 rounded-full font-bold text-xs uppercase tracking-wider transition-all duration-300 ${selectedCategory === cat.id
+                      ? 'gradient-primary text-white shadow-lg shadow-pink-200'
+                      : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200'
                       }`}
                   >
                     {cat.name}
@@ -1306,6 +1306,17 @@ export function POS() {
                 ))}
               </div>
             </div>
+            
+            {/* Custom CSS for hidden scrollbar */}
+            <style>{`
+              .no-scrollbar::-webkit-scrollbar {
+                display: none;
+              }
+              .no-scrollbar {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+              }
+            `}</style>
           </div>
 
           <div className="flex-1 overflow-auto p-4">
