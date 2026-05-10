@@ -5,7 +5,7 @@ import { useCart } from '../contexts/CartContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { Category, Product, ProductSize } from '../types/supabase';
-import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, ChevronRight, Search, ScanBarcode, ShoppingBag, Users, CheckCircle, RotateCcw, Tag, X } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, ChevronRight, ChevronLeft, Search, ScanBarcode, ShoppingBag, Users, CheckCircle, RotateCcw, Tag, X } from 'lucide-react';
 import { TicketPrinter } from './TicketPrinter';
 import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
 import { toast } from 'react-hot-toast';
@@ -44,6 +44,7 @@ export function POS() {
   const [selectedSize, setSelectedSize] = useState<string>('all');
   const [showSizeDropdown, setShowSizeDropdown] = useState(false);
   const sizeDropdownRef = useRef<HTMLDivElement>(null);
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -1234,11 +1235,20 @@ export function POS() {
               </button>
             </form>
           </div>
-          {/* Sección de Categorías - Navegación Horizontal Compacta */}
-          <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-40">
-            <div className="max-w-7xl mx-auto px-4 py-3">
+          {/* Sección de Categorías - Navegación Horizontal Compacta con Flechas */}
+          <div className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-40 group/nav">
+            <div className="max-w-7xl mx-auto px-4 py-3 relative">
+              {/* Botón Izquierda */}
+              <button
+                onClick={() => categoryScrollRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+                className="absolute left-1 top-1/2 -translate-y-1/2 z-50 w-8 h-8 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-full flex items-center justify-center shadow-md text-gray-600 opacity-0 group-hover/nav:opacity-100 transition-opacity hover:bg-white hover:text-pink-600"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+
               <div 
-                className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 flex-nowrap"
+                ref={categoryScrollRef}
+                className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 flex-nowrap scroll-smooth"
                 onWheel={(e) => {
                   if (e.deltaY !== 0) {
                     e.currentTarget.scrollLeft += e.deltaY;
@@ -1312,6 +1322,14 @@ export function POS() {
                   </button>
                 ))}
               </div>
+
+              {/* Botón Derecha */}
+              <button
+                onClick={() => categoryScrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+                className="absolute right-1 top-1/2 -translate-y-1/2 z-50 w-8 h-8 bg-white/80 backdrop-blur-sm border border-gray-200 rounded-full flex items-center justify-center shadow-md text-gray-600 opacity-0 group-hover/nav:opacity-100 transition-opacity hover:bg-white hover:text-pink-600"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
             
             {/* Custom CSS for hidden scrollbar */}
