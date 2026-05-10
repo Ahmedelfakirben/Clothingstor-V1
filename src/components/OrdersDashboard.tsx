@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Clock, CheckCircle, XCircle, Banknote, CreditCard, Smartphone, Trash2, AlertCircle, DollarSign, RotateCcw } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, Banknote, CreditCard, Smartphone, Trash2, AlertCircle, DollarSign, RotateCcw, ShoppingBag } from 'lucide-react';
 
 import { toast } from 'react-hot-toast';
 import { TicketPrinter } from './TicketPrinter';
