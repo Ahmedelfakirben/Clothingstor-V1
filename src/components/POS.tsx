@@ -78,6 +78,7 @@ export function POS() {
   const [returnSearch, setReturnSearch] = useState('');
   const [returnBarcodeInput, setReturnBarcodeInput] = useState('');
   const [soldItems, setSoldItems] = useState<any[]>([]);
+  const [allRecentSoldItems, setAllRecentSoldItems] = useState<any[]>([]);
   const [soldItemsLoading, setSoldItemsLoading] = useState(false);
   const [selectedReturnItem, setSelectedReturnItem] = useState<any | null>(null);
   const [returnQuantity, setReturnQuantity] = useState(1);
@@ -104,18 +105,47 @@ export function POS() {
   // Dynamic Sizes for Return Module
   const availableReturnSizes = useMemo(() => {
     return [...new Set(
-      soldItems
-        .filter(it => returnCategoryFilter === 'all' || it.products?.category_id === returnCategoryFilter)
-        .map(it => it.product_sizes?.size_name)
+      allRecentSoldItems
+        .filter(it => returnCategoryFilter === 'all' || it.category_id === returnCategoryFilter)
+        .map(it => it.size_name)
         .filter(Boolean)
     )].sort();
-  }, [soldItems, returnCategoryFilter]);
+  }, [allRecentSoldItems, returnCategoryFilter]);
 
   useEffect(() => {
     if (returnSizeFilter !== 'all' && !availableReturnSizes.includes(returnSizeFilter)) {
       setReturnSizeFilter('all');
     }
   }, [returnCategoryFilter, availableReturnSizes]);
+
+  // Client-side filtered items for Return
+  const filteredReturnItems = useMemo(() => {
+    let mapped = allRecentSoldItems;
+    
+    if (returnSearch.trim()) {
+      const term = returnSearch.trim().toLowerCase();
+      mapped = mapped.filter(i =>
+        i.product_name.toLowerCase().includes(term) ||
+        i.product_barcode.toLowerCase().includes(term) ||
+        i.size_barcode.toLowerCase().includes(term) ||
+        String(i.order_number || '').includes(term)
+      );
+    }
+
+    if (returnDateFilter) {
+      mapped = mapped.filter(i => i.order_date.startsWith(returnDateFilter));
+    }
+
+    if (returnCategoryFilter !== 'all') {
+      mapped = mapped.filter(i => i.category_id === returnCategoryFilter);
+    }
+
+    if (returnSizeFilter !== 'all') {
+      mapped = mapped.filter(i => i.size_name === returnSizeFilter);
+    }
+
+    return mapped.slice(0, 20);
+  }, [allRecentSoldItems, returnSearch, returnDateFilter, returnCategoryFilter, returnSizeFilter]);
 
   // Gallery Modal States
   const [galleryModalOpen, setGalleryModalOpen] = useState(false);
@@ -770,7 +800,7 @@ export function POS() {
 
       if (error) throw error;
 
-      let mapped = (data || [])
+      const mapped = (data || [])
         .filter((item: any) => item.orders?.status === 'completed') // filter completed
         .map((item: any) => ({
           id: item.id,
@@ -790,31 +820,7 @@ export function POS() {
           subtotal: item.subtotal,
         }));
 
-      // Apply filters
-      if (searchTerm.trim()) {
-        const term = searchTerm.trim().toLowerCase();
-        mapped = mapped.filter(i =>
-          i.product_name.toLowerCase().includes(term) ||
-          i.product_barcode.toLowerCase().includes(term) ||
-          i.size_barcode.toLowerCase().includes(term) ||
-          String(i.order_number || '').includes(term)
-        );
-      }
-
-      if (returnDateFilter) {
-        mapped = mapped.filter(i => i.order_date.startsWith(returnDateFilter));
-      }
-
-      if (returnCategoryFilter !== 'all') {
-        mapped = mapped.filter(i => i.category_id === returnCategoryFilter);
-      }
-
-      if (returnSizeFilter !== 'all') {
-        mapped = mapped.filter(i => i.size_name === returnSizeFilter);
-      }
-
-      // Final limit to 20
-      setSoldItems(mapped.slice(0, 20));
+      setAllRecentSoldItems(mapped);
     } catch (err) {
       console.error('Error fetching sold items:', err);
       toast.error(t('pos.return_load_error'));
@@ -823,12 +829,12 @@ export function POS() {
     }
   };
 
-  // Re-fetch when filters change
+  // Re-fetch when modal opens or search changes
   useEffect(() => {
     if (showReturnModal) {
       fetchSoldItems(returnSearch);
     }
-  }, [returnDateFilter, returnCategoryFilter, returnSizeFilter, showReturnModal]);
+  }, [showReturnModal, returnSearch]);
 
   const handleReturnBarcodeSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2294,13 +2300,13 @@ export function POS() {
                 <div className="flex items-center justify-center py-12">
                   <LoadingSpinner size="md" />
                 </div>
-              ) : soldItems.length === 0 ? (
+              ) : filteredReturnItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-12 text-gray-400">
                   <ShoppingBag className="w-12 h-12 mb-3 opacity-30" />
                   <p className="font-medium">{t('pos.return_no_results')}</p>
                 </div>
               ) : (
-                soldItems.map((item, idx) => {
+                filteredReturnItems.map((item, idx) => {
                   const isSelected = selectedReturnItem?.id === item.id;
                   return (
                     <button
