@@ -54,6 +54,7 @@ interface OrderItem {
   size_id?: string | null;
   products: {
     name: string;
+    image_url?: string;
   };
   product_sizes?: {
     size_name: string;
@@ -397,7 +398,8 @@ export function OrdersDashboard() {
             unit_price,
             subtotal,
             products!product_id(
-              name
+              name,
+              image_url
             ),
             product_sizes!size_id(
               size_name
@@ -948,16 +950,31 @@ export function OrdersDashboard() {
 
                   <div className="mb-4 space-y-2 bg-white/60 backdrop-blur-sm rounded-xl p-3 border-2 border-white/80">
                     {order.order_items?.map(item => (
-                      <div key={item.id} className="text-sm flex justify-between items-center bg-white/80 rounded-lg px-3 py-2 shadow-sm">
-                        <span className="font-semibold text-gray-800">
-                          <span className="inline-block w-6 h-6 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-white text-xs font-black flex items-center justify-center mr-2">
-                            {item.quantity}
-                          </span>
-                          {item.products?.name}
-                          {item.product_sizes && (
-                            <span className="text-xs text-amber-600 font-bold ml-1">({item.product_sizes.size_name})</span>
+                      <div key={item.id} className="text-sm flex items-center gap-3 bg-white/80 rounded-lg px-3 py-2 shadow-sm">
+                        {/* Thumbnail */}
+                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200">
+                          {item.products?.image_url ? (
+                            <img src={item.products.image_url} alt={item.products.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                              <ShoppingBag className="w-6 h-6" />
+                            </div>
                           )}
-                        </span>
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <span className="font-semibold text-gray-800 block truncate">
+                            <span className="inline-block w-5 h-5 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 text-white text-[10px] font-black flex items-center justify-center mr-1.5 float-left mt-0.5">
+                              {item.quantity}
+                            </span>
+                            {item.products?.name}
+                          </span>
+                          {item.product_sizes && (
+                            <span className="text-[10px] text-amber-600 font-bold block mt-0.5 italic">
+                              {item.product_sizes.size_name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
