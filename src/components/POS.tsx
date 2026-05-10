@@ -101,6 +101,22 @@ export function POS() {
     cashierName: string;
   } | null>(null);
 
+  // Dynamic Sizes for Return Module
+  const availableReturnSizes = useMemo(() => {
+    return [...new Set(
+      soldItems
+        .filter(it => returnCategoryFilter === 'all' || it.products?.category_id === returnCategoryFilter)
+        .map(it => it.product_sizes?.size_name)
+        .filter(Boolean)
+    )].sort();
+  }, [soldItems, returnCategoryFilter]);
+
+  useEffect(() => {
+    if (returnSizeFilter !== 'all' && !availableReturnSizes.includes(returnSizeFilter)) {
+      setReturnSizeFilter('all');
+    }
+  }, [returnCategoryFilter, availableReturnSizes]);
+
   // Gallery Modal States
   const [galleryModalOpen, setGalleryModalOpen] = useState(false);
   const [galleryModalProduct, setGalleryModalProduct] = useState<Product | null>(null);
@@ -363,19 +379,36 @@ export function POS() {
   const productSizes = (productId: string) => sizes.filter(s => s.product_id === productId);
 
   // All distinct size names that currently have stock (for the filter pill list)
-  const availableSizeNames: string[] = [...new Set(
-    sizes
-      .filter(s => s.stock > 0)
-      .map(s => s.size_name)
-  )].sort((a, b) => {
-    // Try numeric sort first (XS < S < M < L < XL etc won't sort numerically, fallback to string)
-    const numA = parseFloat(a); const numB = parseFloat(b);
-    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-    const order = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
-    const iA = order.indexOf(a.toUpperCase()); const iB = order.indexOf(b.toUpperCase());
-    if (iA !== -1 && iB !== -1) return iA - iB;
-    return a.localeCompare(b);
-  });
+  // Dynamic: Only show sizes available in the selected category
+  const availableSizeNames = useMemo(() => {
+    let relevantSizes = sizes;
+    if (selectedCategory !== 'all') {
+      relevantSizes = sizes.filter(s => {
+        const p = products.find(prod => prod.id === s.product_id);
+        return p?.category_id === selectedCategory;
+      });
+    }
+    
+    return [...new Set(
+      relevantSizes
+        .filter(s => s.stock > 0)
+        .map(s => s.size_name)
+    )].sort((a, b) => {
+      const numA = parseFloat(a); const numB = parseFloat(b);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      const order = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+      const iA = order.indexOf(a.toUpperCase()); const iB = order.indexOf(b.toUpperCase());
+      if (iA !== -1 && iB !== -1) return iA - iB;
+      return a.localeCompare(b);
+    });
+  }, [sizes, selectedCategory, products]);
+
+  // Reset size filter when category changes in main view
+  useEffect(() => {
+    if (selectedSize !== 'all' && !availableSizeNames.includes(selectedSize)) {
+      setSelectedSize('all');
+    }
+  }, [selectedCategory, availableSizeNames]);
 
   // Products visible after category AND size filters
   const filteredProducts = products.filter(product => {
@@ -2248,7 +2281,7 @@ export function POS() {
                   className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-orange-400 outline-none"
                 >
                   <option value="all">{t('Todas las tallas')}</option>
-                  {availableSizeNames.map(size => (
+                  {availableReturnSizes.map(size => (
                     <option key={size} value={size}>{size}</option>
                   ))}
                 </select>

@@ -217,13 +217,17 @@ export function ProductsManager() {
     ]);
   };
 
-  const fetchUniqueSizes = async () => {
-    const { data, error } = await supabase
-      .from('product_sizes')
-      .select('size_name');
+  const fetchUniqueSizes = async (categoryId: string = 'all') => {
+    let query = supabase.from('product_sizes').select('size_name, products!inner(category_id)');
+    
+    if (categoryId !== 'all') {
+      query = query.eq('products.category_id', categoryId);
+    }
+    
+    const { data, error } = await query;
     
     if (!error && data) {
-      const unique = Array.from(new Set(data.map(s => s.size_name))).sort();
+      const unique = Array.from(new Set(data.map((s: any) => s.size_name))).sort();
       setAvailableSizes(unique);
     }
   };
@@ -233,9 +237,16 @@ export function ProductsManager() {
     const timer = setTimeout(() => {
       setCurrentPage(1);
       fetchProducts(1);
+      fetchUniqueSizes(selectedCategory);
     }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm, selectedCategory, selectedSize, sortBy]);
+
+  useEffect(() => {
+    if (selectedSize !== 'all' && !availableSizes.includes(selectedSize)) {
+      setSelectedSize('all');
+    }
+  }, [selectedCategory, availableSizes]);
 
   // Efecto para cambio de página
   useEffect(() => {
