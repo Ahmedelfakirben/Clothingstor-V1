@@ -26,6 +26,7 @@ export function POS() {
     setPaymentMethod,
     clearCart,
     setServiceType,
+    serviceType,
     setSaleChannel,
     saleChannel,
     setTableId,
@@ -650,7 +651,7 @@ export function POS() {
           customer_id: customerId, // Save the customer connection!
           total: pendingOrderData.total,
           payment_method: paymentMethodDB,
-          service_type: saleChannel,
+          service_type: serviceType,
           table_id: null,
         })
         .select('id,total,created_at,order_number')
