@@ -365,8 +365,11 @@ export function POS() {
         setProducts(data);
         setTotalProducts(count || 0);
         
-        const allSizes = data.flatMap((p: any) => p.product_sizes || []);
-        setSizes(allSizes);
+        const newSizes = data.flatMap((p: any) => p.product_sizes || []);
+        setSizes(prev => {
+          const prevFiltered = prev.filter(s => !newSizes.some(ns => ns.id === s.id));
+          return [...prevFiltered, ...newSizes];
+        });
       }
     } catch (err) {
       console.error('Error fetching products:', err);
@@ -422,7 +425,6 @@ export function POS() {
     
     return [...new Set(
       relevantSizes
-        .filter(s => s.stock > 0)
         .map(s => s.size_name)
     )].sort((a, b) => {
       const numA = parseFloat(a); const numB = parseFloat(b);
@@ -445,7 +447,7 @@ export function POS() {
   const filteredProducts = products.filter(product => {
     if (selectedSize === 'all') return true;
     return sizes.some(
-      s => s.product_id === product.id && s.size_name === selectedSize && s.stock > 0
+      s => s.product_id === product.id && s.size_name === selectedSize
     );
   });
 
@@ -991,27 +993,38 @@ export function POS() {
                 <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${showSizeDropdown ? 'rotate-90' : ''}`} />
               </button>
               {showSizeDropdown && (
-                <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-2 min-w-[12rem] max-h-60 overflow-y-auto">
-                  <button
-                    onClick={() => { setSelectedSize('all'); setShowSizeDropdown(false); }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      selectedSize === 'all' ? 'bg-amber-50 text-amber-700 font-bold' : 'hover:bg-gray-50 text-gray-700'
-                    }`}
-                  >
-                    {currentLanguage === 'fr' ? '✓ Toutes les tailles' : '✓ Todas las tallas'}
-                  </button>
-                  <div className="my-1 border-t border-gray-100" />
-                  {availableSizeNames.map(sn => (
-                    <button
-                      key={sn}
-                      onClick={() => { setSelectedSize(sn); setShowSizeDropdown(false); }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        selectedSize === sn ? 'bg-amber-50 text-amber-700 font-bold' : 'hover:bg-gray-50 text-gray-700'
-                      }`}
-                    >
-                      {selectedSize === sn ? '✓ ' : ''}{sn}
-                    </button>
-                  ))}
+                <div className="fixed inset-0 z-[100] bg-black/50 flex flex-col justify-end" onClick={() => setShowSizeDropdown(false)}>
+                  <div className="bg-white rounded-t-2xl w-full max-h-[80vh] flex flex-col animate-in slide-in-from-bottom-8" onClick={e => e.stopPropagation()}>
+                    <div className="p-4 border-b border-gray-100 flex justify-between items-center">
+                      <h3 className="font-bold text-gray-800 text-lg">{currentLanguage === 'fr' ? 'Sélectionner la taille' : 'Seleccionar Talla'}</h3>
+                      <button onClick={(e) => { e.stopPropagation(); setShowSizeDropdown(false); }} className="p-2 -mr-2 text-gray-400 hover:text-gray-600">
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+                    <div className="p-4 overflow-y-auto space-y-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSelectedSize('all'); setShowSizeDropdown(false); }}
+                        className={`w-full text-left px-4 py-3 rounded-xl text-base font-semibold transition-colors flex items-center justify-between ${
+                          selectedSize === 'all' ? 'bg-amber-50 text-amber-700' : 'bg-gray-50 text-gray-700'
+                        }`}
+                      >
+                        {currentLanguage === 'fr' ? 'Toutes les tailles' : 'Todas las tallas'}
+                        {selectedSize === 'all' && <CheckCircle className="w-5 h-5 text-amber-500" />}
+                      </button>
+                      {availableSizeNames.map(sn => (
+                        <button
+                          key={sn}
+                          onClick={(e) => { e.stopPropagation(); setSelectedSize(sn); setShowSizeDropdown(false); }}
+                          className={`w-full text-left px-4 py-3 rounded-xl text-base font-semibold transition-colors flex items-center justify-between ${
+                            selectedSize === sn ? 'bg-amber-50 text-amber-700' : 'bg-gray-50 text-gray-700'
+                          }`}
+                        >
+                          {sn}
+                          {selectedSize === sn && <CheckCircle className="w-5 h-5 text-amber-500" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1111,6 +1124,29 @@ export function POS() {
             );
           })}
         </div>
+
+        {/* Pagination Controls Mobile */}
+        {totalProducts > ITEMS_PER_PAGE && (
+          <div className="mt-6 mb-2 flex items-center justify-center gap-3">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1 || loading}
+              className="px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm text-gray-500 font-medium">
+              {t('common.page')} {currentPage} {t('common.of')} {Math.ceil(totalProducts / ITEMS_PER_PAGE)}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => p + 1)}
+              disabled={currentPage >= Math.ceil(totalProducts / ITEMS_PER_PAGE) || loading}
+              className="px-3 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-1"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Resumen del pedido móvil (fixed en la parte inferior) */}

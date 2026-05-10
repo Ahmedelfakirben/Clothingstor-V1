@@ -28,6 +28,7 @@ interface Order {
   customer_id?: string;
   customers?: {
     name: string;
+    phone?: string;
   };
 }
 
@@ -389,7 +390,7 @@ export function OrdersDashboard() {
         .from('orders')
         .select(`
           *,
-          customers(name),
+          customers(name, phone),
           order_items(
             id,
             product_id,
@@ -411,14 +412,16 @@ export function OrdersDashboard() {
       // Mostrar últimas 24 horas desde las 2 AM en vista actual
       if (viewMode === 'current') {
         const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+        const layawayCondition = 'and(status.eq.preparing,payment_status.eq.partial)';
+
         if (isAdmin && currentDateFilter) {
-          // Admin has selected a specific date: show that full day
+          // Admin has selected a specific date: show that full day OR layaways
           const dayStart = new Date(currentDateFilter + 'T00:00:00');
           const dayEnd = new Date(currentDateFilter + 'T23:59:59');
-          query = query.gte('created_at', dayStart.toISOString()).lte('created_at', dayEnd.toISOString());
+          query = query.or(`and(created_at.gte.${dayStart.toISOString()},created_at.lte.${dayEnd.toISOString()}),${layawayCondition}`);
         } else {
           const last2AM = getLast2AMTimestamp();
-          query = query.or(`created_at.gte.${last2AM},status.eq.preparing,payment_status.neq.paid`);
+          query = query.or(`created_at.gte.${last2AM},${layawayCondition}`);
         }
       }
 
@@ -927,11 +930,18 @@ export function OrdersDashboard() {
                         #{order.order_number ? order.order_number.toString().padStart(3, '0') : order.id.slice(-8)}
                       </p>
                       {order.customers && (
-                        <p className="text-xs font-bold text-gray-800 mt-1 flex items-center gap-1">
-                          👤 {order.customers.name}
-                        </p>
+                        <div className="mt-1.5 flex flex-col gap-0.5">
+                          <p className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                            👤 {order.customers.name}
+                          </p>
+                          {order.customers.phone && (
+                            <p className="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
+                              📞 {order.customers.phone}
+                            </p>
+                          )}
+                        </div>
                       )}
-                      <p className="text-xs text-gray-600 mt-0.5">
+                      <p className="text-xs text-gray-600 mt-1">
                         {new Date(order.created_at).toLocaleString('es-ES')}
                       </p>
                     </div>
