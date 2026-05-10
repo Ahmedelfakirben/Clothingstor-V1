@@ -81,6 +81,9 @@ export function POS() {
   const [selectedReturnItem, setSelectedReturnItem] = useState<any | null>(null);
   const [returnQuantity, setReturnQuantity] = useState(1);
   const [returnProcessing, setReturnProcessing] = useState(false);
+  const [returnDateFilter, setReturnDateFilter] = useState('');
+  const [returnCategoryFilter, setReturnCategoryFilter] = useState('all');
+  const [returnSizeFilter, setReturnSizeFilter] = useState('all');
   // Discount popover state per cart item
   const [discountPopoverIndex, setDiscountPopoverIndex] = useState<number | null>(null);
   const [discountInput, setDiscountInput] = useState('');
@@ -709,8 +712,7 @@ export function POS() {
   const fetchSoldItems = async (searchTerm: string = '') => {
     setSoldItemsLoading(true);
     try {
-      // Simpler query: no embedded filter, no FK hints — filter by status client-side
-      const { data, error } = await supabase
+      let query = supabase
         .from('order_items')
         .select(`
           id,
@@ -721,15 +723,20 @@ export function POS() {
           unit_price,
           subtotal,
           orders(id, order_number, created_at, status),
-          products(id, name, barcode),
+          products(id, name, barcode, category_id, image_url),
           product_sizes(id, size_name, barcode)
         `)
-        .order('created_at', { ascending: false })
-        .limit(500);
+        .order('created_at', { ascending: false });
+
+      // Apply initial limit to 500 to have enough data for client-side filtering if needed, 
+      // but the user wants only 20 displayed eventually.
+      query = query.limit(500);
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
-      const mapped = (data || [])
+      let mapped = (data || [])
         .filter((item: any) => item.orders?.status === 'completed') // filter completed
         .map((item: any) => ({
           id: item.id,
@@ -739,6 +746,8 @@ export function POS() {
           product_id: item.product_id,
           product_name: (item.products as any)?.name || 'Producto',
           product_barcode: (item.products as any)?.barcode || '',
+          product_image: (item.products as any)?.image_url || '',
+          category_id: (item.products as any)?.category_id || '',
           size_id: item.size_id,
           size_name: (item.product_sizes as any)?.size_name || null,
           size_barcode: (item.product_sizes as any)?.barcode || '',
@@ -747,17 +756,31 @@ export function POS() {
           subtotal: item.subtotal,
         }));
 
+      // Apply filters
       if (searchTerm.trim()) {
         const term = searchTerm.trim().toLowerCase();
-        setSoldItems(mapped.filter(i =>
+        mapped = mapped.filter(i =>
           i.product_name.toLowerCase().includes(term) ||
           i.product_barcode.toLowerCase().includes(term) ||
           i.size_barcode.toLowerCase().includes(term) ||
           String(i.order_number || '').includes(term)
-        ));
-      } else {
-        setSoldItems(mapped);
+        );
       }
+
+      if (returnDateFilter) {
+        mapped = mapped.filter(i => i.order_date.startsWith(returnDateFilter));
+      }
+
+      if (returnCategoryFilter !== 'all') {
+        mapped = mapped.filter(i => i.category_id === returnCategoryFilter);
+      }
+
+      if (returnSizeFilter !== 'all') {
+        mapped = mapped.filter(i => i.size_name === returnSizeFilter);
+      }
+
+      // Final limit to 20
+      setSoldItems(mapped.slice(0, 20));
     } catch (err) {
       console.error('Error fetching sold items:', err);
       toast.error(t('pos.return_load_error'));
@@ -765,6 +788,13 @@ export function POS() {
       setSoldItemsLoading(false);
     }
   };
+
+  // Re-fetch when filters change
+  useEffect(() => {
+    if (showReturnModal) {
+      fetchSoldItems(returnSearch);
+    }
+  }, [returnDateFilter, returnCategoryFilter, returnSizeFilter, showReturnModal]);
 
   const handleReturnBarcodeSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2113,7 +2143,7 @@ export function POS() {
             </div>
 
             {/* Search */}
-            <div className="p-4 border-b border-gray-100 space-y-2">
+            <div className="p-4 border-b border-gray-100 space-y-3 bg-gray-50/50">
               {/* Barcode Scanner input */}
               <form onSubmit={handleReturnBarcodeSearch} className="flex gap-2">
                 <div className="relative flex-1">
@@ -2123,23 +2153,63 @@ export function POS() {
                     value={returnBarcodeInput}
                     onChange={e => setReturnBarcodeInput(e.target.value)}
                     placeholder={t('pos.return_barcode_placeholder')}
-                    className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-400 outline-none"
+                    className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-orange-400 outline-none"
                   />
                 </div>
-                <button type="submit" className="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-all">
+                <button type="submit" className="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-all shadow-md">
                   {t('pos.return_scan_btn')}
                 </button>
               </form>
-              {/* Name / Order search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={returnSearch}
-                  onChange={e => { setReturnSearch(e.target.value); fetchSoldItems(e.target.value); }}
-                  placeholder={t('pos.return_search_placeholder')}
-                  className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-400 outline-none"
-                />
+
+              {/* Advanced Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={returnSearch}
+                    onChange={e => { setReturnSearch(e.target.value); fetchSoldItems(e.target.value); }}
+                    placeholder={t('pos.return_search_placeholder')}
+                    className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-orange-400 outline-none"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={returnDateFilter}
+                    onChange={e => setReturnDateFilter(e.target.value)}
+                    className="flex-1 px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-orange-400 outline-none"
+                  />
+                  <button 
+                    onClick={() => { setReturnDateFilter(''); setReturnCategoryFilter('all'); setReturnSizeFilter('all'); setReturnSearch(''); fetchSoldItems(''); }}
+                    className="px-3 py-2.5 bg-gray-200 hover:bg-gray-300 rounded-xl text-xs font-bold text-gray-600 transition-all"
+                  >
+                    {t('Limpiar')}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={returnCategoryFilter}
+                  onChange={e => setReturnCategoryFilter(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-orange-400 outline-none"
+                >
+                  <option value="all">{t('Todas las categorías')}</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={returnSizeFilter}
+                  onChange={e => setReturnSizeFilter(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-orange-400 outline-none"
+                >
+                  <option value="all">{t('Todas las tallas')}</option>
+                  {availableSizeNames.map(size => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -2163,19 +2233,34 @@ export function POS() {
                       onClick={() => { setSelectedReturnItem(item); setReturnQuantity(1); }}
                       className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${isSelected ? 'bg-orange-50 border-orange-400 shadow-md' : 'bg-white border-gray-200 hover:border-orange-300 hover:bg-orange-50/40'}`}
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-bold text-gray-900 text-sm">{item.product_name}{item.size_name ? ` (${item.size_name})` : ''}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {t('pos.return_order')} #{String(item.order_number || '').padStart(3, '0')} &bull; {new Date(item.order_date).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')}
-                          </p>
-                          {item.product_barcode && (
-                            <p className="text-xs text-gray-400 mt-0.5">{t('pos.return_barcode')}: {item.product_barcode}</p>
+                      <div className="flex gap-4">
+                        {/* Product Image */}
+                        <div className="w-16 h-16 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200">
+                          {item.product_image ? (
+                            <img src={item.product_image} alt={item.product_name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                              <ShoppingBag className="w-6 h-6" />
+                            </div>
                           )}
                         </div>
-                        <div className="text-right">
-                          <p className="font-black text-gray-900">{formatCurrency(item.unit_price)}</p>
-                          <p className="text-xs text-gray-500">x{item.quantity}</p>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-gray-900 text-sm truncate">{item.product_name}{item.size_name ? ` (${item.size_name})` : ''}</p>
+                              <p className="text-[10px] md:text-xs text-gray-500 mt-0.5 font-medium">
+                                {t('pos.return_order')} #{String(item.order_number || '').padStart(3, '0')} &bull; {new Date(item.order_date).toLocaleDateString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')} &bull; {new Date(item.order_date).toLocaleTimeString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                              {item.product_barcode && (
+                                <p className="text-[10px] text-gray-400 mt-0.5 truncate">{t('pos.return_barcode')}: {item.product_barcode}</p>
+                              )}
+                            </div>
+                            <div className="text-right flex-shrink-0 ml-2">
+                              <p className="font-black text-gray-900 text-sm md:text-base">{formatCurrency(item.unit_price)}</p>
+                              <p className="text-[10px] font-bold text-orange-600">x{item.quantity}</p>
+                            </div>
+                          </div>
                         </div>
                       </div>
 
