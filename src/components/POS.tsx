@@ -105,13 +105,29 @@ export function POS() {
 
   // Dynamic Sizes for Return Module
   const availableReturnSizes = useMemo(() => {
+    let relevantSizes = sizes;
+    if (returnCategoryFilter !== 'all') {
+      relevantSizes = sizes.filter((s: any) => {
+        if (s.products?.category_id) {
+          return s.products.category_id === returnCategoryFilter;
+        }
+        return false;
+      });
+    }
+    
     return [...new Set(
-      allRecentSoldItems
-        .filter(it => returnCategoryFilter === 'all' || it.category_id === returnCategoryFilter)
-        .map(it => it.size_name)
+      relevantSizes
+        .map(s => s.size_name)
         .filter(Boolean)
-    )].sort();
-  }, [allRecentSoldItems, returnCategoryFilter]);
+    )].sort((a, b) => {
+      const numA = parseFloat(a); const numB = parseFloat(b);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      const order = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+      const iA = order.indexOf(a.toUpperCase()); const iB = order.indexOf(b.toUpperCase());
+      if (iA !== -1 && iB !== -1) return iA - iB;
+      return a.localeCompare(b);
+    });
+  }, [sizes, returnCategoryFilter]);
 
   useEffect(() => {
     if (returnSizeFilter !== 'all' && !availableReturnSizes.includes(returnSizeFilter)) {
@@ -365,9 +381,9 @@ export function POS() {
         setProducts(data);
         setTotalProducts(count || 0);
         
-        const newSizes = data.flatMap((p: any) => p.product_sizes || []);
+        const newSizes = data.flatMap((p: any) => (p.product_sizes || []).map((s: any) => ({ ...s, products: { category_id: p.category_id } })));
         setSizes(prev => {
-          const prevFiltered = prev.filter(s => !newSizes.some(ns => ns.id === s.id));
+          const prevFiltered = prev.filter(s => !newSizes.some((ns: any) => ns.id === s.id));
           return [...prevFiltered, ...newSizes];
         });
       }
@@ -384,7 +400,7 @@ export function POS() {
     try {
       const { data, error } = await supabase
         .from('product_sizes')
-        .select('*');
+        .select('*, products(category_id)');
 
       if (error) throw error;
       setSizes(data || []);
@@ -417,7 +433,10 @@ export function POS() {
   const availableSizeNames = useMemo(() => {
     let relevantSizes = sizes;
     if (selectedCategory !== 'all') {
-      relevantSizes = sizes.filter(s => {
+      relevantSizes = sizes.filter((s: any) => {
+        if (s.products?.category_id) {
+          return s.products.category_id === selectedCategory;
+        }
         const p = products.find(prod => prod.id === s.product_id);
         return p?.category_id === selectedCategory;
       });
