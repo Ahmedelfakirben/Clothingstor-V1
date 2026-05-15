@@ -136,12 +136,19 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
         if (!confirm(t('¿Estás seguro de eliminar esta talla?'))) return;
 
         try {
+            const sizeToDelete = sizes.find(s => s.id === sizeId);
+            
             const { error } = await supabase
                 .from('product_sizes')
                 .delete()
                 .eq('id', sizeId);
 
             if (error) throw error;
+
+            // Registrar la eliminación en el historial si tenía stock
+            if (sizeToDelete && sizeToDelete.stock > 0) {
+                await logStockMovement(productId, -sizeToDelete.stock, 'manual_deduct', undefined, `${t('Talla eliminada')}: ${sizeToDelete.size_name}`);
+            }
 
             setSizes(sizes.filter(s => s.id !== sizeId));
             toast.success(t('Talla eliminada'));
