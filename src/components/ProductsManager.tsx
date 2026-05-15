@@ -2160,15 +2160,15 @@ export function ProductsManager() {
                   )}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${product.available && (getProductSizes(product).length > 0
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${(getProductSizes(product).length > 0
                     ? getProductSizes(product).reduce((sum, s) => sum + s.stock, 0)
                     : (product.stock || 0)) > 0
                     ? 'bg-green-100 text-green-800'
                     : 'bg-red-100 text-red-800'
                     }`}>
-                    {product.available && (getProductSizes(product).length > 0
+                    {(getProductSizes(product).length > 0
                       ? getProductSizes(product).reduce((sum, s) => sum + s.stock, 0)
-                      : (product.stock || 0)) > 0 ? t('Disponible') : t('No disponible')}
+                      : (product.stock || 0)) > 0 ? t('Disponible') : t('Agotado')}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">

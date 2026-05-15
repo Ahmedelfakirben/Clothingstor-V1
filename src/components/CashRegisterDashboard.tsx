@@ -16,7 +16,7 @@ interface CashSession {
   closed_at: string | null;
   status: 'open' | 'closed';
   notes: string | null;
-  employee_profiles?: { full_name: string };
+  employee_profiles?: { full_name: string, role: string };
 }
 
 interface CashWithdrawal {
@@ -44,7 +44,7 @@ export function CashRegisterDashboard() {
     employeeId: 'all' as string,
   });
 
-  const [employees, setEmployees] = useState<Array<{ id: string, full_name: string }>>([]);
+  const [employees, setEmployees] = useState<Array<{ id: string, full_name: string, role: string }>>([]);
 
 
   const [totals, setTotals] = useState({
@@ -98,7 +98,6 @@ export function CashRegisterDashboard() {
           *,
           employee_profiles!inner(full_name, role)
         `)
-        .neq('employee_profiles.role', 'super_admin') // Ocultar sesiones de super_admin
         .order('opened_at', { ascending: false });
 
       // Para cajeros: solo sus sesiones y solo del día actual
@@ -148,8 +147,7 @@ export function CashRegisterDashboard() {
     try {
       const { data, error } = await supabase
         .from('employee_profiles')
-        .select('id, full_name')
-        .neq('role', 'super_admin') // Ocultar super_admin
+        .select('id, full_name, role')
         .order('full_name');
 
       if (error) throw error;
@@ -360,6 +358,7 @@ export function CashRegisterDashboard() {
   };
 
   const groupSessionsByDay = async () => {
+    // 1. Initial grouping from sessions
     const grouped = sessions.reduce((acc: any, session) => {
       const date = session.opened_at.split('T')[0];
       const employeeKey = `${date}-${session.employee_id}`;
@@ -374,6 +373,7 @@ export function CashRegisterDashboard() {
           totalClosing: 0,
           totalSales: 0,
           totalWithdrawals: 0,
+          totalReturns: 0,
           expectedClosing: 0,
           difference: 0,
           firstOpen: session.opened_at,
@@ -394,62 +394,118 @@ export function CashRegisterDashboard() {
       return acc;
     }, {});
 
-    // Calcular ventas y retiros para cada día y acumulados globales
+    // 2. Fetch ALL relevant data for the range to find session-less movements
+    const dates = [...new Set(sessions.map(s => s.opened_at.split('T')[0]))];
+    if (filters.startDate && !dates.includes(filters.startDate)) dates.push(filters.startDate);
+    if (filters.endDate && !dates.includes(filters.endDate)) dates.push(filters.endDate);
+
+    for (const date of dates) {
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // A. Fetch Orders (to find active admins without sessions)
+      const { data: allOrders } = await supabase
+        .from('orders')
+        .select('total, employee_id, created_at')
+        .eq('status', 'completed')
+        .gte('created_at', startOfDay.toISOString())
+        .lte('created_at', endOfDay.toISOString());
+
+      // B. Fetch Withdrawals (to find active admins without sessions)
+      const { data: allWithdrawals } = await supabase
+        .from('cash_withdrawals')
+        .select('amount, reason, withdrawn_by, withdrawn_at')
+        .gte('withdrawn_at', startOfDay.toISOString())
+        .lte('withdrawn_at', endOfDay.toISOString());
+
+      // Merge session-less employees into grouped
+      const activeEmployeeIds = new Set([
+        ...(allOrders || []).map(o => o.employee_id),
+        ...(allWithdrawals || []).map(w => w.withdrawn_by)
+      ]);
+
+      for (const empId of activeEmployeeIds) {
+        if (!empId) continue;
+        const key = `${date}-${empId}`;
+        if (!grouped[key]) {
+          // Look up employee profile
+          const profile = employees.find(e => e.id === empId);
+          grouped[key] = {
+            date,
+            employee_id: empId,
+            employee_profiles: profile ? { full_name: profile.full_name, role: profile.role } : null,
+            sessions: [],
+            totalOpening: 0,
+            totalClosing: 0,
+            totalSales: 0,
+            totalWithdrawals: 0,
+            totalReturns: 0,
+            expectedClosing: 0,
+            difference: 0,
+            firstOpen: null,
+            lastClose: null,
+          };
+        }
+
+        // Aggregate sales for this employee-day
+        const empOrders = (allOrders || []).filter(o => o.employee_id === empId);
+        grouped[key].totalSales = empOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+        // Aggregate withdrawals/returns for this employee-day
+        const empWithdrawals = (allWithdrawals || []).filter(w => w.withdrawn_by === empId);
+        grouped[key].totalWithdrawals = 0;
+        grouped[key].totalReturns = 0;
+        empWithdrawals.forEach(w => {
+          const isReturn = w.reason?.toLowerCase().includes('retour') || w.reason?.toLowerCase().includes('devolución');
+          if (isReturn) {
+            grouped[key].totalReturns += w.amount || 0;
+          } else {
+            grouped[key].totalWithdrawals += w.amount || 0;
+          }
+        });
+
+        // First/Last move (if no sessions)
+        if (!grouped[key].firstOpen && empOrders.length > 0) {
+          grouped[key].firstOpen = empOrders[0].created_at;
+        }
+
+        // Recalculate totals
+        grouped[key].expectedClosing = grouped[key].totalOpening + grouped[key].totalSales - grouped[key].totalWithdrawals - grouped[key].totalReturns;
+        
+        // Lógica especial para Admin/SuperAdmin: 
+        // Si la caja está abierta o no hay sesión, asumimos que Real = Esperada (Diferencia 0)
+        // Si el admin decide cerrar la caja manualmente, se usará su valor registrado.
+        const isAdmin = grouped[key].employee_profiles?.role === 'admin' || grouped[key].employee_profiles?.role === 'super_admin';
+        const hasOpenSession = grouped[key].sessions.some((s: any) => s.status === 'open');
+        const noSessions = grouped[key].sessions.length === 0;
+
+        if (isAdmin && (hasOpenSession || noSessions)) {
+          // Ajuste simplificado solicitado: Mientras esté abierta, Real = Esperada.
+          // Si hay descuadres en sesiones CERRADAS previas del mismo día, se mantendrán si sumamos los montos reales.
+          // Pero el usuario quiere que "Fermeture Prévue se muestre como Fermeture Réelle" de forma automática.
+          grouped[key].totalClosing = grouped[key].expectedClosing;
+        }
+
+        grouped[key].difference = grouped[key].totalClosing - grouped[key].expectedClosing;
+      }
+    }
+
+    // 3. Final Global Totals
     let globalOpening = 0;
     let globalClosing = 0;
     let globalSales = 0;
     let globalWithdrawals = 0;
     let globalReturns = 0;
 
-    for (const employeeKey of Object.keys(grouped)) {
-      const dayData = grouped[employeeKey];
-      const startOfDay = new Date(dayData.date);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(dayData.date);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      // Obtener ventas del día (pedidos confirmados)
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('total')
-        .eq('employee_id', dayData.employee_id)
-        .eq('status', 'completed')
-        .gte('created_at', startOfDay.toISOString())
-        .lte('created_at', endOfDay.toISOString());
-
-      dayData.totalSales = (orders || []).reduce((sum, order) => sum + order.total, 0);
-
-      // Obtener retiros del día (incluyendo los no vinculados a sesión pero del mismo empleado)
-      const { data: dayWithdrawals } = await supabase
-        .from('cash_withdrawals')
-        .select('amount, reason')
-        .eq('withdrawn_by', dayData.employee_id)
-        .gte('withdrawn_at', startOfDay.toISOString())
-        .lte('withdrawn_at', endOfDay.toISOString());
-
-      dayData.totalWithdrawals = 0;
-      dayData.totalReturns = 0;
-
-      (dayWithdrawals || []).forEach(w => {
-        const isReturn = w.reason?.toLowerCase().includes('retour') || w.reason?.toLowerCase().includes('devolución');
-        if (isReturn) {
-          dayData.totalReturns += w.amount || 0;
-        } else {
-          dayData.totalWithdrawals += w.amount || 0;
-        }
-      });
-
-      // Calcular cierre esperado y diferencia
-      dayData.expectedClosing = dayData.totalOpening + dayData.totalSales - dayData.totalWithdrawals - dayData.totalReturns;
-      dayData.difference = dayData.totalClosing - dayData.expectedClosing;
-
-      // Acumular para totales globales
+    Object.values(grouped).forEach((dayData: any) => {
       globalOpening += dayData.totalOpening;
       globalClosing += dayData.totalClosing;
       globalSales += dayData.totalSales;
       globalWithdrawals += dayData.totalWithdrawals;
       globalReturns += dayData.totalReturns;
-    }
+    });
 
     setTotals({
       totalOpening: globalOpening,
@@ -461,7 +517,6 @@ export function CashRegisterDashboard() {
     });
 
     const dailyArray = Object.values(grouped).sort((a: any, b: any) => {
-      // Sort by date desc, then by employee name
       const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
       if (dateCompare !== 0) return dateCompare;
       return (a.employee_profiles?.full_name || '').localeCompare(b.employee_profiles?.full_name || '');
@@ -507,7 +562,7 @@ export function CashRegisterDashboard() {
           products(name),
           product_sizes(size_name)
         `)
-        .eq('employee_id', day.employee_id)
+        .eq('returned_by', day.employee_id)
         .gte('created_at', startOfDay.toISOString())
         .lte('created_at', endOfDay.toISOString());
 
