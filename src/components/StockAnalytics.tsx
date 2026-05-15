@@ -150,23 +150,42 @@ export function StockAnalytics() {
         try {
             setLoading(true);
 
-            // 0. Fetch Categories and Employees
-            const [catsRes, empsRes] = await Promise.all([
-                supabase.from('categories').select('*').order('name'),
-                supabase.from('employee_profiles').select('id, full_name')
-            ]);
+            // 0. Fetch Categories and Employees (Resilient)
+            let catsData: any[] = [];
+            const { data: cData, error: cError } = await supabase.from('categories').select('*').is('deleted_at', null).order('name');
             
-            setCategories(catsRes.data || []);
-            const empMap: Record<string, string> = {};
-            (empsRes.data || []).forEach(e => empMap[e.id] = e.full_name);
+            if (cError && cError.message.includes('deleted_at')) {
+                const { data: fcData } = await supabase.from('categories').select('*').order('name');
+                catsData = fcData || [];
+            } else {
+                catsData = cData || [];
+            }
 
-            // 1. Fetch Products
-            const { data: products, error: prodError } = await supabase
+            const { data: empsRes } = await supabase.from('employee_profiles').select('id, full_name');
+            
+            setCategories(catsData);
+            const empMap: Record<string, string> = {};
+            (empsRes || []).forEach(e => empMap[e.id] = e.full_name);
+
+            // 1. Fetch Products (Resilient)
+            let products: any[] = [];
+            let { data: pData, error: pError } = await supabase
                 .from('products')
                 .select('id, name, base_price, purchase_price, stock, image_url, needs_validation, category_id, barcode, created_at, created_by, validated_by')
-                .eq('available', true);
+                .eq('available', true)
+                .is('deleted_at', null);
 
-            if (prodError) throw prodError;
+            if (pError && pError.message.includes('deleted_at')) {
+                const { data: fpData, error: fpError } = await supabase
+                    .from('products')
+                    .select('id, name, base_price, purchase_price, stock, image_url, needs_validation, category_id, barcode, created_at, created_by, validated_by')
+                    .eq('available', true);
+                if (fpError) throw fpError;
+                products = fpData || [];
+            } else {
+                if (pError) throw pError;
+                products = pData || [];
+            }
 
             // 2. Fetch Sizes (for sized products)
             const { data: sizes, error: sizesError } = await supabase

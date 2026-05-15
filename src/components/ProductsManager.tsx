@@ -17,6 +17,7 @@ interface Category {
   id: string;
   name: string;
   description: string;
+  deleted_at?: string | null;
 }
 
 interface Product {
@@ -37,6 +38,7 @@ interface Product {
   created_at?: string;
   needs_validation?: boolean;
   product_sizes?: ProductSize[];
+  deleted_at?: string | null;
 }
 
 interface ProductSize {
@@ -220,6 +222,9 @@ export function ProductsManager() {
       query = query.eq('products.category_id', categoryId);
     }
     
+    // Solo tallas de productos NO eliminados
+    query = query.is('products.deleted_at', null);
+    
     const { data, error } = await query;
     
     if (!error && data) {
@@ -321,7 +326,7 @@ export function ProductsManager() {
   };
 
   const fetchCategories = async () => {
-    const { data } = await supabase.from('categories').select('*').order('name');
+    const { data } = await supabase.from('categories').select('*').is('deleted_at', null).order('name');
     if (data) setCategories(data);
   };
 
@@ -344,39 +349,51 @@ export function ProductsManager() {
   const fetchProducts = async (page = currentPage) => {
     setLoadingProducts(true);
     try {
-      // Si hay filtro de talla, usamos !inner para filtrar el padre por el hijo
-      let query = selectedSize !== 'all' 
-        ? supabase.from('products').select('*, product_sizes!inner(*)', { count: 'exact' })
-        : supabase.from('products').select('*, product_sizes(*)', { count: 'exact' });
+      const from = (page - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
 
-      // Filtros
-      if (selectedCategory !== 'all') {
-        query = query.eq('category_id', selectedCategory);
-      }
+      // Definir la base de la consulta
+      const getBaseQuery = () => {
+        return selectedSize !== 'all' 
+          ? supabase.from('products').select('*, product_sizes!inner(*)', { count: 'exact' })
+          : supabase.from('products').select('*, product_sizes(*)', { count: 'exact' });
+      };
 
-      if (selectedSize !== 'all') {
-        query = query.eq('product_sizes.size_name', selectedSize);
-      }
+      let query = getBaseQuery();
 
-      if (searchTerm) {
-        query = query.or(`name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`);
-      }
+      // Aplicar filtros estándar
+      if (selectedCategory !== 'all') query = query.eq('category_id', selectedCategory);
+      if (selectedSize !== 'all') query = query.eq('product_sizes.size_name', selectedSize);
+      if (searchTerm) query = query.or(`name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`);
 
-      // Orden
+      // Aplicar orden
       const isAsc = sortBy === 'name-asc' || sortBy === 'oldest';
       const col = (sortBy === 'name-asc' || sortBy === 'name-desc') ? 'name' : 'created_at';
       query = query.order(col, { ascending: isAsc });
 
-      // Paginación
-      const from = (page - 1) * ITEMS_PER_PAGE;
-      const to = from + ITEMS_PER_PAGE - 1;
-      
-      const { data, count, error } = await query.range(from, to);
+      // Intento 1: Con filtro de borrado lógico (Estrategia Pro)
+      const { data, count, error } = await query.is('deleted_at', null).range(from, to);
 
-      if (error) throw error;
-
-      setProducts(data || []);
-      setTotalCount(count || 0);
+      if (error) {
+        // Si el error es porque la columna aún no existe (antes de ejecutar el SQL)
+        if (error.message.includes('deleted_at')) {
+          console.warn('DB: Columna deleted_at no detectada, usando modo compatibilidad.');
+          const fallbackQuery = getBaseQuery();
+          if (selectedCategory !== 'all') fallbackQuery.eq('category_id', selectedCategory);
+          if (selectedSize !== 'all') fallbackQuery.eq('product_sizes.size_name', selectedSize);
+          if (searchTerm) fallbackQuery.or(`name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`);
+          
+          const { data: fData, count: fCount, error: fError } = await fallbackQuery.order(col, { ascending: isAsc }).range(from, to);
+          if (fError) throw fError;
+          setProducts(fData || []);
+          setTotalCount(fCount || 0);
+        } else {
+          throw error;
+        }
+      } else {
+        setProducts(data || []);
+        setTotalCount(count || 0);
+      }
     } catch (error: any) {
       console.error('Error fetching products:', error);
       toast.error(t('Error al cargar productos'));
@@ -1280,6 +1297,9 @@ export function ProductsManager() {
   };
 
   const handleDeleteProduct = async (id: string) => {
+    const productToDelete = products.find(p => p.id === id);
+    if (!productToDelete) return;
+
     if (!confirm(`${t('¿Estás seguro de que deseas eliminar este producto?')}\n\n${t('El producto será eliminado permanentemente de la lista de productos activos. Los pedidos históricos que contengan este producto se mantendrán intactos.')}`)) return;
 
     try {
@@ -1336,10 +1356,15 @@ export function ProductsManager() {
         });
       }
 
-      // Proceed with direct deletion (constraints now allow this)
+      // Proceed with soft deletion
       const { error: deleteError } = await supabase
         .from('products')
-        .delete()
+        .update({ 
+          deleted_at: new Date().toISOString(),
+          available: false,
+          // Append timestamp to barcode to avoid unique constraint conflicts
+          barcode: productToDelete.barcode ? `${productToDelete.barcode}-deleted-${Date.now()}` : null
+        })
         .eq('id', id);
 
       if (deleteError) {

@@ -329,13 +329,25 @@ export function POS() {
 
   const fetchCategories = async () => {
     try {
+      // Intento 1: Con borrado lógico
       const { data, error } = await supabase
         .from('categories')
         .select('*')
+        .is('deleted_at', null)
         .order('name');
 
-      if (error) throw error;
-      setCategories(data || []);
+      if (error) {
+        // Fallback si la columna no existe aún
+        if (error.message.includes('deleted_at')) {
+          const { data: fData, error: fError } = await supabase.from('categories').select('*').order('name');
+          if (fError) throw fError;
+          setCategories(fData || []);
+        } else {
+          throw error;
+        }
+      } else {
+        setCategories(data || []);
+      }
     } catch (err) {
       console.error('Error fetching categories:', err);
       toast.error(t('pos.error_loading_categories'));
@@ -351,42 +363,61 @@ export function POS() {
     try {
       setLoading(true);
       
-      let query = selectedSize !== 'all'
-        ? supabase.from('products').select('*, product_sizes!inner(*)', { count: 'exact' })
-        : supabase.from('products').select('*, product_sizes(*)', { count: 'exact' });
+      const getBaseQuery = () => {
+        return selectedSize !== 'all'
+          ? supabase.from('products').select('*, product_sizes!inner(*)', { count: 'exact' })
+          : supabase.from('products').select('*, product_sizes(*)', { count: 'exact' });
+      };
 
-      query = query.eq('available', true);
+      let query = getBaseQuery();
 
-      if (selectedCategory !== 'all') {
-        query = query.eq('category_id', selectedCategory);
-      }
-
-      if (selectedSize !== 'all') {
-        query = query.eq('product_sizes.size_name', selectedSize);
-      }
-
-      if (search) {
-        query = query.or(`name.ilike.%${search}%,barcode.ilike.%${search}%,brand.ilike.%${search}%`);
-      }
+      if (selectedCategory !== 'all') query = query.eq('category_id', selectedCategory);
+      if (selectedSize !== 'all') query = query.eq('product_sizes.size_name', selectedSize);
+      if (search) query = query.or(`name.ilike.%${search}%,barcode.ilike.%${search}%,brand.ilike.%${search}%`);
 
       query = query.order('name');
 
       const from = (page - 1) * ITEMS_PER_PAGE;
       const to = from + ITEMS_PER_PAGE - 1;
 
-      const { data, count, error } = await query.range(from, to);
+      // Intento 1: Con borrado lógico
+      const { data, count, error } = await query
+        .eq('available', true)
+        .is('deleted_at', null)
+        .range(from, to);
 
-      if (error) throw error;
+      if (error) {
+        // Fallback para producción
+        if (error.message.includes('deleted_at')) {
+          const fQuery = getBaseQuery();
+          if (selectedCategory !== 'all') fQuery.eq('category_id', selectedCategory);
+          if (selectedSize !== 'all') fQuery.eq('product_sizes.size_name', selectedSize);
+          if (search) fQuery.or(`name.ilike.%${search}%,barcode.ilike.%${search}%,brand.ilike.%${search}%`);
 
-      if (data) {
-        setProducts(data);
-        setTotalProducts(count || 0);
-        
-        const newSizes = data.flatMap((p: any) => (p.product_sizes || []).map((s: any) => ({ ...s, products: { category_id: p.category_id } })));
-        setSizes(prev => {
-          const prevFiltered = prev.filter(s => !newSizes.some((ns: any) => ns.id === s.id));
-          return [...prevFiltered, ...newSizes];
-        });
+          const { data: fData, count: fCount, error: fError } = await fQuery
+            .eq('available', true)
+            .order('name')
+            .range(from, to);
+
+          if (fError) throw fError;
+          if (fData) {
+            setProducts(fData);
+            setTotalProducts(fCount || 0);
+          }
+        } else {
+          throw error;
+        }
+      } else {
+        if (data) {
+          setProducts(data);
+          setTotalProducts(count || 0);
+          
+          const newSizes = data.flatMap((p: any) => (p.product_sizes || []).map((s: any) => ({ ...s, products: { category_id: p.category_id } })));
+          setSizes(prev => {
+            const prevFiltered = prev.filter(s => !newSizes.some((ns: any) => ns.id === s.id));
+            return [...prevFiltered, ...newSizes];
+          });
+        }
       }
     } catch (err) {
       console.error('Error fetching products:', err);

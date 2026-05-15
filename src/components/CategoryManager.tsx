@@ -10,6 +10,7 @@ interface Category {
   name: string;
   description: string;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 export function CategoryManager() {
@@ -28,18 +29,29 @@ export function CategoryManager() {
     try {
       setLoadingCategories(true);
       console.log('Fetching categories...');
+      
+      // Intento 1: Con borrado lógico
       const { data, error } = await supabase
         .from('categories')
         .select('*')
+        .is('deleted_at', null)
         .order('name');
 
       if (error) {
-        console.error('Error fetching categories:', error);
-        throw error;
+        // Fallback si la columna no existe aún
+        if (error.message.includes('deleted_at')) {
+          const { data: fData, error: fError } = await supabase
+            .from('categories')
+            .select('*')
+            .order('name');
+          if (fError) throw fError;
+          setCategories(fData || []);
+        } else {
+          throw error;
+        }
+      } else {
+        setCategories(data || []);
       }
-
-      console.log('Categories loaded:', data?.length || 0);
-      setCategories(data || []);
     } catch (err: any) {
       console.error('Error fetching categories:', err);
       toast.error(`${t('Error al cargar categorías:')} ${err.message || t('Error desconocido')}`);
@@ -130,10 +142,14 @@ export function CategoryManager() {
         return;
       }
 
-      console.log('Deleting category:', id);
+      console.log('Soft deleting category:', id);
       const { error } = await supabase
         .from('categories')
-        .delete()
+        .update({ 
+          deleted_at: new Date().toISOString(),
+          // Append timestamp to name to avoid unique constraint conflicts
+          name: `${category.name} (eliminada-${Date.now()})`
+        })
         .eq('id', id);
 
       if (error) {

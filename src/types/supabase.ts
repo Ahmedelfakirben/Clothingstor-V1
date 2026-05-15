@@ -2,6 +2,7 @@ export interface Category {
   id: string;
   name: string;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 export interface Product {
@@ -21,6 +22,7 @@ export interface Product {
   stock?: number;
   barcode?: string;
   purchase_price?: number;
+  deleted_at?: string | null;
 }
 
 export interface ProductSize {
