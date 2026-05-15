@@ -30,6 +30,23 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
 
+    // Auxiliar para registrar movimientos de stock
+    const logStockMovement = async (pId: string, quantity: number, type: 'manual_add' | 'manual_deduct' | 'sale' | 'return' | 'correction', sizeId?: string, reason?: string) => {
+        if (quantity === 0) return;
+        try {
+            await supabase.from('stock_movements').insert({
+                product_id: pId,
+                size_id: sizeId,
+                quantity,
+                type,
+                reason: reason || '',
+                employee_id: profile?.id
+            });
+        } catch (err) {
+            console.error('Error logging stock movement:', err);
+        }
+    };
+
     // New Size State
     const [newSizeName, setNewSizeName] = useState('');
     const [newSizeStock, setNewSizeStock] = useState('0');
@@ -102,6 +119,11 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
             setNewSizeStock('0');
             setNewSizeBarcode('');
             toast.success(t('Talla agregada'));
+
+            // Registrar movimiento inicial
+            if (stockVal > 0) {
+                await logStockMovement(productId, stockVal, 'manual_add', data.id, t('Stock inicial de talla'));
+            }
         } catch (error: any) {
             console.error('Error adding size:', error);
             toast.error(t('Error al agregar talla'));
@@ -137,6 +159,15 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
                 .eq('id', sizeId);
 
             if (error) throw error;
+
+            // Registrar movimiento si el stock cambió
+            if (updates.stock !== undefined) {
+                const oldSize = sizes.find(s => s.id === sizeId);
+                const diff = updates.stock - (oldSize?.stock || 0);
+                if (diff !== 0) {
+                    await logStockMovement(productId, diff, diff > 0 ? 'manual_add' : 'manual_deduct', sizeId, t('Actualización manual de stock'));
+                }
+            }
 
             setSizes(sizes.map(s => s.id === sizeId ? { ...s, ...updates } : s));
             toast.success(t('Actualizado'));
