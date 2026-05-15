@@ -1005,7 +1005,7 @@ export function POS() {
         .single();
 
       // 4. Record the return
-      await supabase.from('order_returns').insert({
+      const { error: returnError } = await supabase.from('order_returns').insert({
         order_item_id: selectedReturnItem.id,
         order_id: selectedReturnItem.order_id,
         product_id: selectedReturnItem.product_id,
@@ -1017,6 +1017,21 @@ export function POS() {
         returned_by: user.id,
         withdrawal_id: withdrawal?.id || null,
       });
+
+      if (returnError) throw returnError;
+
+      // 5. Update stock
+      if (selectedReturnItem.size_id) {
+        await supabase.rpc('increment_product_size_stock', {
+          p_size_id: selectedReturnItem.size_id,
+          p_quantity: returnQuantity
+        });
+      } else {
+        await supabase.rpc('increment_product_stock', {
+          p_product_id: selectedReturnItem.product_id,
+          p_quantity: returnQuantity
+        });
+      }
 
       toast.success(`✅ ${t('pos.return_success')} ${formatCurrency(refundAmount)}`);
       setSelectedReturnItem(null);
