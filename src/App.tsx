@@ -36,7 +36,7 @@ function AppContent() {
 
   // Sistema de control de versiones para forzar limpieza de caché en despliegue
   useEffect(() => {
-    const APP_VERSION = '1.1.4'; // Incrementar esto para forzar recarga en clientes (Soft Delete Update)
+    const APP_VERSION = '1.1.5'; // Incrementar esto para forzar recarga en clientes (History & POS UX Update)
     const savedVersion = localStorage.getItem('app_version');
     
     if (savedVersion !== APP_VERSION) {
