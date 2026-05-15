@@ -47,6 +47,7 @@ export function POS() {
   const sizeDropdownRef = useRef<HTMLDivElement>(null);
   const categoryScrollRef = useRef<HTMLDivElement>(null);
   const productsContainerRef = useRef<HTMLDivElement>(null);
+  const mobileProductsContainerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -56,6 +57,9 @@ export function POS() {
   useEffect(() => {
     if (productsContainerRef.current) {
       productsContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    if (mobileProductsContainerRef.current) {
+      mobileProductsContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [currentPage]);
   const [productSearch, setProductSearch] = useState('');
@@ -1199,7 +1203,7 @@ export function POS() {
       </div>
 
       {/* Lista de productos móvil */}
-      <div className="flex-1 overflow-y-auto p-3">
+      <div ref={mobileProductsContainerRef} className="flex-1 overflow-y-auto p-3">
         <div className="space-y-2">
           {filteredProducts.map(product => {
             const productSizesList = productSizes(product.id);
