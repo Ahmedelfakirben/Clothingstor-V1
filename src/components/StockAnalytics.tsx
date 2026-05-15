@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save, CheckCircle, History as HistoryIcon, RefreshCw, ArrowUpDown, FileDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Package, AlertTriangle, TrendingUp, Archive, AlertCircle, BarChart3, Search, X, Save, CheckCircle, History as HistoryIcon, ArrowUpDown, FileDown, ArrowUp, ArrowDown } from 'lucide-react';
 import IndividualUnitsManager from './IndividualUnitsManager';
 import { toast } from 'react-hot-toast';
 import ProductHistoryModal from './ProductHistoryModal';
@@ -56,7 +56,6 @@ export function StockAnalytics() {
     const [sizeSearch, setSizeSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize] = useState(20);
-    const [employeeMap, setEmployeeMap] = useState<Record<string, string>>({});
 
     // History Modal State
     const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -160,7 +159,6 @@ export function StockAnalytics() {
             setCategories(catsRes.data || []);
             const empMap: Record<string, string> = {};
             (empsRes.data || []).forEach(e => empMap[e.id] = e.full_name);
-            setEmployeeMap(empMap);
 
             // 1. Fetch Products
             const { data: products, error: prodError } = await supabase

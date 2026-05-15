@@ -10,6 +10,7 @@ import { TicketPrinter } from './TicketPrinter';
 import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
 import { toast } from 'react-hot-toast';
 import { ImageGalleryModal } from './ImageGalleryModal';
+import { BarcodeScanner } from './BarcodeScanner';
 
 // ITEMS_PER_PAGE removed
 
@@ -26,7 +27,6 @@ export function POS() {
     setPaymentMethod,
     clearCart,
     setServiceType,
-    serviceType,
     setSaleChannel,
     saleChannel,
     setTableId,
@@ -59,6 +59,7 @@ export function POS() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [scannedProductForSizeSelection, setScannedProductForSizeSelection] = useState<Product | null>(null);
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [showMobileCart, setShowMobileCart] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<{
     orderDate: Date;
     orderNumber?: string;
@@ -73,12 +74,12 @@ export function POS() {
   const [existingOrderTotal, setExistingOrderTotal] = useState<number>(0);
   const [existingOrderNumber, setExistingOrderNumber] = useState<number | null>(null);
   const [, setCanConfirmOrder] = useState(true);
+  const [showScanner, setShowScanner] = useState(false);
 
   // Return modal state
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnSearch, setReturnSearch] = useState('');
   const [returnBarcodeInput, setReturnBarcodeInput] = useState('');
-  const [soldItems, setSoldItems] = useState<any[]>([]);
   const [allRecentSoldItems, setAllRecentSoldItems] = useState<any[]>([]);
   const [soldItemsLoading, setSoldItemsLoading] = useState(false);
   const [selectedReturnItem, setSelectedReturnItem] = useState<any | null>(null);
@@ -562,60 +563,118 @@ export function POS() {
     return true;
   };
 
-  const handleBarcodeScan = (e: React.FormEvent) => {
+  const handleBarcodeScan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcodeInput.trim()) return;
+    if (!barcodeInput.trim() || loading) return;
+    await processScannedCode(barcodeInput.trim());
+  };
 
-    const scannedCode = barcodeInput.trim();
+  const handleScanSuccess = (code: string) => {
+    setBarcodeInput(code);
+    setShowScanner(false);
+    processScannedCode(code);
+  };
 
-    // 1. Busqueda PRIORITARIA: Código de barra de TALLA específica
-    // Buscamos si el código corresponde exactamente a una talla
-    const specificSize = sizes.find(s => s.barcode === scannedCode);
+  const processScannedCode = async (scannedCode: string) => {
+    console.log('🔍 Procesando código:', scannedCode);
 
-    if (specificSize) {
-      // Encontramos una talla específica!
-      const parentProduct = products.find(p => p.id === specificSize.product_id);
+    try {
+      setLoading(true);
 
-      if (parentProduct) {
-        // Validación de stock específica para esta talla
-        if (checkStock(parentProduct, specificSize, 1)) {
-          // Añadir directamente al carrito con la talla pre-seleccionada
-          addItem(parentProduct, specificSize);
+      // 1. Busqueda PRIORITARIA: Código de barra de TALLA específica
+      let specificSize = sizes.find(s => s.barcode === scannedCode);
+      let parentProduct: Product | undefined;
+
+      if (!specificSize) {
+        const { data: sizeData, error: sizeError } = await supabase
+          .from('product_sizes')
+          .select('*, products(*)')
+          .eq('barcode', scannedCode)
+          .single();
+
+        if (!sizeError && sizeData) {
+          specificSize = sizeData;
+          parentProduct = sizeData.products;
+          setSizes(prev => [...prev.filter(s => s.id !== sizeData.id), sizeData]);
+        }
+      }
+
+      if (specificSize) {
+        if (!parentProduct) {
+          parentProduct = products.find(p => p.id === specificSize.product_id);
+          
+          if (!parentProduct) {
+            const { data: prodData, error: prodError } = await supabase
+              .from('products')
+              .select('*')
+              .eq('id', specificSize.product_id)
+              .single();
+            
+            if (!prodError && prodData) {
+              parentProduct = prodData;
+              setProducts(prev => [...prev, prodData]);
+            }
+          }
+        }
+
+        if (parentProduct) {
+          if (checkStock(parentProduct, specificSize, 1)) {
+            addItem(parentProduct, specificSize);
+            setBarcodeInput('');
+            toast.success(`${parentProduct.name} (${specificSize.size_name}) ${t('agregado')}`);
+            return;
+          } else {
+            setBarcodeInput('');
+            return;
+          }
+        }
+      }
+
+      // 2. Búsqueda SECUNDARIA: Código de barra de PRODUCTO (Padre)
+      let foundProduct = products.find(p => p.barcode === scannedCode);
+
+      if (!foundProduct) {
+        const { data: prodData, error: prodError } = await supabase
+          .from('products')
+          .select('*, product_sizes(*)')
+          .eq('barcode', scannedCode)
+          .single();
+
+        if (!prodError && prodData) {
+          foundProduct = prodData;
+          setProducts(prev => [...prev, prodData]);
+          if (prodData.product_sizes) {
+            setSizes(prev => {
+              const other = prev.filter(s => s.product_id !== prodData.id);
+              return [...other, ...prodData.product_sizes];
+            });
+          }
+        }
+      }
+
+      if (foundProduct) {
+        const productSizesList = sizes.filter(s => s.product_id === foundProduct!.id);
+        if (productSizesList.length > 0) {
+          setScannedProductForSizeSelection(foundProduct);
           setBarcodeInput('');
-          toast.success(`${parentProduct.name} (${specificSize.size_name}) ${t('agregado')}`);
-          return; // Éxito, salimos.
         } else {
-          // Stock insuficiente
-          return;
+          if (checkStock(foundProduct, null, 1)) {
+            addItem(foundProduct);
+            setBarcodeInput('');
+            toast.success(`${foundProduct.name} ${t('agregado')}`);
+          } else {
+            setBarcodeInput('');
+          }
         }
-      }
-      // Si tenemos la talla pero falta el producto padre en la lista local 
-      // (caso raro si fetchProducts filtra algo, pero posible)
-    }
-
-    // 2. Búsqueda SECUNDARIA: Código de barra de PRODUCTO (Padre)
-    // Search exact match for barcode
-    const foundProduct = products.find(p => p.barcode === scannedCode);
-
-    if (foundProduct) {
-      // Check if size selection is needed
-      const productSizesList = sizes.filter(s => s.product_id === foundProduct.id);
-
-      if (productSizesList.length > 0) {
-        // Tiene tallas, pero escaneamos el código GENERÍCO.
-        // Debemos preguntar qué talla quiere el cliente.
-        setScannedProductForSizeSelection(foundProduct);
-        setBarcodeInput('');
       } else {
-        // No tiene tallas (producto único), añadir directamente.
-        if (checkStock(foundProduct, undefined, 1)) {
-          addItem(foundProduct);
-          setBarcodeInput('');
-          toast.success(`${foundProduct.name} ${t('agregado')}`);
-        }
+        toast.error(t('Producto no encontrado'));
+        setBarcodeInput('');
       }
-    } else {
-      toast.error(t('Producto no encontrado'));
+    } catch (err) {
+      console.error('Error al procesar código de barras:', err);
+      toast.error(t('Error al buscar producto'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -672,7 +731,7 @@ export function POS() {
           customer_id: customerId, // Save the customer connection!
           total: pendingOrderData.total,
           payment_method: paymentMethodDB,
-          service_type: serviceType,
+          service_type: saleChannel,
           table_id: null,
         })
         .select('id,total,created_at,order_number')
@@ -795,7 +854,7 @@ export function POS() {
   // ──────────────────────────────────────────────
   // DEVOLUCIONES / RETOURS
   // ──────────────────────────────────────────────
-  const fetchSoldItems = async (searchTerm: string = '') => {
+  const fetchSoldItems = async () => {
     setSoldItemsLoading(true);
     try {
       let query = supabase
@@ -854,7 +913,7 @@ export function POS() {
   // Re-fetch when modal opens or search changes
   useEffect(() => {
     if (showReturnModal) {
-      fetchSoldItems(returnSearch);
+      fetchSoldItems();
     }
   }, [showReturnModal, returnSearch]);
 
@@ -863,7 +922,7 @@ export function POS() {
     const code = returnBarcodeInput.trim();
     if (!code) return;
     setReturnSearch(code);
-    fetchSoldItems(code);
+    fetchSoldItems();
     setReturnBarcodeInput('');
   };
 
@@ -981,6 +1040,26 @@ export function POS() {
   // Vista móvil
   const renderMobileView = () => (
     <div className="flex flex-col h-[calc(100vh-8rem)] bg-gray-50">
+      {/* Buscador y Scanner Móvil */}
+      <div className="p-4 bg-white border-b border-gray-200 flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input
+            type="text"
+            value={productSearch}
+            onChange={(e) => setProductSearch(e.target.value)}
+            placeholder={t('Buscar productos...')}
+            className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-pink-500 outline-none transition-all"
+          />
+        </div>
+        <button
+          onClick={() => setShowScanner(true)}
+          className="p-2.5 bg-gray-900 text-white rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center"
+          title={t('Escanear código')}
+        >
+          <ScanBarcode className="w-6 h-6" />
+        </button>
+      </div>
       {/* Filtros de categoría móvil */}
       {/* Sección de Categorías Móvil - Diseño Minimalista */}
       <div className="bg-white border-b border-gray-200 px-3 py-3">
@@ -1199,76 +1278,7 @@ export function POS() {
         {/* Ver carrito */}
         {cart.length > 0 && (
           <button
-            onClick={() => {
-              // Create cart details modal using React approach instead of innerHTML
-              const modal = document.createElement('div');
-              modal.className = 'fixed inset-0 bg-black/50 z-50 flex items-end';
-              modal.onclick = () => modal.remove();
-
-              const modalContent = document.createElement('div');
-              modalContent.className = 'bg-white w-full max-h-[70vh] rounded-t-2xl p-4 overflow-y-auto';
-              modalContent.onclick = (e) => e.stopPropagation();
-
-              // Header
-              const header = document.createElement('h3');
-              header.className = 'text-lg font-bold mb-4';
-              header.textContent = `${t('pos.cart_modal_title')} (${cart.length} ${t('pos.items')})`;
-
-              // Cart items
-              cart.forEach((item) => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'flex justify-between items-center py-2 border-b';
-
-                const itemInfo = document.createElement('div');
-                itemInfo.className = 'flex-1';
-
-                const itemName = document.createElement('p');
-                itemName.className = 'font-medium text-sm';
-                itemName.textContent = `${item.quantity}x ${item.product.name}${item.size ? ` (${item.size.size_name})` : ''}`;
-
-                const itemPrice = document.createElement('p');
-                itemPrice.className = 'text-xs text-gray-500';
-                itemPrice.textContent = `${formatCurrency(item.product.base_price + (item.size?.price_modifier || 0))} c/u`;
-
-                const itemTotal = document.createElement('p');
-                itemTotal.className = 'font-bold text-gray-900';
-                itemTotal.textContent = formatCurrency((item.product.base_price + (item.size?.price_modifier || 0)) * item.quantity);
-
-                itemInfo.appendChild(itemName);
-                itemInfo.appendChild(itemPrice);
-                itemDiv.appendChild(itemInfo);
-                itemDiv.appendChild(itemTotal);
-
-                modalContent.appendChild(itemDiv);
-              });
-
-              // Total section
-              const totalDiv = document.createElement('div');
-              totalDiv.className = 'mt-4 pt-4 border-t flex justify-between';
-
-              const totalLabel = document.createElement('span');
-              totalLabel.className = 'font-bold';
-              totalLabel.textContent = `${t('Total')}:`;
-
-              const totalAmount = document.createElement('span');
-              totalAmount.className = 'font-bold text-gray-900 text-xl';
-              totalAmount.textContent = formatCurrency(total);
-
-              totalDiv.appendChild(totalLabel);
-              totalDiv.appendChild(totalAmount);
-
-              // Close button
-              const closeButton = document.createElement('button');
-              closeButton.className = 'w-full mt-4 bg-gray-200 py-2 rounded-lg';
-              closeButton.textContent = t('pos.close');
-              closeButton.onclick = () => modal.remove();
-
-              modalContent.appendChild(header);
-              modalContent.appendChild(totalDiv);
-              modalContent.appendChild(closeButton);
-              modal.appendChild(modalContent);
-              document.body.appendChild(modal);
-            }}
+            onClick={() => setShowMobileCart(true)}
             className="w-full bg-gray-100 text-gray-700 py-2 rounded-lg text-sm font-medium"
           >
             {t('pos.view_cart_details')}
@@ -1857,24 +1867,24 @@ export function POS() {
             <div className="flex gap-2 p-1.5 bg-gray-50 rounded-xl border border-gray-200">
               <button
                 onClick={() => setSaleChannel('store')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
                   saleChannel === 'store'
-                    ? 'bg-white text-pink-600 shadow-sm border border-pink-100 ring-1 ring-pink-50'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                    ? 'gradient-primary text-white shadow-lg scale-105 border-none'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white bg-transparent border border-transparent'
                 }`}
               >
-                <ShoppingBag className="w-4 h-4" />
+                <ShoppingBag className={`w-4 h-4 ${saleChannel === 'store' ? 'text-white' : 'text-pink-500'}`} />
                 {t('pos.channel_store')}
               </button>
               <button
                 onClick={() => setSaleChannel('website')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${
                   saleChannel === 'website'
-                    ? 'bg-white text-pink-600 shadow-sm border border-pink-100 ring-1 ring-pink-50'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+                    ? 'gradient-primary text-white shadow-lg scale-105 border-none'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-white bg-transparent border border-transparent'
                 }`}
               >
-                <Smartphone className="w-4 h-4" />
+                <Smartphone className={`w-4 h-4 ${saleChannel === 'website' ? 'text-white' : 'text-pink-500'}`} />
                 {t('pos.channel_website')}
               </button>
             </div>
@@ -1924,6 +1934,115 @@ export function POS() {
 
 
       </div>
+
+      {/* Mobile Cart Modal */}
+      {showMobileCart && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-end z-[70] md:hidden">
+          <div className="bg-white w-full max-h-[85vh] rounded-t-[2.5rem] p-6 shadow-2xl flex flex-col animate-slide-up">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+                <div className="p-2 bg-pink-100 rounded-xl">
+                  <ShoppingCart className="w-6 h-6 text-pink-600" />
+                </div>
+                {t('pos.cart_modal_title')}
+              </h2>
+              <button 
+                onClick={() => setShowMobileCart(false)}
+                className="p-3 hover:bg-gray-100 rounded-2xl transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-4 mb-6 pr-2 custom-scrollbar">
+              {cart.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-4 border border-gray-100">
+                    <ShoppingCart className="w-10 h-10 text-gray-300" />
+                  </div>
+                  <p className="text-gray-500 font-medium">{t('El carrito está vacío')}</p>
+                </div>
+              ) : (
+                cart.slice().reverse().map((item, index) => {
+                  const cartIndex = cart.length - 1 - index;
+                  const basePrice = item.product.base_price + (item.size?.price_modifier || 0);
+                  const finalPrice = basePrice - (item.discount || 0);
+                  
+                  return (
+                    <div key={cartIndex} className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex gap-4 animate-fade-in shadow-sm">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-gray-900 truncate text-base">
+                          {item.product.name}
+                          {item.size && <span className="text-pink-600 ml-1 font-semibold">({item.size.size_name})</span>}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs font-bold text-pink-500 bg-pink-50 px-2 py-0.5 rounded-full">
+                            {formatCurrency(finalPrice)}
+                          </span>
+                          {item.discount > 0 && (
+                            <span className="text-[10px] text-gray-400 line-through">
+                              {formatCurrency(basePrice)}
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-3 mt-4">
+                          <div className="flex items-center bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); updateQuantity(cartIndex, -1); }}
+                              className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-pink-600 active:scale-90 transition-all"
+                            >
+                              <Minus className="w-4 h-4" />
+                            </button>
+                            <span className="w-8 text-center font-black text-gray-900 text-lg">{item.quantity}</span>
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation();
+                                if (checkStock(item.product, item.size, 1)) {
+                                  updateQuantity(cartIndex, 1);
+                                }
+                              }}
+                              className="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-pink-600 active:scale-90 transition-all"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); removeItem(cartIndex); }}
+                            className="w-11 h-11 flex items-center justify-center bg-red-50 text-red-500 rounded-xl hover:bg-red-100 active:scale-90 transition-all border border-red-100"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-right flex flex-col justify-center">
+                        <span className="text-xl font-black text-gray-900">
+                          {formatCurrency(finalPrice * item.quantity)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="space-y-4 pt-6 border-t border-gray-100">
+              <div className="flex justify-between items-center px-2">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{t('Total')}</span>
+                  <span className="text-3xl font-black text-gray-900 tracking-tight">{formatCurrency(total)}</span>
+                </div>
+                <button
+                  onClick={() => setShowMobileCart(false)}
+                  className="px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold text-base shadow-xl active:scale-95 transition-all"
+                >
+                  {t('pos.close')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Customer Selection Modal */}
       {showCustomerModal && (
@@ -2305,7 +2424,7 @@ export function POS() {
                   <input
                     type="text"
                     value={returnSearch}
-                    onChange={e => { setReturnSearch(e.target.value); fetchSoldItems(e.target.value); }}
+                    onChange={e => { setReturnSearch(e.target.value); fetchSoldItems(); }}
                     placeholder={t('pos.return_search_placeholder')}
                     className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-orange-400 outline-none"
                   />
@@ -2318,7 +2437,7 @@ export function POS() {
                     className="flex-1 px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm shadow-sm focus:ring-2 focus:ring-orange-400 outline-none"
                   />
                   <button 
-                    onClick={() => { setReturnDateFilter(''); setReturnCategoryFilter('all'); setReturnSizeFilter('all'); setReturnSearch(''); fetchSoldItems(''); }}
+                    onClick={() => { setReturnDateFilter(''); setReturnCategoryFilter('all'); setReturnSizeFilter('all'); setReturnSearch(''); fetchSoldItems(); }}
                     className="px-3 py-2.5 bg-gray-200 hover:bg-gray-300 rounded-xl text-xs font-bold text-gray-600 transition-all"
                   >
                     {t('Limpiar')}
@@ -2453,6 +2572,12 @@ export function POS() {
             </div>
           </div>
         </div>
+      )}
+      {showScanner && (
+        <BarcodeScanner
+          onScanSuccess={handleScanSuccess}
+          onClose={() => setShowScanner(false)}
+        />
       )}
     </>
   );

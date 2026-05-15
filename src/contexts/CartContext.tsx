@@ -15,7 +15,7 @@ interface CartContextType {
   items: CartItem[];
   total: number;
   paymentMethod: 'cash' | 'card' | 'digital' | null;
-  serviceType: 'dine_in' | 'takeaway';
+  serviceType: 'store' | 'website' | 'dine_in' | 'takeaway';
   saleChannel: 'store' | 'website';
   tableId: string | null;
   activeOrderId: string | null;
@@ -26,7 +26,7 @@ interface CartContextType {
   setItemNotes: (index: number, notes: string) => void;
   setItemDiscount: (index: number, type: 'none' | 'percent' | 'fixed', value: number) => void;
   setPaymentMethod: (method: 'cash' | 'card' | 'digital' | null) => void;
-  setServiceType: (type: 'dine_in' | 'takeaway') => void;
+  setServiceType: (type: 'store' | 'website' | 'dine_in' | 'takeaway') => void;
   setSaleChannel: (channel: 'store' | 'website') => void;
   setTableId: (tableId: string | null) => void;
   setActiveOrderId: (orderId: string | null) => void;
@@ -45,7 +45,7 @@ function calcDiscount(basePrice: number, type: 'none' | 'percent' | 'fixed', val
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'digital' | null>(null);
-  const [serviceType, setServiceType] = useState<'dine_in' | 'takeaway'>('takeaway');
+  const [serviceType, setServiceType] = useState<'store' | 'website' | 'dine_in' | 'takeaway'>('store');
   const [saleChannel, setSaleChannel] = useState<'store' | 'website'>('store');
   const [tableId, setTableId] = useState<string | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems([]);
     setPaymentMethod(null);
     setTableId(null);
-    setServiceType('takeaway');
+    setServiceType('store');
     setSaleChannel('store');
     setActiveOrderId(null);
     setCustomerId(null);

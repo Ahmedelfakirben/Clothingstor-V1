@@ -7,7 +7,9 @@ import './index.css';
 // Force SW registration
 registerSW({
   onNeedRefresh() {
-    console.log('UsePWA: New content available, click on reload button to update.');
+    console.log('UsePWA: Nuevo contenido disponible, recargando automáticamente...');
+    // Forzar recarga completa para limpiar caché de archivos
+    window.location.reload();
   },
   onOfflineReady() {
     console.log('UsePWA: App ready to work offline');

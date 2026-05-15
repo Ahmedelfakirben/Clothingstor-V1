@@ -1,4 +1,4 @@
-import { ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Clock, Shield, Building2, Settings, Server, Database, Bell, X } from 'lucide-react';
+import { ShoppingCart, Package, BarChart3, ClipboardList, LogOut, Users, Tag, DollarSign, Truck, ChevronDown, Calculator, Clock, Shield, Building2, Settings, Server, Database, Bell, X, Menu } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -52,6 +52,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
   const [sessionNotifications, setSessionNotifications] = useState<Array<{id: string, type?: string, amount?: string, createdAt: string}>>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationsRef = useRef<HTMLDivElement | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleNewNotif = (e: any) => {
@@ -189,7 +190,6 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         { id: 'app-settings', label: t('nav.app-settings'), icon: Settings, roles: ['super_admin'] },
         { id: 'server', label: t('nav.server'), icon: Server, roles: ['super_admin'] },
         { id: 'backup', label: t('nav.backup'), icon: Database, roles: ['super_admin'] },
-        { id: 'online-store', label: t('nav.online_store'), icon: ShoppingCart, roles: ['super_admin'] },
       ]
     }
   ];
@@ -350,7 +350,9 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
   const renderGroup = (group: NavGroup, isMobile: boolean = false) => {
     // Filtrar items basándose en permisos de la base de datos
     const visibleItems = group.items.filter(item =>
-      userPermissions[item.id] === true
+      profile?.role === 'super_admin' || 
+      userPermissions[item.id] === true || 
+      (item.roles.includes(profile?.role || ''))
     );
 
     if (visibleItems.length === 0) return null;
@@ -792,16 +794,22 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
 
   return (
     <>
-      <nav className="glass border-b-2 border-white/50 shadow-elegant sticky top-0 z-50">
+      <nav className={`glass border-b-2 border-white/50 shadow-elegant sticky top-0 transition-all duration-300 ${showUserMenu ? 'z-[10000]' : 'z-50'}`}>
         <div className="w-full px-6">
           <div className="flex items-center justify-between h-20">
-            <div className="flex-shrink-0 flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full flex items-center justify-center shadow-elegant hover:shadow-elegant-hover transition-all duration-300 hover:scale-105 group cursor-pointer overflow-hidden border-2 border-white">
+            <div className="flex-shrink-0 flex items-center gap-3 lg:gap-4">
+              <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="lg:hidden p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 shadow-sm active:scale-95 transition-all"
+              >
+                <Menu className="w-6 h-6 text-pink-600" />
+              </button>
+              <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full flex items-center justify-center shadow-elegant hover:shadow-elegant-hover transition-all duration-300 hover:scale-105 group cursor-pointer overflow-hidden border-2 border-white">
                 <img src="/Shopingbylina.jpg" alt="Logo" className="w-full h-full object-cover" />
               </div>
-              <div>
-                <h1 className="text-3xl font-black text-gradient-vibrant tracking-tight">Shopping by Lina</h1>
-                <p className="text-sm text-gray-600 font-semibold">{t('Sistema de Gestión')}</p>
+              <div className="hidden sm:block">
+                <h1 className="text-xl lg:text-3xl font-black text-gradient-vibrant tracking-tight">Shopping by Lina</h1>
+                <p className="text-[10px] lg:text-sm text-gray-600 font-semibold">{t('Sistema de Gestión')}</p>
               </div>
             </div>
 
@@ -917,125 +925,28 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-0 top-full mt-2 w-64 glass rounded-2xl shadow-elegant border-2 border-white/50 py-2 animate-fadeIn z-50">
-                      <div className="px-4 py-3 border-b border-gray-200">
-                        <p className="text-sm font-bold text-gray-900">{profile.full_name}</p>
-                        <p className="text-xs text-gray-500">{user?.email}</p>
-                        <p className="text-xs text-pink-600 capitalize font-medium mt-1">{profile.role}</p>
-                      </div>
+                    <div className="absolute right-0 top-full mt-2 w-72 glass lg:rounded-2xl shadow-elegant lg:border-2 lg:border-white/50 py-2 animate-fadeIn z-[100] flex flex-col">
+                        <div className="px-4 py-3 border-b border-gray-200">
+                          <p className="text-sm font-bold text-gray-900">{profile.full_name}</p>
+                          <p className="text-xs text-gray-500">{user?.email}</p>
+                          <p className="text-xs text-pink-600 capitalize font-medium mt-1">{profile.role}</p>
+                        </div>
 
-                      {/* Mobile Navigation (Only visible on mobile) */}
-                      <div className="lg:hidden px-2 py-2 border-b border-gray-200 max-h-[60vh] overflow-y-auto">
-                        {/* Mobile Notifications Section */}
-                        {(profile?.role === 'admin' || profile?.role === 'super_admin') && (
-                          <div className="mb-4">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-2">{t('Notificaciones')}</p>
-                            <button
-                              onClick={() => setShowNotifications(!showNotifications)}
-                              className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-100 hover:bg-amber-50 transition-all group"
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="relative">
-                                  <Bell className="w-5 h-5 text-gray-700" />
-                                  {sessionNotifications.length > 0 && (
-                                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 text-[8px] text-white font-bold flex items-center justify-center">
-                                        {sessionNotifications.length}
-                                      </span>
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-sm font-bold text-gray-700">{t('Ver Notificaciones')}</span>
-                              </div>
-                              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showNotifications ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            {showNotifications && (
-                              <div className="mt-2 space-y-2 max-h-64 overflow-y-auto pr-1">
-                                {sessionNotifications.length === 0 ? (
-                                  <p className="text-center py-4 text-xs text-gray-500 italic">{t('No hay notificaciones')}</p>
-                                ) : (
-                                  sessionNotifications.map(notif => (
-                                    <div key={notif.id} className="p-3 bg-white border border-gray-100 rounded-xl relative group animate-fadeIn">
-                                      <button 
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSessionNotifications(prev => prev.filter(n => n.id !== notif.id));
-                                          const dismissed = JSON.parse(localStorage.getItem('dismissedNotifications') || '[]');
-                                          if (!dismissed.includes(notif.id)) dismissed.push(notif.id);
-                                          localStorage.setItem('dismissedNotifications', JSON.stringify(dismissed));
-                                        }}
-                                        className="absolute right-2 top-2 text-gray-300 hover:text-red-500"
-                                      >
-                                        <X className="w-3.5 h-3.5" />
-                                      </button>
-                                      <p className={`text-[11px] font-bold mb-1 ${
-                                        notif.type === 'sale' ? 'text-green-600' : 
-                                        notif.type === 'cash_open' ? 'text-amber-500' : 'text-red-500'
-                                      }`}>
-                                        {notif.type === 'sale' ? '💰 ' + t('Venta') :
-                                         notif.type === 'cash_open' ? '🔓 ' + t('Apertura') : '🔐 ' + t('Cierre')}
-                                      </p>
-                                      {notif.amount && <p className="text-xs font-bold text-gray-900">{notif.amount}</p>}
-                                      <p className="text-[10px] text-gray-400 mt-1">
-                                        {new Date(notif.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                      </p>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            )}
+                        <div className="px-2 py-2 space-y-1">
+                          <div className="px-2 py-1">
+                            <OnlineStatusToggle />
                           </div>
-                        )}
-
-                        {navGroups.map(group => {
-                          const visibleItems = group.items.filter(item => userPermissions[item.id] === true);
-                          if (visibleItems.length === 0) return null;
-
-                          return (
-                            <div key={group.name} className="mb-3">
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-1">{group.name}</p>
-                              {visibleItems.map(item => {
-                                const Icon = item.icon;
-                                return (
-                                  <button
-                                    key={item.id}
-                                    onClick={() => {
-                                      onViewChange(item.id);
-                                      setShowUserMenu(false);
-                                    }}
-                                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${currentView === item.id ? 'bg-amber-100 text-amber-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
-                                      }`}
-                                  >
-                                    <Icon className="w-4 h-4" />
-                                    <span>{item.label}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      <div className="px-2 py-2">
-                        <div className="px-3 py-2">
-                          <OnlineStatusToggle />
+                          <div className="px-2 py-1">
+                            <InstallPWA variant="menu-item" />
+                          </div>
+                          <button
+                            onClick={handleLogoutClick}
+                            className="flex items-center gap-3 w-full px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-all font-bold"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>{t('Salir')}</span>
+                          </button>
                         </div>
-                        <div className="px-2">
-                          <InstallPWA variant="menu-item" />
-                        </div>
-                      </div>
-
-                      <div className="border-t border-gray-200 px-2 pt-2">
-                        <button
-                          onClick={handleLogoutClick}
-                          className="flex items-center gap-3 w-full px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          <span>{t('Salir')}</span>
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -1047,7 +958,88 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
         </div>
       </nav>
 
-      {/* Navegación móvil ELIMINADA (Integrada en menú usuario) */}
+      {/* Mobile Burger Menu */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-[10001] flex lg:hidden">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm animate-fadeIn"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          
+          {/* Drawer */}
+          <div className="relative w-[85%] max-w-sm h-full bg-white shadow-2xl flex flex-col animate-slideInRight">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 gradient-primary rounded-full flex items-center justify-center text-white font-bold shadow-md">
+                  <Menu className="w-5 h-5" />
+                </div>
+                <h2 className="text-lg font-bold text-gray-900">{t('Menú Principal')}</h2>
+              </div>
+              <button 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Navigation Links */}
+            <div className="flex-1 overflow-y-auto px-4 py-6 custom-scrollbar">
+              {navGroups.map(group => {
+                const userRole = profile?.role?.toLowerCase();
+                const visibleItems = group.items.filter(item => 
+                  userRole === 'super_admin' || 
+                  userPermissions[item.id] === true || 
+                  item.roles.some(r => r.toLowerCase() === userRole)
+                );
+                
+                if (visibleItems.length === 0) return null;
+
+                return (
+                  <div key={group.name} className="mb-8">
+                    <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-2 mb-4">{group.name}</p>
+                    <div className="grid grid-cols-1 gap-2">
+                      {visibleItems.map(item => {
+                        const Icon = item.icon;
+                        const isActive = currentView === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              onViewChange(item.id);
+                              setIsMobileMenuOpen(false);
+                            }}
+                            className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-base transition-all ${
+                              isActive 
+                                ? 'gradient-primary text-white font-bold shadow-md' 
+                                : 'text-gray-700 bg-white border border-gray-50 hover:bg-gray-50'
+                            }`}
+                          >
+                            <Icon className={`w-6 h-6 ${isActive ? 'text-white' : 'text-pink-500'}`} />
+                            <span>{item.label}</span>
+                            {isActive && <div className="ml-auto w-2 h-2 bg-white rounded-full" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-gray-100 bg-gray-50/30">
+              <p className="text-xs text-gray-400 text-center font-medium">
+                Shopping by Lina v1.0
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Navegación móvil ELIMINADA */}
 
       {showCloseCashModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Edit2, Trash2, Save, X, ScanBarcode, Package, Search, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Package, Search, Eye } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -64,7 +64,6 @@ export function ProductsManager() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [sizes, setSizes] = useState<ProductSize[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showNewProduct, setShowNewProduct] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -92,9 +91,6 @@ export function ProductsManager() {
     available: true,
   });
   const [newProductSizes, setNewProductSizes] = useState<{ name: string; stock: number; price: number; barcode?: string }[]>([]);
-  const [newSizeName, setNewSizeName] = useState('');
-  const [newSizeStock, setNewSizeStock] = useState('0');
-  const [newSizeBarcode, setNewSizeBarcode] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
 
   const [isEditing, setIsEditing] = useState(false);
@@ -393,31 +389,6 @@ export function ProductsManager() {
     // Ya no lo necesitamos globalmente si los traemos con el producto
   };
 
-  const handleAddSize = () => {
-    if (!newSizeName.trim()) {
-      toast.error(t('El nombre de la talla es obligatorio'));
-      return;
-    }
-    const stock = parseInt(newSizeStock);
-    if (isNaN(stock) || stock < 0) {
-      toast.error(t('El stock debe ser un número válido >= 0'));
-      return;
-    }
-
-    setNewProductSizes([...newProductSizes, {
-      name: newSizeName.trim(),
-      stock,
-      price: 0,
-      barcode: newSizeBarcode.trim() || undefined
-    }]);
-    setNewSizeName('');
-    setNewSizeStock('0');
-    setNewSizeBarcode('');
-  };
-
-  const handleRemoveSize = (index: number) => {
-    setNewProductSizes(newProductSizes.filter((_, i) => i !== index));
-  };
 
   // Función para reparar imágenes rotas usando Google
   const fixProductImage = async (barcode: string, productName: string, brand: string, currentImageUrl: string) => {
@@ -698,8 +669,6 @@ export function ProductsManager() {
   const handleScanSuccess = (code: string) => {
     if (scanTarget === 'main') {
       setNewProduct({ ...newProduct, barcode: code });
-    } else {
-      setNewSizeBarcode(code);
     }
     setShowScanner(false);
     toast.success(t('Código escaneado: ') + code);
@@ -1003,7 +972,7 @@ export function ProductsManager() {
     });
 
     // 2. Cargar tallas
-    const productSizesList = sizes.filter(s => s.product_id === product.id).map(s => ({
+    const productSizesList = (product.product_sizes || []).map(s => ({
       name: s.size_name,
       stock: s.stock,
       price: s.price_modifier || 0,
@@ -2166,11 +2135,15 @@ export function ProductsManager() {
                   )}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${product.available && (product.stock || 0) > 0
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${product.available && (getProductSizes(product).length > 0
+                    ? getProductSizes(product).reduce((sum, s) => sum + s.stock, 0)
+                    : (product.stock || 0)) > 0
                     ? 'bg-green-100 text-green-800'
                     : 'bg-red-100 text-red-800'
                     }`}>
-                    {product.available && (product.stock || 0) > 0 ? t('Disponible') : t('No disponible')}
+                    {product.available && (getProductSizes(product).length > 0
+                      ? getProductSizes(product).reduce((sum, s) => sum + s.stock, 0)
+                      : (product.stock || 0)) > 0 ? t('Disponible') : t('No disponible')}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">
@@ -2378,7 +2351,7 @@ export function ProductsManager() {
       {galleryModalOpen && galleryModalProduct && (
         <ImageGalleryModal
           product={galleryModalProduct as any}
-          productSizes={sizes.filter(s => s.product_id === galleryModalProduct.id) as any}
+          productSizes={(galleryModalProduct.product_sizes || []) as any}
           galleryImages={galleryModalImages}
           onClose={() => setGalleryModalOpen(false)}
         />

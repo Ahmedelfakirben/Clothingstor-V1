@@ -245,9 +245,9 @@ const translations = {
     'pos.validation_prompt': 'El pedido se ha procesado correctamente. ¿Desea validar e imprimir el ticket ahora?',
     'Seleccionar Talla': 'Seleccionar Talla',
     'pos.total_order': 'Total del pedido',
-    'pos.view_cart_details': 'Ver Carrito Detallado',
+    'pos.view_cart_details': 'Ver Detalles del Carrito',
     'pos.items': 'Items',
-    'pos.cart_modal_title': 'Carrito',
+    'pos.cart_modal_title': 'Carrito de Compras',
     'pos.close': 'Cerrar',
     'scan.found_via': '✅ Encontrado vía',
     'scan.image_available': 'Imagen disponible.',
@@ -1436,7 +1436,7 @@ const translations = {
     '⚠️ ADVERTENCIA: Esta acción eliminará TODOS los datos del historial (pedidos, empleados no super_admin, etc.). ¿Estás completamente seguro?': '⚠️ AVERTISSEMENT : Cette action supprimera TOUTES les données de l\'historique (commandes, employés non super_admin, etc.). Êtes-vous complètement sûr ?',
     'Esta acción es IRREVERSIBLE. ¿Continuar de todos modos?': 'Cette action est IRRÉVERSIBLE. Continuer quand même ?',
     'Base de datos limpiada correctamente': 'Base de données nettoyée avec succès',
-    'Error al limpiar la base de données': 'Erreur lors du nettoyage de la base de données',
+    'Error al limpiar la base de datos': 'Erreur lors du nettoyage de la base de données',
     'Acceso Denegado': 'Accès Refusé',
     'Solo los Super Administradores pueden acceder a esta sección': 'Seuls les Super Administrateurs peuvent accéder à cette section',
     'Zona de Super Administrador': 'Zone Super Administrateur',
@@ -2055,22 +2055,6 @@ const translations = {
     'No hay datos de ventas disponibles': 'Aucune donnée de vente disponible',
     'No hay datos de productos disponibles': 'Aucune donnée de produit disponible',
     'Insights de Rendimiento': 'Insights de Performance',
-    'analytics.sales_evolution': 'Évolution des ventes',
-    'analytics.revenue_7_days': 'Chiffre d\'affaires des 7 derniers jours',
-    'analytics.payment_methods': 'Modes de paiement',
-    'analytics.income_distribution': 'Répartition des revenus',
-    'analytics.category_sales': 'Ventes par catégorie',
-    'analytics.category_comparison': 'Comparatif des revenus par type de produit',
-    'analytics.revenue': 'Revenus',
-    'analytics.others': 'Autres',
-    'analytics.registered_customers': 'Clients inscrits',
-    'analytics.now': 'Maintenant',
-    'analytics.total': 'Total',
-    'analytics.active': 'Actifs',
-    'analytics.current_time': 'Heure actuelle',
-    'analytics.real_profit': 'Bénéfice Réel',
-    'analytics.profit_margin_desc': 'Marge nette des 7 derniers jours',
-    'analytics.net_profit': 'Profit',
 
     // Sala - Room Management
     'Gestión de Sala': 'Gestion de la Salle',
@@ -2581,15 +2565,30 @@ const translations = {
     'analytics.active_products': 'Produits actifs',
     'analytics.sales': 'Ventes :',
     'analytics.expenses': 'Dépenses :',
+    'analytics.returns': 'Retours :',
+    'analytics.cogs': 'Coût (Produits) :',
     'analytics.profit': 'Bénéfice :',
     'analytics.margin': 'Marge :',
     'analytics.employee_activity': 'Activité des Employés',
     'analytics.no_employee_data': 'Aucune donnée d\'employés disponible',
+    'analytics.real_profit': 'Bénéfice Réel (7 derniers jours)',
+    'analytics.profit_margin_desc': 'Bénéfice net après déduction du coût d\'achat',
     'analytics.sales_by_channel': 'Ventes par Canal',
     'analytics.channel_comparison': 'Comparaison Boutique vs Web (30j)',
     'analytics.recent_notifications': 'Notifications Récentes',
     'analytics.no_notifications': 'Aucune notification récente',
     'analytics.daily_sales_last_7': 'Ventes Journalières (7 derniers jours)',
+    'analytics.sales_evolution': 'Évolution des Ventes',
+    'analytics.revenue_7_days': 'Chiffre d\'affaires des 7 derniers jours',
+    'analytics.payment_methods': 'Modes de Paiement',
+    'analytics.income_distribution': 'Répartition des revenus',
+    'analytics.category_sales': 'Ventes par Catégorie',
+    'analytics.category_comparison': 'Comparaison des revenus par type de produit',
+    'analytics.revenue': 'Revenus',
+    'analytics.others': 'Autres',
+    'analytics.registered_customers': 'Clients inscrits',
+    'analytics.current_time': 'Heure actuelle',
+    'analytics.net_profit': 'Gain',
     'analytics.no_sales_data': 'Aucune donnée de ventes disponible',
     'analytics.top_products': 'Produits les Plus Vendus',
     'analytics.no_product_data': 'Aucune donnée de produits disponible',
@@ -2888,7 +2887,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   };
 
   const t = (key: string): string => {
-    return translations[currentLanguage][key as keyof typeof translations.es] || key;
+    const currentTranslations = translations[currentLanguage] as Record<string, string>;
+    const defaultTranslations = translations.es as Record<string, string>;
+    return currentTranslations[key] || defaultTranslations[key] || key;
   };
 
   // Mostrar un loader mientras se carga el idioma

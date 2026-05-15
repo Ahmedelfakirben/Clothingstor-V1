@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
-import { Calendar, DollarSign, Filter, RefreshCw, Printer, Shield, Info } from 'lucide-react';
+import { Calendar, DollarSign, Filter, RefreshCw, Printer, Info } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { LoadingSpinner } from './LoadingSpinner';
 
@@ -1056,7 +1056,8 @@ export function CashRegisterDashboard() {
             <p className="text-gray-600">{t('No hay sesiones de caja para mostrar')}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="overflow-x-auto hidden md:block">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
@@ -1167,7 +1168,79 @@ export function CashRegisterDashboard() {
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Vista de Tarjetas para Móvil */}
+          <div className="md:hidden divide-y divide-gray-200">
+            {dailySessions.map((day: any) => (
+              <div key={`${day.date}-${day.employee_id}`} className="p-4 bg-white hover:bg-gray-50">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h4 className="font-bold text-gray-900">
+                      {profile?.role === 'admin' || profile?.role === 'super_admin' ? day.employee_profiles?.full_name || 'N/A' : t('Tú')}
+                    </h4>
+                    <p className="text-sm text-gray-500">
+                      {new Date(day.date).toLocaleDateString('es-ES')} | {new Date(day.firstOpen).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} - {day.lastClose ? new Date(day.lastClose).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : t('Abierta')}
+                    </p>
+                  </div>
+                  <span className={`text-xs font-bold px-2 py-1 rounded ${Math.abs(day.difference) < 0.01 ? 'bg-green-100 text-green-700' :
+                    day.difference > 0 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'
+                    }`}>
+                    {formatCurrency(day.difference || 0)}
+                  </span>
+                </div>
+
+                <div className="space-y-2 text-sm mb-4">
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-gray-500">{t('Apertura')}:</span>
+                    <span className="font-medium text-gray-900">{formatCurrency(day.totalOpening)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-gray-500">{t('Ventas')}:</span>
+                    <span className="font-bold text-green-600">{formatCurrency(day.totalSales || 0)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-gray-500">{t('Retiros')}:</span>
+                    <span className="font-medium text-red-600">{formatCurrency(day.totalWithdrawals || 0)}</span>
+                  </div>
+
+                  <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                    <span className="text-gray-500">{currentLanguage === 'fr' ? 'Retours' : 'Devoluciones'}:</span>
+                    <span className="font-medium text-orange-600">{formatCurrency(day.totalReturns || 0)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center py-2 bg-gray-50 px-2 rounded-lg">
+                    <span className="text-gray-900 font-bold">{t('Cierre Real')}:</span>
+                    <span className="font-bold text-purple-600">{formatCurrency(day.totalClosing || 0)}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => printDailyReport(day)}
+                    className="flex-1 flex items-center justify-center gap-1 bg-amber-100 text-amber-700 py-2 rounded-lg text-sm font-bold"
+                  >
+                    <Printer className="w-4 h-4" />
+                    {t('Reporte')}
+                  </button>
+                  {(profile?.role === 'admin' || profile?.role === 'super_admin') && day.sessions.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setSelectedSessionForWithdrawal(day.sessions[0].id);
+                        setShowWithdrawalModal(true);
+                      }}
+                      className="flex-1 bg-blue-100 text-blue-700 py-2 rounded-lg text-sm font-bold"
+                    >
+                      {t('Retiro')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       </div>
 
       {/* Modal para registrar retiros de caja */}
@@ -1641,7 +1714,7 @@ function DailyHistorySection() {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -1656,9 +1729,9 @@ function DailyHistorySection() {
           </thead>
           <tbody className="divide-y divide-gray-200">
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-4">{t('cash.loading_history')}</td></tr>
+              <tr><td colSpan={7} className="text-center py-4">{t('cash.loading_history')}</td></tr>
             ) : history.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-4">{t('cash.no_history_data')}</td></tr>
+              <tr><td colSpan={7} className="text-center py-4">{t('cash.no_history_data')}</td></tr>
             ) : (
               history.map(day => (
                 <tr key={day.date} className="hover:bg-gray-50">
@@ -1683,6 +1756,48 @@ function DailyHistorySection() {
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Vista de Tarjetas para Móvil (Historial Global) */}
+      <div className="md:hidden divide-y divide-gray-200">
+        {loading ? (
+          <div className="text-center py-8">{t('cash.loading_history')}</div>
+        ) : history.length === 0 ? (
+          <div className="text-center py-8">{t('cash.no_history_data')}</div>
+        ) : (
+          history.map(day => (
+            <div key={day.date} className="p-4 bg-white hover:bg-gray-50">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-bold text-gray-900">
+                  {new Date(day.date).toLocaleDateString(currentLanguage === 'fr' ? 'fr-FR' : 'es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </h4>
+                <button
+                  onClick={() => printSummary(day)}
+                  className="text-amber-600 flex items-center gap-1 text-xs font-bold uppercase"
+                >
+                  <Printer className="w-4 h-4" /> {t('cash.report_button')}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-y-2 text-sm">
+                <div className="text-gray-500">{t('cash.total_openings_sum')}:</div>
+                <div className="font-medium text-right">{formatCurrency(day.totalOpening)}</div>
+                
+                <div className="text-gray-500">{t('cash.total_sales_sum')}:</div>
+                <div className="font-medium text-green-600 text-right">{formatCurrency(day.totalSales)} ({day.salesCount})</div>
+                
+                <div className="text-gray-500">{t('cash.total_withdrawals_sum')}:</div>
+                <div className="font-medium text-red-600 text-right">{formatCurrency(day.totalWithdrawals)}</div>
+
+                <div className="text-gray-500">{currentLanguage === 'fr' ? 'Retours' : 'Devoluciones'}:</div>
+                <div className="font-medium text-orange-600 text-right">{formatCurrency(day.totalReturns)} ({day.returnsCount})</div>
+                
+                <div className="text-gray-900 font-bold border-t pt-2 mt-1">{t('cash.theoretical_balance')}:</div>
+                <div className="font-bold text-gray-900 text-right border-t pt-2 mt-1">{formatCurrency(day.totalOpening + day.totalSales - day.totalWithdrawals - day.totalReturns)}</div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

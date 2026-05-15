@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { Toaster, toast } from 'react-hot-toast';
+import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -33,6 +33,28 @@ function AppContent() {
   const [currentView, setCurrentView] = useState('pos');
   const [userPermissions, setUserPermissions] = useState<{ [key: string]: boolean }>({});
   const hasRedirectedRef = useRef(false);
+
+  // Sistema de control de versiones para forzar limpieza de caché en despliegue
+  useEffect(() => {
+    const APP_VERSION = '1.1.0'; // Incrementar esto para forzar recarga en clientes
+    const savedVersion = localStorage.getItem('app_version');
+    
+    if (savedVersion !== APP_VERSION) {
+      console.log(`Nueva versión detectada: ${APP_VERSION}. Limpiando caché...`);
+      localStorage.setItem('app_version', APP_VERSION);
+      
+      // Si ya había una versión anterior, forzamos recarga dura
+      if (savedVersion) {
+        // Limpiar cachés del navegador si es posible
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            names.forEach(name => caches.delete(name));
+          });
+        }
+        window.location.reload();
+      }
+    }
+  }, []);
 
   // Cargar permisos del usuario desde la base de datos
   useEffect(() => {
