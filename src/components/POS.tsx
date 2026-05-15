@@ -46,10 +46,18 @@ export function POS() {
   const [showSizeDropdown, setShowSizeDropdown] = useState(false);
   const sizeDropdownRef = useRef<HTMLDivElement>(null);
   const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const productsContainerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
+
+  // Scroll top on page change
+  useEffect(() => {
+    if (productsContainerRef.current) {
+      productsContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentPage]);
   const [productSearch, setProductSearch] = useState('');
   const ITEMS_PER_PAGE = 20;
   const [error, setError] = useState<string | null>(null);
@@ -1501,7 +1509,7 @@ export function POS() {
             `}</style>
           </div>
 
-          <div className="flex-1 overflow-auto p-4">
+          <div ref={productsContainerRef} className="flex-1 overflow-auto p-4">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {products.map(product => {
                 const productSizesList = productSizes(product.id);
