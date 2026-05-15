@@ -105,11 +105,18 @@ export function OrdersDashboard() {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [selectedUserId] = useState<string>('all');
-  const [, setEmployees] = useState<{ id: string; full_name: string }[]>([]);
+  const [employees, setEmployees] = useState<{ id: string; full_name: string }[]>([]);
   const [showLatestOnly] = useState<boolean>(true);
   const [currentDateFilter, setCurrentDateFilter] = useState<string>(''); // format: YYYY-MM-DD, admin only
   const [returns, setReturns] = useState<ReturnRecord[]>([]);
   const [returnsLoading, setReturnsLoading] = useState(false);
+  const [returnsStartDate, setReturnsStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [returnsEndDate, setReturnsEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [returnsSelectedUserId, setReturnsSelectedUserId] = useState<string>('all');
+  const [returnsSearchTerm, setReturnsSearchTerm] = useState<string>('');
+  const [returnsPage, setReturnsPage] = useState(1);
+  const [totalReturnsCount, setTotalReturnsCount] = useState(0);
+  const RETURNS_PER_PAGE = 20;
 
 
   // Estado para modal de eliminación
@@ -194,7 +201,7 @@ export function OrdersDashboard() {
     if (viewMode === 'returns') {
       fetchReturns();
     }
-  }, [viewMode]);
+  }, [viewMode, returnsStartDate, returnsEndDate, returnsSelectedUserId, returnsSearchTerm, returnsPage]);
 
 
   // Redirect cashier users to current view if they somehow access history
@@ -261,7 +268,7 @@ export function OrdersDashboard() {
   const fetchReturns = async () => {
     setReturnsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('order_returns')
         .select(`
           id,
@@ -276,13 +283,41 @@ export function OrdersDashboard() {
           returned_by,
           withdrawal_id,
           orders(order_number),
-          products(name),
+          products(name, barcode),
           product_sizes(size_name),
           cash_withdrawals(notes)
-        `)
-        .order('created_at', { ascending: false });
+        `, { count: 'exact' });
+
+      // Apply Filters
+      if (returnsStartDate) {
+        const start = new Date(returnsStartDate);
+        start.setHours(0, 0, 0, 0);
+        query = query.gte('created_at', start.toISOString());
+      }
+      if (returnsEndDate) {
+        const end = new Date(returnsEndDate);
+        end.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', end.toISOString());
+      }
+      if (returnsSelectedUserId !== 'all') {
+        query = query.eq('returned_by', returnsSelectedUserId);
+      }
+      if (returnsSearchTerm) {
+        // Correct way to filter by related table in Supabase
+        query = query.or(`name.ilike.%${returnsSearchTerm}%,barcode.ilike.%${returnsSearchTerm}%`, { foreignTable: 'products' });
+      }
+
+      // Pagination
+      const from = (returnsPage - 1) * RETURNS_PER_PAGE;
+      const to = from + RETURNS_PER_PAGE - 1;
+
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
+
+      setTotalReturnsCount(count || 0);
 
       // Fetch employee names separately
       const returnedByIds = [...new Set((data || []).map((r: any) => r.returned_by).filter(Boolean))];
@@ -301,10 +336,10 @@ export function OrdersDashboard() {
         size_id: r.size_id,
         size_name: (r.product_sizes as any)?.size_name || null,
         quantity_returned: r.quantity_returned,
-        unit_price: r.unit_price,
-        total_refund: r.total_refund,
+        unit_price: typeof r.unit_price === 'string' ? parseFloat(r.unit_price) : (r.unit_price || 0),
+        total_refund: typeof r.total_refund === 'string' ? parseFloat(r.total_refund) : (r.total_refund || 0),
         reason: r.reason,
-        returned_by_name: empMap.get(r.returned_by) || 'N/A',
+        returned_by_name: empMap.get(r.returned_by) || t('orders.unknown_employee'),
         withdrawal_notes: (r.cash_withdrawals as any)?.notes || null,
         created_at: r.created_at,
       }));
@@ -312,6 +347,7 @@ export function OrdersDashboard() {
       setReturns(mapped);
     } catch (err) {
       console.error('Error fetching returns:', err);
+      toast.error(t('orders.error_fetching_returns'));
     } finally {
       setReturnsLoading(false);
     }
@@ -1088,12 +1124,73 @@ export function OrdersDashboard() {
               </div>
             </div>
             <button
-              onClick={fetchReturns}
+              onClick={() => {
+                setReturnsPage(1);
+                fetchReturns();
+              }}
               className="px-4 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-xl text-sm font-bold transition-all flex items-center gap-2"
             >
               <RotateCcw className="w-4 h-4" />
               {t('orders.returns_refresh')}
             </button>
+          </div>
+
+          {/* Filtros */}
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder={t('orders.search_product_placeholder')}
+                value={returnsSearchTerm}
+                onChange={(e) => {
+                  setReturnsSearchTerm(e.target.value);
+                  setReturnsPage(1);
+                }}
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:bg-white outline-none transition-all"
+              />
+              <ShoppingBag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={returnsStartDate}
+                onChange={(e) => {
+                  setReturnsStartDate(e.target.value);
+                  setReturnsPage(1);
+                }}
+                className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:bg-white outline-none"
+              />
+              <input
+                type="date"
+                value={returnsEndDate}
+                onChange={(e) => {
+                  setReturnsEndDate(e.target.value);
+                  setReturnsPage(1);
+                }}
+                className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:bg-white outline-none"
+              />
+            </div>
+
+            <div>
+              <select
+                value={returnsSelectedUserId}
+                onChange={(e) => {
+                  setReturnsSelectedUserId(e.target.value);
+                  setReturnsPage(1);
+                }}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:bg-white outline-none"
+              >
+                <option value="all">{t('orders.all_employees')}</option>
+                {employees.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.full_name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end text-xs font-bold text-gray-400">
+              {totalReturnsCount} {t('orders.returns_found')}
+            </div>
           </div>
 
           {returnsLoading ? (
@@ -1173,7 +1270,7 @@ export function OrdersDashboard() {
                   <tfoot className="bg-orange-50 border-t-2 border-orange-200">
                     <tr>
                       <td colSpan={5} className="px-5 py-3 text-right text-sm font-bold text-orange-700">
-                        {t('orders.returns_total_label')} ({returns.length} {t('orders.returns_count')}):
+                        {t('orders.returns_total_label')} ({totalReturnsCount} {t('orders.returns_count')}):
                       </td>
                       <td className="px-5 py-3 text-base font-black text-red-600">
                         -{formatCurrency(returns.reduce((sum, r) => sum + Number(r.total_refund), 0))}
@@ -1183,6 +1280,31 @@ export function OrdersDashboard() {
                   </tfoot>
                 </table>
               </div>
+
+              {/* Pagination UI */}
+              {totalReturnsCount > RETURNS_PER_PAGE && (
+                <div className="p-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
+                  <div className="text-xs font-bold text-gray-500">
+                    {t('common.page')} {returnsPage} {t('common.of')} {Math.ceil(totalReturnsCount / RETURNS_PER_PAGE)}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setReturnsPage(prev => Math.max(1, prev - 1))}
+                      disabled={returnsPage === 1}
+                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                    >
+                      {t('common.previous')}
+                    </button>
+                    <button
+                      onClick={() => setReturnsPage(prev => prev + 1)}
+                      disabled={returnsPage >= Math.ceil(totalReturnsCount / RETURNS_PER_PAGE)}
+                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-gray-50 transition-colors"
+                    >
+                      {t('common.next')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -14,11 +14,13 @@ interface ProductHistoryModalProps {
 
 interface HistoryEvent {
   id: string;
-  type: 'creation' | 'sale' | 'validation';
+  type: 'creation' | 'sale' | 'validation' | 'return' | 'manual_add' | 'manual_deduct';
   date: string;
   quantity: number;
   price?: number;
   employeeName?: string;
+  sizeName?: string;
+  reason?: string;
 }
 
 export default function ProductHistoryModal({ productId, productName, currentStock, onClose }: ProductHistoryModalProps) {
@@ -43,7 +45,16 @@ export default function ProductHistoryModal({ productId, productName, currentSto
       // 1. Obtener datos de creación y validación del producto
       const { data: productData, error: productError } = await supabase
         .from('products')
-        .select('created_at, created_by, validated_by')
+        .select(`
+          created_at, 
+          created_by, 
+          validated_by,
+          stock,
+          product_sizes (
+            size_name,
+            stock
+          )
+        `)
         .eq('id', productId)
         .single();
 
@@ -53,12 +64,17 @@ export default function ProductHistoryModal({ productId, productName, currentSto
         
       if (productData && !productError) {
         // Evento de Creación
+        const sizesInfo = (productData.product_sizes as any[])?.length > 0
+          ? (productData.product_sizes as any[]).map(s => `${s.size_name}: ${s.stock}`).join(', ')
+          : `Stock: ${productData.stock || 0}`;
+
         timeline.push({
           id: 'creation',
           type: 'creation',
           date: productData.created_at,
-          quantity: 0,
-          employeeName: productData.created_by ? profileMap.get(productData.created_by) || tf('Sistama', 'Système') : tf('Administrador', 'Administrateur')
+          quantity: productData.stock || 0,
+          sizeName: sizesInfo,
+          employeeName: productData.created_by ? profileMap.get(productData.created_by) || tf('Sistema', 'Système') : tf('Administrador', 'Administrateur')
         });
 
         // Evento de Validación (si existe)
@@ -88,9 +104,68 @@ export default function ProductHistoryModal({ productId, productName, currentSto
               date: item.orders.created_at,
               quantity: item.quantity,
               price: item.unit_price,
+              sizeName: item.product_sizes?.size_name,
               employeeName: item.orders.employee_id ? profileMap.get(item.orders.employee_id) || tf('Vendedor Desconocido', 'Vendeur Inconnu') : tf('Sin Asignar', 'Non Assigné')
             });
           }
+        });
+      }
+
+      // 4. Obtener devoluciones
+      const { data: returnsData } = await supabase
+        .from('order_returns')
+        .select(`
+          id,
+          created_at,
+          quantity_returned,
+          unit_price,
+          reason,
+          returned_by,
+          product_sizes(size_name)
+        `)
+        .eq('product_id', productId);
+
+      if (returnsData) {
+        returnsData.forEach((ret: any) => {
+          soldUnits -= ret.quantity_returned; // Restar devoluciones de las unidades vendidas
+          timeline.push({
+            id: ret.id,
+            type: 'return',
+            date: ret.created_at,
+            quantity: ret.quantity_returned,
+            price: ret.unit_price,
+            sizeName: ret.product_sizes?.size_name,
+            reason: ret.reason,
+            employeeName: profileMap.get(ret.returned_by) || tf('Empleado Desconocido', 'Employé Inconnu')
+          });
+        });
+      }
+
+      // 5. Obtener movimientos manuales de stock
+      const { data: movementsData } = await supabase
+        .from('stock_movements')
+        .select(`
+          id,
+          created_at,
+          quantity,
+          type,
+          reason,
+          employee_id,
+          product_sizes(size_name)
+        `)
+        .eq('product_id', productId);
+
+      if (movementsData) {
+        movementsData.forEach((mov: any) => {
+          timeline.push({
+            id: mov.id,
+            type: mov.type as any, // manual_add o manual_deduct
+            date: mov.created_at,
+            quantity: mov.quantity,
+            sizeName: mov.product_sizes?.size_name,
+            reason: mov.reason,
+            employeeName: profileMap.get(mov.employee_id) || tf('Sistema', 'Système')
+          });
         });
       }
 
@@ -115,6 +190,7 @@ export default function ProductHistoryModal({ productId, productName, currentSto
           id,
           quantity,
           unit_price,
+          product_sizes(size_name),
           orders!inner (
             status,
             created_at,
@@ -193,14 +269,25 @@ export default function ProductHistoryModal({ productId, productName, currentSto
                         <div key={ev.id + idx} className="relative pl-6">
                           {/* Dot */}
                           <div className={`absolute -left-[9px] top-1 h-4 w-4 rounded-full border-2 border-white shadow-sm
-                            ${ev.type === 'creation' ? 'bg-blue-500' : ev.type === 'validation' ? 'bg-purple-500' : 'bg-green-500'}
+                            ${ev.type === 'creation' ? 'bg-blue-500' : 
+                              ev.type === 'validation' ? 'bg-purple-500' : 
+                              ev.type === 'manual_add' ? 'bg-cyan-500' :
+                              ev.type === 'manual_deduct' ? 'bg-red-400' :
+                              ev.type === 'return' ? 'bg-orange-500' : 'bg-green-500'}
                           `} />
                           
                           <div className="bg-white p-4 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                             <div className="flex justify-between items-start mb-1">
-                              <h5 className={`font-bold flex items-center gap-2 ${ev.type === 'creation' ? 'text-blue-700' : ev.type === 'validation' ? 'text-purple-700' : 'text-green-700'}`}>
+                              <h5 className={`font-bold flex items-center gap-2 ${
+                                ev.type === 'creation' ? 'text-blue-700' : 
+                                ev.type === 'validation' ? 'text-purple-700' : 
+                                ev.type === 'manual_add' ? 'text-cyan-700' :
+                                ev.type === 'return' ? 'text-orange-700' : 'text-green-700'}`}>
                                 {ev.type === 'creation' ? tf('Producto Registrado', 'Produit Enregistré') : 
                                  ev.type === 'validation' ? tf('Producto Validado', 'Produit Validé') : 
+                                 ev.type === 'manual_add' ? tf('Stock Añadido', 'Stock Ajouté') :
+                                 ev.type === 'manual_deduct' ? tf('Stock Retirado', 'Stock Retiré') :
+                                 ev.type === 'return' ? tf('Devolución Realizada', 'Retour Réalisé') :
                                  tf('Venta Completada', 'Vente Réalisée')}
                               </h5>
                               <span className="text-xs font-medium text-gray-400 bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
@@ -210,16 +297,35 @@ export default function ProductHistoryModal({ productId, productName, currentSto
                             
                             <div className="text-sm text-gray-600 mt-2 space-y-1">
                               {ev.type === 'creation' ? (
-                                <p>
-                                  {tf('El producto fue ingresado a la base de datos por:', 'Le produit a été saisi dans la base de données par :')} <span className="font-bold text-blue-700 bg-blue-50 px-1 py-0.5 rounded">{ev.employeeName}</span>
-                                </p>
+                                <>
+                                  <p>
+                                    {tf('El producto fue ingresado a la base de datos por:', 'Le produit a été saisi dans la base de données par :')} <span className="font-bold text-blue-700 bg-blue-50 px-1 py-0.5 rounded">{ev.employeeName}</span>
+                                  </p>
+                                  <p className="mt-2"><span className="font-medium text-gray-700">{tf('Stock inicial y tallas:', 'Stock initial et tailles :')}</span></p>
+                                  <p className="text-xs text-blue-600 font-bold">{ev.sizeName}</p>
+                                </>
                               ) : ev.type === 'validation' ? (
                                 <p>
                                   {tf('El producto ha sido aprobado para su venta por:', 'Le produit a été approuvé pour la vente par :')} <span className="font-bold text-purple-700 bg-purple-50 px-1 py-0.5 rounded">{ev.employeeName}</span>
                                 </p>
+                              ) : ev.type === 'return' ? (
+                                <>
+                                  <p><span className="font-medium text-gray-700">{tf('Cantidad devuelta:', 'Quantité retournée :')}</span> <span className="text-orange-600 font-bold">-{ev.quantity}</span> unid.</p>
+                                  {ev.sizeName && <p><span className="font-medium text-gray-700">{tf('Talla:', 'Taille :')}</span> <span className="text-orange-600 font-bold">{ev.sizeName}</span></p>}
+                                  <p><span className="font-medium text-gray-700">{tf('Motivo:', 'Motif :')}</span> {ev.reason || '—'}</p>
+                                  <p><span className="font-medium text-gray-700">{tf('Procesado por:', 'Traité par :')}</span> <span className="font-bold text-orange-700 bg-orange-50 px-1 py-0.5 rounded">{ev.employeeName}</span></p>
+                                </>
+                              ) : ev.type === 'manual_add' || ev.type === 'manual_deduct' ? (
+                                <>
+                                  <p><span className="font-medium text-gray-700">{ev.type === 'manual_add' ? tf('Cantidad añadida:', 'Quantité ajoutée :') : tf('Cantidad retirada:', 'Quantité retirée :')}</span> <span className={`${ev.type === 'manual_add' ? 'text-cyan-600' : 'text-red-600'} font-bold`}>{ev.quantity > 0 ? (ev.type === 'manual_add' ? '+' : '-') : ''}{ev.quantity}</span> unid.</p>
+                                  {ev.sizeName && <p><span className="font-medium text-gray-700">{tf('Talla:', 'Taille :')}</span> <span className={`${ev.type === 'manual_add' ? 'text-cyan-600' : 'text-red-600'} font-bold`}>{ev.sizeName}</span></p>}
+                                  <p><span className="font-medium text-gray-700">{tf('Motivo:', 'Motif :')}</span> {ev.reason || tf('Ajuste manual de stock', 'Ajustement manuel du stock')}</p>
+                                  <p><span className="font-medium text-gray-700">{tf('Responsable:', 'Responsable :')}</span> <span className={`font-bold ${ev.type === 'manual_add' ? 'text-cyan-700 bg-cyan-50' : 'text-red-700 bg-red-50'} px-1 py-0.5 rounded`}>{ev.employeeName}</span></p>
+                                </>
                               ) : (
                                 <>
                                   <p><span className="font-medium text-gray-700">{tf('Cantidad vendida:', 'Quantité vendue :')}</span> {ev.quantity} unid.</p>
+                                  {ev.sizeName && <p><span className="font-medium text-gray-700">{tf('Talla:', 'Taille :')}</span> <span className="text-green-600 font-bold">{ev.sizeName}</span></p>}
                                   <p><span className="font-medium text-gray-700">{tf('Precio de venta unitario:', 'Prix de vente unitaire :')}</span> {formatCurrency(ev.price || 0)}</p>
                                   <p><span className="font-medium text-gray-700">{tf('Atendido por:', 'Servi par :')}</span> <span className="font-bold text-amber-700 bg-amber-50 px-1 py-0.5 rounded">{ev.employeeName}</span></p>
                                 </>

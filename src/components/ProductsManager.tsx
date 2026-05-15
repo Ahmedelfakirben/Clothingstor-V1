@@ -95,6 +95,23 @@ export function ProductsManager() {
   const [newProductSizes, setNewProductSizes] = useState<{ name: string; stock: number; price: number; barcode?: string }[]>([]);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
 
+
+  // Auxiliar para registrar movimientos de stock
+  const logStockMovement = async (productId: string, quantity: number, type: 'manual_add' | 'manual_deduct' | 'sale' | 'return' | 'correction', sizeId?: string, reason?: string) => {
+    if (quantity === 0) return;
+    try {
+      await supabase.from('stock_movements').insert({
+        product_id: productId,
+        size_id: sizeId,
+        quantity,
+        type,
+        reason: reason || '',
+        employee_id: profile?.id
+      });
+    } catch (err) {
+      console.error('Error logging stock movement:', err);
+    }
+  };
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -821,7 +838,19 @@ export function ProductsManager() {
           toast.error(t('products.sizes_save_error'));
         } else {
           console.log('✅ [PRODUCTS] Sizes created successfully');
+          // Registrar movimientos iniciales por talla
+          const { data: newSizes } = await supabase.from('product_sizes').select('id, size_name, stock').eq('product_id', created.id);
+          if (newSizes) {
+            for (const s of newSizes) {
+              if (s.stock > 0) {
+                await logStockMovement(created.id, s.stock, 'manual_add', s.id, t('Stock inicial'));
+              }
+            }
+          }
         }
+      } else if (created && initialStock > 0) {
+        // Producto simple
+        await logStockMovement(created.id, initialStock, 'manual_add', undefined, t('Stock inicial'));
       }
 
       // Upload gallery images
@@ -1070,6 +1099,30 @@ export function ProductsManager() {
           .insert(sizesToInsert);
 
         if (sizesError) throw sizesError;
+
+        // Registrar movimientos de stock si hubo cambios
+        const oldProduct = products.find(p => p.id === editingId);
+        const oldSizes = oldProduct?.product_sizes || [];
+        
+        // Obtener IDs de las nuevas tallas insertadas
+        const { data: currentSizes } = await supabase.from('product_sizes').select('id, size_name, stock').eq('product_id', editingId);
+        
+        if (currentSizes) {
+          for (const newS of currentSizes) {
+            const oldS = oldSizes.find(os => os.size_name === newS.size_name);
+            const diff = newS.stock - (oldS?.stock || 0);
+            if (diff !== 0) {
+              await logStockMovement(editingId, diff, diff > 0 ? 'manual_add' : 'manual_deduct', newS.id, t('Actualización manual de stock'));
+            }
+          }
+        }
+      } else {
+        // Producto simple
+        const oldProduct = products.find(p => p.id === editingId);
+        const diff = totalStock - (oldProduct?.stock || 0);
+        if (diff !== 0) {
+          await logStockMovement(editingId, diff, diff > 0 ? 'manual_add' : 'manual_deduct', undefined, t('Actualización manual de stock'));
+        }
       }
 
       // 4. Handle Deletions of Gallery Images

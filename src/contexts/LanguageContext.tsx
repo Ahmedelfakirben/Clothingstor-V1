@@ -1324,6 +1324,11 @@ const translations = {
 
     'orders.returns_tab': 'Devoluciones',
     'orders.returns_subtitle': 'Historial completo de productos devueltos',
+    'orders.search_product_placeholder': 'Buscar por nombre o código...',
+    'orders.all_employees': 'Todos los empleados',
+    'orders.returns_found': 'devoluciones encontradas',
+    'orders.error_fetching_returns': 'Error al cargar devoluciones',
+    'orders.unknown_employee': 'Empleado desconocido',
     'orders.returns_refresh': 'Actualizar',
     'orders.returns_empty': 'No hay devoluciones registradas',
     'orders.returns_col_order': 'Pedido',
@@ -2751,6 +2756,11 @@ const translations = {
     // Retours dans Commandes
     'orders.returns_tab': 'Retours',
     'orders.returns_subtitle': 'Historique complet des produits retournés',
+    'orders.search_product_placeholder': 'Chercher par nom ou code...',
+    'orders.all_employees': 'Tous les employés',
+    'orders.returns_found': 'retours trouvés',
+    'orders.error_fetching_returns': 'Erreur lors du chargement des retours',
+    'orders.unknown_employee': 'Employé inconnu',
     'orders.returns_refresh': 'Actualiser',
     'orders.returns_empty': 'Aucun retour enregistré',
     'orders.returns_col_order': 'Commande',
