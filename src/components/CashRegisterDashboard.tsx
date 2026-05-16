@@ -541,6 +541,7 @@ export function CashRegisterDashboard() {
           created_at,
           status,
           payment_method,
+          service_type,
           order_items (
             quantity,
             unit_price,
@@ -560,7 +561,8 @@ export function CashRegisterDashboard() {
         .select(`
           id, total_refund, quantity_returned, reason, created_at,
           products(name),
-          product_sizes(size_name)
+          product_sizes(size_name),
+          orders(service_type)
         `)
         .eq('returned_by', day.employee_id)
         .gte('created_at', startOfDay.toISOString())
@@ -697,6 +699,7 @@ export function CashRegisterDashboard() {
                   <th>${currentLanguage === 'fr' ? 'Produit' : 'Producto'}</th>
                   <th style="text-align:center">${currentLanguage === 'fr' ? 'Cant.' : 'Cant.'}</th>
                   <th style="text-align:right">${currentLanguage === 'fr' ? 'Remboursement' : 'Reembolso'}</th>
+                  <th>${currentLanguage === 'fr' ? 'Canal' : 'Canal'}</th>
                   <th>${currentLanguage === 'fr' ? 'Raison' : 'Razón'}</th>
                 </tr>
               </thead>
@@ -706,12 +709,10 @@ export function CashRegisterDashboard() {
                     <td>${ret.products?.name || 'N/A'}${ret.product_sizes?.size_name ? ` (${ret.product_sizes.size_name})` : ''}</td>
                     <td style="text-align:center">${ret.quantity_returned}</td>
                     <td style="text-align:right;font-weight:bold;color:#dc2626">${formatCurrency(ret.total_refund)}</td>
+                    <td style="font-size:10px;font-weight:bold">${(ret.orders as any)?.service_type === 'website' ? t('pos.channel_website') : t('pos.channel_store')}</td>
                     <td>${ret.reason || '-'}</td>
                   </tr>
-                `).join('') : `<tr><td colspan="4" style="text-align:center;padding:10px;color:#888">${currentLanguage === 'fr' ? 'Aucun retour' : 'Sin devoluciones'}</td></tr>`}
-              </tbody>
-            </table>
-          </div>
+                `).join('') : `<tr><td colspan="5" style="text-align:center;padding:10px;color:#888">${currentLanguage === 'fr' ? 'Aucun retour' : 'Sin devoluciones'}</td></tr>`}
               </tbody>
             </table>
           </div>
@@ -724,6 +725,7 @@ export function CashRegisterDashboard() {
                   <th>${t('N° Pedido')}</th>
                   <th>${t('Hora')}</th>
                   <th>${currentLanguage === 'fr' ? 'Mode de paiement' : 'Método de pago'}</th>
+                  <th>${currentLanguage === 'fr' ? 'Canal' : 'Canal'}</th>
                   <th>${t('Productos')}</th>
                   <th>${t('Total')}</th>
                 </tr>
@@ -740,6 +742,7 @@ export function CashRegisterDashboard() {
                       (order as any).payment_method === 'cash' ? '#166534' :
                       (order as any).payment_method === 'card' ? '#1e40af' : '#713f12'
                     }">${paymentLabel((order as any).payment_method)}</span></td>
+                    <td style="font-size:11px;font-weight:bold">${(order as any).service_type === 'website' ? t('pos.channel_website') : t('pos.channel_store')}</td>
                     <td>${order.order_items.map((item: any) => {
                       const prodInfo = item.products || item.products_product_id;
                       const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
@@ -749,7 +752,7 @@ export function CashRegisterDashboard() {
                   </tr>
                 `).join('')}
                 <tr class="total-row">
-                  <td colspan="4" style="text-align: right; font-weight: bold;">${t('TOTAL DEL DÍA')}</td>
+                  <td colspan="5" style="text-align: right; font-weight: bold;">${t('TOTAL DEL DÍA')}</td>
                   <td style="font-weight: bold; font-size: 16px;">${formatCurrency(orderTotal)}</td>
                 </tr>
               </tbody>
@@ -1538,7 +1541,7 @@ function DailyHistorySection() {
       const { data: orders } = await supabase
         .from('orders')
         .select(`
-          id, total, order_number, created_at, employee_id, payment_method,
+          id, total, order_number, created_at, employee_id, payment_method, service_type,
           order_items (
             quantity,
             unit_price,
@@ -1556,7 +1559,8 @@ function DailyHistorySection() {
         .select(`
           id, total_refund, quantity_returned, reason,
           products(name),
-          product_sizes(size_name)
+          product_sizes(size_name),
+          orders(service_type)
         `)
         .gte('created_at', startOfDay.toISOString())
         .lte('created_at', endOfDay.toISOString());
@@ -1601,7 +1605,7 @@ function DailyHistorySection() {
           <td>${new Date(order.created_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}</td>
           <td>${empMap[order.employee_id] || 'N/A'}</td>
           <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;background:${bg};color:${fg}">${paymentLabel(order.payment_method)}</span></td>
-          <td style="font-size:11px;font-weight:bold">${order.service_type === 'website' ? (currentLanguage === 'fr' ? 'Site Web' : 'Web') : (currentLanguage === 'fr' ? 'Boutique' : 'Tienda')}</td>
+          <td style="font-size:11px;font-weight:bold">${order.service_type === 'website' ? t('pos.channel_website') : t('pos.channel_store')}</td>
           <td>${items}</td>
           <td style="font-weight:bold">${formatCurrency(order.total)}</td>
         </tr>`;
@@ -1614,6 +1618,7 @@ function DailyHistorySection() {
           <td>${pName}${sName ? ` (${sName})` : ''}</td>
           <td style="text-align:center">${ret.quantity_returned}</td>
           <td style="text-align:right;font-weight:bold;color:#dc2626">${formatCurrency(ret.total_refund)}</td>
+          <td style="font-size:10px;font-weight:bold">${(ret.orders as any)?.service_type === 'website' ? t('pos.channel_website') : t('pos.channel_store')}</td>
           <td>${ret.reason || '-'}</td>
         </tr>`;
       }).join('');
@@ -1691,10 +1696,11 @@ function DailyHistorySection() {
               <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Produit' : 'Producto'}</th>
               <th style="padding:8px 12px;text-align:center;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Cant.' : 'Cant.'}</th>
               <th style="padding:8px 12px;text-align:right;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Remboursement' : 'Reembolso'}</th>
+              <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Canal' : 'Canal'}</th>
               <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Raison' : 'Razón'}</th>
             </tr></thead>
             <tbody>
-              ${returnsHtml || `<tr><td colspan="4" style="padding:10px;text-align:center;color:#888;font-size:12px">${currentLanguage === 'fr' ? 'Aucun retour' : 'Sin devoluciones'}</td></tr>`}
+              ${returnsHtml || `<tr><td colspan="5" style="padding:10px;text-align:center;color:#888;font-size:12px">${currentLanguage === 'fr' ? 'Aucun retour' : 'Sin devoluciones'}</td></tr>`}
             </tbody>
           </table>
 
