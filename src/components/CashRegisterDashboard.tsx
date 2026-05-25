@@ -531,7 +531,6 @@ export function CashRegisterDashboard() {
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(day.date);
       endOfDay.setHours(23, 59, 59, 999);
-
       const { data: orders, error } = await supabase
         .from('orders')
         .select(`
@@ -545,7 +544,8 @@ export function CashRegisterDashboard() {
           order_items (
             quantity,
             unit_price,
-            products!product_id(name)
+            products!product_id(name, base_price),
+            product_sizes!size_id(size_name, price_modifier)
           )
         `)
         .eq('employee_id', day.employee_id)
@@ -554,6 +554,19 @@ export function CashRegisterDashboard() {
         .eq('status', 'completed');
 
       if (error) throw error;
+
+      // Calculate total discounts beforehand
+      let totalDiscounts = 0;
+      (orders || []).forEach(order => {
+        (order.order_items || []).forEach((item: any) => {
+          const basePrice = Number(item.products?.base_price || 0) + Number(item.product_sizes?.price_modifier || 0);
+          const unitPrice = Number(item.unit_price || 0);
+          const discountPerUnit = basePrice - unitPrice;
+          if (discountPerUnit > 0.01) {
+            totalDiscounts += discountPerUnit * item.quantity;
+          }
+        });
+      });
 
       // Fetch returns for the entire day
       const { data: dayReturns } = await supabase
@@ -645,6 +658,10 @@ export function CashRegisterDashboard() {
               <span>${currentLanguage === 'fr' ? 'Retours' : 'Devoluciones'}</span>
             </div>
             <div class="summary-item">
+              <strong style="color:#ef4444">${formatCurrency(totalDiscounts)}</strong>
+              <span>${currentLanguage === 'fr' ? 'Remises' : 'Descuentos'}</span>
+            </div>
+            <div class="summary-item">
               <strong>${day.sessions.length}</strong>
               <span>${t('Sesiones de Caja')}</span>
             </div>
@@ -727,32 +744,47 @@ export function CashRegisterDashboard() {
                   <th>${currentLanguage === 'fr' ? 'Mode de paiement' : 'Método de pago'}</th>
                   <th>${currentLanguage === 'fr' ? 'Canal' : 'Canal'}</th>
                   <th>${t('Productos')}</th>
+                  <th>${currentLanguage === 'fr' ? 'Remise' : 'Descuento'}</th>
                   <th>${t('Total')}</th>
                 </tr>
               </thead>
               <tbody>
-                ${(orders || []).map(order => `
-                  <tr>
-                    <td>${order.order_number ? order.order_number.toString().padStart(3, '0') : order.id.slice(-8)}</td>
-                    <td>${new Date(order.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</td>
-                    <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;background:${
-                      (order as any).payment_method === 'cash' ? '#dcfce7' :
-                      (order as any).payment_method === 'card' ? '#dbeafe' : '#fef9c3'
-                    };color:${
-                      (order as any).payment_method === 'cash' ? '#166534' :
-                      (order as any).payment_method === 'card' ? '#1e40af' : '#713f12'
-                    }">${paymentLabel((order as any).payment_method)}</span></td>
-                    <td style="font-size:11px;font-weight:bold">${(order as any).service_type === 'website' ? t('pos.channel_website') : t('pos.channel_store')}</td>
-                    <td>${order.order_items.map((item: any) => {
-                      const prodInfo = item.products || item.products_product_id;
-                      const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
-                      return `${item.quantity}x ${pName || t('Producto')}`;
-                    }).join('<br/>')}</td>
-                    <td>${formatCurrency(order.total)}</td>
-                  </tr>
-                `).join('')}
+                ${(orders || []).map(order => {
+                  let orderDiscount = 0;
+                  order.order_items.forEach((item: any) => {
+                    const basePrice = Number(item.products?.base_price || 0) + Number(item.product_sizes?.price_modifier || 0);
+                    const unitPrice = Number(item.unit_price || 0);
+                    const discountPerUnit = basePrice - unitPrice;
+                    if (discountPerUnit > 0.01) {
+                      orderDiscount += discountPerUnit * item.quantity;
+                    }
+                  });
+
+                  return `
+                    <tr>
+                      <td>${order.order_number ? order.order_number.toString().padStart(3, '0') : order.id.slice(-8)}</td>
+                      <td>${new Date(order.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</td>
+                      <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;background:${
+                        (order as any).payment_method === 'cash' ? '#dcfce7' :
+                        (order as any).payment_method === 'card' ? '#dbeafe' : '#fef9c3'
+                      };color:${
+                        (order as any).payment_method === 'cash' ? '#166534' :
+                        (order as any).payment_method === 'card' ? '#1e40af' : '#713f12'
+                      }">${paymentLabel((order as any).payment_method)}</span></td>
+                      <td style="font-size:11px;font-weight:bold">${(order as any).service_type === 'website' ? t('pos.channel_website') : t('pos.channel_store')}</td>
+                      <td>${order.order_items.map((item: any) => {
+                        const prodInfo = item.products || item.products_product_id;
+                        const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
+                        return `${item.quantity}x ${pName || t('Producto')}`;
+                      }).join('<br/>')}</td>
+                      <td style="color:#ef4444;font-weight:500">${orderDiscount > 0.01 ? `-${formatCurrency(orderDiscount)}` : '-'}</td>
+                      <td>${formatCurrency(order.total)}</td>
+                    </tr>
+                  `;
+                }).join('')}
                 <tr class="total-row">
                   <td colspan="5" style="text-align: right; font-weight: bold;">${t('TOTAL DEL DÍA')}</td>
+                  <td style="font-weight: bold; color: #ef4444;">${totalDiscounts > 0.01 ? `-${formatCurrency(totalDiscounts)}` : '-'}</td>
                   <td style="font-weight: bold; font-size: 16px;">${formatCurrency(orderTotal)}</td>
                 </tr>
               </tbody>
@@ -1545,7 +1577,8 @@ function DailyHistorySection() {
           order_items (
             quantity,
             unit_price,
-            products!product_id(name)
+            products!product_id(name, base_price),
+            product_sizes!size_id(size_name, price_modifier)
           )
         `)
         .gte('created_at', startOfDay.toISOString())
@@ -1592,10 +1625,33 @@ function DailyHistorySection() {
           <td style="text-align:right">${totalSales > 0 ? ((d.total / totalSales) * 100).toFixed(1) + '%' : '0%'}</td>
         </tr>`).join('');
 
+      // Calculate total discounts beforehand
+      let totalDiscounts = 0;
+      (orders || []).forEach(order => {
+        (order.order_items || []).forEach((item: any) => {
+          const basePrice = Number(item.products?.base_price || 0) + Number(item.product_sizes?.price_modifier || 0);
+          const unitPrice = Number(item.unit_price || 0);
+          const discountPerUnit = basePrice - unitPrice;
+          if (discountPerUnit > 0.01) {
+            totalDiscounts += discountPerUnit * item.quantity;
+          }
+        });
+      });
+
       const ordersHtml = (orders || []).map((order: any) => {
+        let orderDiscount = 0;
         const items = order.order_items?.map((item: any) => {
           const prodInfo = item.products || item.products_product_id;
           const pName = Array.isArray(prodInfo) ? prodInfo[0]?.name : prodInfo?.name;
+
+          const basePrice = Number(item.products?.base_price || 0) + Number(item.product_sizes?.price_modifier || 0);
+          const unitPrice = Number(item.unit_price || 0);
+          const discountPerUnit = basePrice - unitPrice;
+
+          if (discountPerUnit > 0.01) {
+            orderDiscount += discountPerUnit * item.quantity;
+          }
+
           return `${item.quantity}x ${pName || t('Producto')}`;
         }).join('<br/>') || '-';
         const badgeColor = order.payment_method === 'cash' ? '#dcfce7:#166534' : order.payment_method === 'card' ? '#dbeafe:#1e40af' : '#fef9c3:#713f12';
@@ -1607,7 +1663,8 @@ function DailyHistorySection() {
           <td><span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;background:${bg};color:${fg}">${paymentLabel(order.payment_method)}</span></td>
           <td style="font-size:11px;font-weight:bold">${order.service_type === 'website' ? t('pos.channel_website') : t('pos.channel_store')}</td>
           <td>${items}</td>
-          <td style="font-weight:bold">${formatCurrency(order.total)}</td>
+          <td style="text-align:right;color:#ef4444;font-weight:medium">${orderDiscount > 0.01 ? `-${formatCurrency(orderDiscount)}` : '-'}</td>
+          <td style="font-weight:bold;text-align:right">${formatCurrency(order.total)}</td>
         </tr>`;
       }).join('');
 
@@ -1649,6 +1706,10 @@ function DailyHistorySection() {
               <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Retours' : 'Devoluciones'}</div>
             </div>
             <div style="flex:1;text-align:center">
+              <div style="font-size:20px;font-weight:bold;color:#ef4444">${formatCurrency(totalDiscounts)}</div>
+              <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Remises' : 'Descuentos'}</div>
+            </div>
+            <div style="flex:1;text-align:center">
               <div style="font-size:20px;font-weight:bold;color:#1e40af">${formatCurrency(day.totalOpening + totalSales - day.totalWithdrawals - day.totalReturns)}</div>
               <div style="font-size:13px;color:#666">${currentLanguage === 'fr' ? 'Balance nette' : 'Balance neta'}</div>
             </div>
@@ -1678,11 +1739,13 @@ function DailyHistorySection() {
               <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Paiement' : 'Pago'}</th>
               <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Canal' : 'Canal'}</th>
               <th style="padding:8px 12px;text-align:left;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Articles' : 'Artículos'}</th>
+              <th style="padding:8px 12px;text-align:right;font-size:12px;color:#555">${currentLanguage === 'fr' ? 'Remise' : 'Descuento'}</th>
               <th style="padding:8px 12px;text-align:right;font-size:12px;color:#555">Total</th>
             </tr></thead>
             <tbody>${ordersHtml}
               <tr style="background:#e9ecef;font-weight:bold">
                 <td colspan="6" style="padding:10px 12px;text-align:right">${currentLanguage === 'fr' ? 'TOTAL DU JOUR' : 'TOTAL DEL DÍA'}</td>
+                <td style="padding:10px 12px;text-align:right;color:#ef4444">${totalDiscounts > 0.01 ? `-${formatCurrency(totalDiscounts)}` : '-'}</td>
                 <td style="padding:10px 12px;text-align:right;font-size:15px">${formatCurrency(totalSales)}</td>
               </tr>
             </tbody>

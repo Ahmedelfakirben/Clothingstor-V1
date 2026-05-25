@@ -381,7 +381,27 @@ export function ProductsManager() {
       // Aplicar filtros estándar
       if (selectedCategory !== 'all') query = query.eq('category_id', selectedCategory);
       if (selectedSize !== 'all') query = query.eq('product_sizes.size_name', selectedSize);
-      if (searchTerm) query = query.or(`name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`);
+
+      let matchedProductIds: string[] = [];
+      if (searchTerm) {
+        // Buscar códigos de barras en las tallas individuales (product_sizes)
+        const { data: sizeMatches } = await supabase
+          .from('product_sizes')
+          .select('product_id')
+          .ilike('barcode', `%${searchTerm}%`);
+          
+        if (sizeMatches && sizeMatches.length > 0) {
+          matchedProductIds = sizeMatches.map((s: any) => s.product_id);
+        }
+      }
+
+      if (searchTerm) {
+        let orConditions = `name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`;
+        if (matchedProductIds.length > 0) {
+          orConditions += `,id.in.(${matchedProductIds.join(',')})`;
+        }
+        query = query.or(orConditions);
+      }
 
       // Aplicar orden
       const isAsc = sortBy === 'name-asc' || sortBy === 'oldest';
@@ -398,7 +418,15 @@ export function ProductsManager() {
           const fallbackQuery = getBaseQuery();
           if (selectedCategory !== 'all') fallbackQuery.eq('category_id', selectedCategory);
           if (selectedSize !== 'all') fallbackQuery.eq('product_sizes.size_name', selectedSize);
-          if (searchTerm) fallbackQuery.or(`name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`);
+          
+          if (searchTerm) {
+            let orConditions = `name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`;
+            if (matchedProductIds.length > 0) {
+              orConditions += `,id.in.(${matchedProductIds.join(',')})`;
+            }
+            fallbackQuery.or(orConditions);
+          }
+
           
           const { data: fData, count: fCount, error: fError } = await fallbackQuery.order(col, { ascending: isAsc }).range(from, to);
           if (fError) throw fError;
@@ -1057,6 +1085,7 @@ export function ProductsManager() {
         material: newProduct.material?.trim() || null,
         gender: newProduct.gender || null,
         season: newProduct.season || null,
+        image_url: newProduct.image_url?.trim() || null,
         needs_validation: isCashier,
       };
 
@@ -1278,6 +1307,7 @@ export function ProductsManager() {
           purchase_price: editingProduct.purchase_price,
           available: editingProduct.available,
           barcode: editingProduct.barcode,
+          image_url: editingProduct.image_url,
           needs_validation: isCashier,
         })
         .eq('id', editingProduct.id);

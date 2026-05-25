@@ -124,23 +124,19 @@ export function CategoryManager() {
     if (!confirm(`${t('¿Estás seguro de eliminar la categoría')} "${category.name}"?\n\n${t('Esta acción no se puede deshacer.')}`)) return;
 
     try {
-      // First check if category is being used by products
-      const { data: products, error: checkError } = await supabase
+      // Desvincular todos los productos de esta categoría de forma automática
+      console.log('Desvinculando productos de la categoría antes de eliminar...');
+      const { error: updateProductsError } = await supabase
         .from('products')
-        .select('id, name')
-        .eq('category_id', id)
-        .limit(5);
+        .update({ category_id: null })
+        .eq('category_id', id);
 
-      if (checkError) {
-        console.error('Error checking category usage:', checkError);
-        toast.error(t('Error al verificar el uso de la categoría'));
+      if (updateProductsError) {
+        console.error('Error desvinculando productos:', updateProductsError);
+        toast.error(t('Error al desvincular los productos de la categoría'));
         return;
       }
 
-      if (products && products.length > 0) {
-        toast.error(`${t('No se puede eliminar la categoría porque está siendo usada por')} ${products.length} ${t('producto(s). Elimine o reasigne los productos primero.')}`);
-        return;
-      }
 
       console.log('Soft deleting category:', id);
       const { error } = await supabase
