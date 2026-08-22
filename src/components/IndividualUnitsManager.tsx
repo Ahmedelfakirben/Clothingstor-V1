@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-hot-toast';
-import { Trash2, Plus, ScanBarcode } from 'lucide-react';
+import { Trash2, Plus, ScanBarcode, Lock } from 'lucide-react';
 import { BarcodeScanner } from './BarcodeScanner';
 
 interface ProductSize {
@@ -207,6 +207,14 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
                 <p className="text-sm text-blue-700">{t('Gestión Rápida de Stock y Códigos')}</p>
             </div>
 
+            {/* Cashier restriction banner */}
+            {isCashier && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-3 text-sm text-amber-800">
+                    <Lock className="w-4 h-4 flex-shrink-0" />
+                    <span>{t('Solo los administradores pueden añadir o eliminar tallas.')}</span>
+                </div>
+            )}
+
             {/* Add New Size Form */}
             <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
                 <h4 className="font-semibold mb-3 text-gray-800">{t('Agregar Nueva Talla')}</h4>
@@ -257,7 +265,8 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
                     </div>
                     <button
                         onClick={handleAddSize}
-                        disabled={processing || !newSizeName}
+                        disabled={processing || !newSizeName || isCashier}
+                        title={isCashier ? t('Solo el administrador puede añadir tallas') : ''}
                         className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 h-[42px]"
                     >
                         <Plus className="w-4 h-4" />
@@ -331,14 +340,16 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
                                     </div>
                                 </div>
 
-                                {/* Delete */}
-                                <button
-                                    onClick={() => handleDeleteSize(size.id)}
-                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                    title={t('Eliminar')}
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
+                                {/* Delete — admin only */}
+                                {!isCashier && (
+                                    <button
+                                        onClick={() => handleDeleteSize(size.id)}
+                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                        title={t('Eliminar')}
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>

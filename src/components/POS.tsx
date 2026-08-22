@@ -900,49 +900,65 @@ export function POS() {
   const fetchSoldItems = async () => {
     setSoldItemsLoading(true);
     try {
-      let query = supabase
-        .from('order_items')
-        .select(`
-          id,
-          order_id,
-          product_id,
-          size_id,
-          quantity,
-          unit_price,
-          subtotal,
-          orders(id, order_number, created_at, status),
-          products(id, name, barcode, category_id, image_url),
-          product_sizes(id, size_name, barcode)
-        `)
-        .order('created_at', { ascending: false });
+      // Fetch order items and existing returns in parallel
+      const [itemsResult, returnsResult] = await Promise.all([
+        supabase
+          .from('order_items')
+          .select(`
+            id,
+            order_id,
+            product_id,
+            size_id,
+            quantity,
+            unit_price,
+            subtotal,
+            orders(id, order_number, created_at, status),
+            products(id, name, barcode, category_id, image_url),
+            product_sizes(id, size_name, barcode)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(500),
+        supabase
+          .from('order_returns')
+          .select('order_item_id, quantity_returned')
+      ]);
 
-      // Apply initial limit to 500 to have enough data for client-side filtering if needed, 
-      // but the user wants only 20 displayed eventually.
-      query = query.limit(500);
+      if (itemsResult.error) throw itemsResult.error;
 
-      const { data, error } = await query;
+      // Build a map: order_item_id → total qty already returned
+      const returnedMap = new Map<string, number>();
+      (returnsResult.data || []).forEach((r: any) => {
+        const prev = returnedMap.get(r.order_item_id) || 0;
+        returnedMap.set(r.order_item_id, prev + (r.quantity_returned || 0));
+      });
 
-      if (error) throw error;
-
-      const mapped = (data || [])
-        .filter((item: any) => item.orders?.status === 'completed') // filter completed
-        .map((item: any) => ({
-          id: item.id,
-          order_id: item.order_id,
-          order_number: item.orders?.order_number,
-          order_date: item.orders?.created_at,
-          product_id: item.product_id,
-          product_name: (item.products as any)?.name || 'Producto',
-          product_barcode: (item.products as any)?.barcode || '',
-          product_image: (item.products as any)?.image_url || '',
-          category_id: (item.products as any)?.category_id || '',
-          size_id: item.size_id,
-          size_name: (item.product_sizes as any)?.size_name || null,
-          size_barcode: (item.product_sizes as any)?.barcode || '',
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          subtotal: item.subtotal,
-        }));
+      const mapped = (itemsResult.data || [])
+        .filter((item: any) => item.orders?.status === 'completed')
+        .map((item: any) => {
+          const alreadyReturned = returnedMap.get(item.id) || 0;
+          const qtyReturnable = (item.quantity || 0) - alreadyReturned;
+          return {
+            id: item.id,
+            order_id: item.order_id,
+            order_number: item.orders?.order_number,
+            order_date: item.orders?.created_at,
+            product_id: item.product_id,
+            product_name: (item.products as any)?.name || 'Producto',
+            product_barcode: (item.products as any)?.barcode || '',
+            product_image: (item.products as any)?.image_url || '',
+            category_id: (item.products as any)?.category_id || '',
+            size_id: item.size_id,
+            size_name: (item.product_sizes as any)?.size_name || null,
+            size_barcode: (item.product_sizes as any)?.barcode || '',
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.subtotal,
+            already_returned: alreadyReturned,
+            qty_returnable: qtyReturnable,
+          };
+        })
+        // Only show items that still have returnable quantity
+        .filter((item: any) => item.qty_returnable > 0);
 
       setAllRecentSoldItems(mapped);
     } catch (err) {
@@ -971,7 +987,8 @@ export function POS() {
 
   const processReturn = async () => {
     if (!selectedReturnItem || !user) return;
-    if (returnQuantity < 1 || returnQuantity > selectedReturnItem.quantity) {
+    const maxQty = selectedReturnItem.qty_returnable ?? selectedReturnItem.quantity;
+    if (returnQuantity < 1 || returnQuantity > maxQty) {
       toast.error(t('pos.return_invalid_qty'));
       return;
     }
@@ -1116,6 +1133,20 @@ export function POS() {
           title={t('Escanear código')}
         >
           <ScanBarcode className="w-6 h-6" />
+        </button>
+        {/* Botón de Retour Móvil */}
+        <button
+          onClick={() => {
+            setShowReturnModal(true);
+            setSelectedReturnItem(null);
+            setReturnQuantity(1);
+            setReturnSearch('');
+            fetchSoldItems();
+          }}
+          className="p-2.5 bg-orange-50 border border-orange-200 text-orange-600 hover:bg-orange-100 rounded-xl shadow-sm active:scale-95 transition-all flex items-center justify-center"
+          title={t('pos.return_title')}
+        >
+          <RotateCcw className="w-6 h-6" />
         </button>
       </div>
       {/* Filtros de categoría móvil */}
@@ -2004,12 +2035,29 @@ export function POS() {
                 </div>
                 {t('pos.cart_modal_title')}
               </h2>
-              <button 
-                onClick={() => setShowMobileCart(false)}
-                className="p-3 hover:bg-gray-100 rounded-2xl transition-colors"
-              >
-                <X className="w-6 h-6 text-gray-400" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setShowMobileCart(false);
+                    setShowReturnModal(true);
+                    setSelectedReturnItem(null);
+                    setReturnQuantity(1);
+                    setReturnSearch('');
+                    fetchSoldItems();
+                  }}
+                  title={t('pos.return_title')}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-xl text-xs font-bold transition-all"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  {t('pos.return_btn')}
+                </button>
+                <button 
+                  onClick={() => setShowMobileCart(false)}
+                  className="p-3 hover:bg-gray-100 rounded-2xl transition-colors"
+                >
+                  <X className="w-6 h-6 text-gray-400" />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-4 mb-6 pr-2 custom-scrollbar">
@@ -2569,6 +2617,12 @@ export function POS() {
                               {item.product_barcode && (
                                 <p className="text-[10px] text-gray-400 mt-0.5 truncate">{t('pos.return_barcode')}: {item.product_barcode}</p>
                               )}
+                              {/* Partial return badge */}
+                              {item.already_returned > 0 && (
+                                <span className="inline-flex items-center gap-1 mt-1 bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                  ⚠ {item.already_returned} {currentLanguage === 'fr' ? 'déjà retourné(s)' : 'ya devuelto/s'} · {currentLanguage === 'fr' ? 'Peut retourner' : 'Puede devolver'}: {item.qty_returnable}
+                                </span>
+                              )}
                             </div>
                             <div className="text-right flex-shrink-0 ml-2">
                               <p className="font-black text-gray-900 text-sm md:text-base">{formatCurrency(item.unit_price)}</p>
@@ -2591,7 +2645,7 @@ export function POS() {
                             </button>
                             <span className="w-8 text-center font-bold text-orange-700">{returnQuantity}</span>
                             <button
-                              onClick={() => setReturnQuantity(q => Math.min(item.quantity, q + 1))}
+                              onClick={() => setReturnQuantity(q => Math.min(item.qty_returnable ?? item.quantity, q + 1))}
                               className="w-7 h-7 rounded-lg bg-white border border-orange-200 flex items-center justify-center hover:bg-orange-100 transition-all"
                             >
                               <Plus className="w-3.5 h-3.5 text-orange-600" />
