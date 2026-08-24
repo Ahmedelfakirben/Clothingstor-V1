@@ -625,20 +625,33 @@ export function POS() {
       setLoading(true);
 
       // 1. Busqueda PRIORITARIA: Código de barra de TALLA específica
-      let specificSize = sizes.find(s => s.barcode === scannedCode);
+      // Solo aceptar tallas cuyo producto padre esté en caché Y no esté eliminado
+      let specificSize = sizes.find(s => {
+        if (s.barcode !== scannedCode) return false;
+        const parent = products.find(p => p.id === s.product_id);
+        // Rechazar si el padre es desconocido o está eliminado
+        return !!parent && !(parent as any).deleted_at;
+      });
       let parentProduct: Product | undefined;
 
       if (!specificSize) {
-        const { data: sizeData, error: sizeError } = await supabase
+        // Traer TODAS las tallas con ese barcode (puede haber varias: activas + históricas eliminadas)
+        const { data: sizesData, error: sizeError } = await supabase
           .from('product_sizes')
           .select('*, products(*)')
           .eq('barcode', scannedCode)
-          .single();
+          .limit(10);
 
-        if (!sizeError && sizeData) {
-          specificSize = sizeData;
-          parentProduct = sizeData.products;
-          setSizes(prev => [...prev.filter(s => s.id !== sizeData.id), sizeData]);
+        // Elegir la primera talla cuyo producto padre esté activo (sin deleted_at)
+        const activeSizeData = (sizesData || []).find(s => {
+          const p = (s.products as any);
+          return p && !p.deleted_at;
+        });
+
+        if (!sizeError && activeSizeData) {
+          specificSize = activeSizeData;
+          parentProduct = (activeSizeData.products as any);
+          setSizes(prev => [...prev.filter(s => s.id !== activeSizeData.id), activeSizeData]);
         }
       }
 
@@ -651,9 +664,10 @@ export function POS() {
               .from('products')
               .select('*')
               .eq('id', specificSize.product_id)
+              .is('deleted_at', null)
               .single();
             
-            if (!prodError && prodData) {
+            if (!prodError && prodData && !(prodData as any).deleted_at) {
               parentProduct = prodData;
               setProducts(prev => [...prev, prodData]);
             }
