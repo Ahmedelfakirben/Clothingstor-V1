@@ -32,6 +32,9 @@ interface TicketProps {
     size?: string;
     quantity: number;
     price: number;
+    originalPrice?: number;
+    isPromo?: boolean;
+    discountPercent?: number;
   }>;
   total: number;
   paymentMethod: string;
@@ -338,17 +341,27 @@ export function TicketPrinter({
               </tr>
             </thead>
             <tbody>
-              {items.map((item, index) => (
-                <tr key={index}>
-                  <td>{item.quantity}</td>
-                  <td>
-                    <div>{item.name}</div>
-                    {item.size && <div style={{ fontSize: '9px', color: '#666' }}>{item.size}</div>}
-                  </td>
-                  <td>{formatCurrency(item.price)}</td>
-                  <td>{formatCurrency(item.price * item.quantity)}</td>
-                </tr>
-              ))}
+              {items.map((item, index) => {
+                const isPromo = item.isPromo || (item.originalPrice && item.originalPrice > item.price);
+                const discountPct = item.discountPercent || (isPromo && item.originalPrice ? Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100) : 0);
+
+                return (
+                  <tr key={index}>
+                    <td>{item.quantity}</td>
+                    <td>
+                      <div>{item.name}</div>
+                      {item.size && <div style={{ fontSize: '9px', color: '#666' }}>{item.size}</div>}
+                      {isPromo && item.originalPrice && (
+                        <div style={{ fontSize: '8px', color: '#d97706', fontWeight: 'bold' }}>
+                          🔥 PROMO -{discountPct}% (<span style={{ textDecoration: 'line-through' }}>{formatCurrency(item.originalPrice)}</span>)
+                        </div>
+                      )}
+                    </td>
+                    <td>{formatCurrency(item.price)}</td>
+                    <td>{formatCurrency(item.price * item.quantity)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

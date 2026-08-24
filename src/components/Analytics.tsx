@@ -1924,7 +1924,7 @@ export function Analytics() {
         supabase.from('expenses').select('*').order('created_at', { ascending: false }),
         supabase.from('employee_profiles').select('*').neq('role', 'super_admin'),
         supabase.from('products').select(`
-          id, name, base_price, available, created_at,
+          id, name, base_price, is_promo, promo_price, available, created_at,
           categories!inner(name)
         `),
         supabase.from('order_returns').select(`
@@ -2052,12 +2052,13 @@ export function Analytics() {
         XLSX.utils.book_append_sheet(wb, wsEmployees, t('reports.employees_sheet'));
       }
 
-      // Products sheet
       if (productsData.data) {
-        const productsFormatted = productsData.data.map(product => ({
+        const productsFormatted = productsData.data.map((product: any) => ({
           [t('reports.id')]: product.id.slice(-8),
           [t('reports.name')]: product.name,
           [t('reports.base_price')]: formatCurrency(product.base_price),
+          [t('products.promo_active') || 'Promoción Activa']: product.is_promo ? t('reports.yes') : t('reports.no'),
+          [t('products.promo_price') || 'Precio Promoción']: product.is_promo && product.promo_price ? formatCurrency(product.promo_price) : '-',
           [t('reports.category')]: (product.categories as any)?.name || t('reports.no_category'),
           [t('reports.available')]: product.available ? t('reports.yes') : t('reports.no'),
           [t('reports.creation_date')]: new Date(product.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR')

@@ -30,6 +30,8 @@ export interface Database {
           image_url: string;
           available: boolean;
           created_at: string;
+          is_promo?: boolean;
+          promo_price?: number | null;
         };
       };
       product_sizes: {

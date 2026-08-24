@@ -36,6 +36,13 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+export function getProductEffectivePrice(product: Product): number {
+  if (product.is_promo && product.promo_price && product.promo_price > 0 && product.promo_price < product.base_price) {
+    return Number(product.promo_price);
+  }
+  return Number(product.base_price || 0);
+}
+
 function calcDiscount(basePrice: number, type: 'none' | 'percent' | 'fixed', value: number): number {
   if (type === 'percent') return Math.min(basePrice, (basePrice * value) / 100);
   if (type === 'fixed') return Math.min(basePrice, value);
@@ -93,7 +100,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems(currentItems => {
       const newItems = [...currentItems];
       const item = newItems[index];
-      const basePrice = item.product.base_price + (item.size?.price_modifier || 0);
+      const basePrice = getProductEffectivePrice(item.product) + (item.size?.price_modifier || 0);
       const discountAmount = calcDiscount(basePrice, type, value);
       newItems[index] = { ...item, discountType: type, discountValue: value, discount: discountAmount };
       return newItems;
@@ -111,7 +118,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const total = items.reduce((sum, item) => {
-    const basePrice = item.product.base_price + (item.size?.price_modifier || 0);
+    const basePrice = getProductEffectivePrice(item.product) + (item.size?.price_modifier || 0);
     const finalPrice = basePrice - item.discount;
     return sum + finalPrice * item.quantity;
   }, 0);

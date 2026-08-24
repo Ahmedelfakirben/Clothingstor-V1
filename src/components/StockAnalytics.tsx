@@ -44,13 +44,13 @@ interface BestSeller {
 }
 
 export function StockAnalytics() {
-    const { t } = useLanguage();
+    const { t, currentLanguage } = useLanguage();
     const { formatCurrency } = useCurrency();
     const { profile } = useAuth();
     const [loading, setLoading] = useState(true);
     const [stockItems, setStockItems] = useState<StockItem[]>([]);
     const [bestSellers, setBestSellers] = useState<BestSeller[]>([]);
-    const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'validate'>('all');
+    const [filter, setFilter] = useState<'all' | 'in_stock' | 'low' | 'out' | 'validate'>('all');
     const [productStatusFilter, setProductStatusFilter] = useState<'active' | 'all' | 'deleted'>('active');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
@@ -138,6 +138,7 @@ export function StockAnalytics() {
 
     // KPIs
     const [totalItems, setTotalItems] = useState(0);
+    const [availableProductsCount, setAvailableProductsCount] = useState(0);
     const [availableStockUnits, setAvailableStockUnits] = useState(0);
     const [totalSoldUnits, setTotalSoldUnits] = useState(0);
     const [totalValue, setTotalValue] = useState(0);
@@ -270,6 +271,7 @@ export function StockAnalytics() {
 
             // Calculate KPIs (Stock Disponible counts ONLY items with stock > 0 among active products)
             const activeItems = finalItems.filter(i => !i.isDeleted);
+            const availableProds = activeItems.filter(i => i.totalStock > 0).length;
             const availableUnits = activeItems.reduce((sum, item) => sum + (item.totalStock > 0 ? item.totalStock : 0), 0);
             const totalSoldAll = finalItems.reduce((sum, item) => sum + item.sold, 0);
             const tValue = activeItems.reduce((sum, item) => sum + item.value, 0);
@@ -280,6 +282,7 @@ export function StockAnalytics() {
 
             setStockItems(finalItems);
             setTotalItems(activeItems.length);
+            setAvailableProductsCount(availableProds);
             setAvailableStockUnits(availableUnits);
             setTotalSoldUnits(totalSoldAll);
             setTotalValue(tValue);
@@ -337,24 +340,125 @@ export function StockAnalytics() {
     };
 
     const handleExportExcel = () => {
-        const exportData = filteredItems.map(item => ({
-            [t('Producto')]: item.name,
-            [t('Código')]: item.barcode || '-',
-            [t('Categoría')]: categories.find(c => c.id === item.categoryId)?.name || '-',
-            [t('Stock')]: item.totalStock,
-            [t('Vendidos')]: item.sold,
-            [t('Costo')]: item.purchasePrice,
-            [t('Precio')]: item.basePrice,
-            [t('Valor Stock')]: item.value,
-            [t('Estado')]: item.status.toUpperCase(),
-            [t('Creado por')]: item.createdByName,
-            [t('Fecha Reg.')]: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-'
-        }));
+        const isFr = currentLanguage === 'fr';
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
+        const formatRow = (item: StockItem) => {
+            let statusText = 'OK';
+            if (item.isDeleted) statusText = isFr ? 'Supprimé' : 'Eliminado';
+            else if (item.needs_validation) statusText = isFr ? 'À Valider' : 'Por Validar';
+            else if (item.totalStock === 0) statusText = isFr ? 'Épuisé' : 'Agotado';
+            else if (item.totalStock < 5) statusText = isFr ? 'Stock Faible' : 'Stock Bajo';
+
+            return {
+                [isFr ? 'Produit' : 'Producto']: item.name,
+                [isFr ? 'Code-barres' : 'Código']: item.barcode || '-',
+                [isFr ? 'Catégorie' : 'Categoría']: categories.find(c => c.id === item.categoryId)?.name || '-',
+                [isFr ? 'Stock' : 'Stock']: item.totalStock,
+                [isFr ? 'Vendus' : 'Vendidos']: item.sold,
+                [isFr ? 'Prix d\'achat' : 'Costo']: item.purchasePrice || 0,
+                [isFr ? 'Prix de vente' : 'Precio Venta']: item.basePrice || 0,
+                [isFr ? 'Valeur Stock' : 'Valor Stock']: item.value || 0,
+                [isFr ? 'État' : 'Estado']: statusText,
+                [isFr ? 'Créé par' : 'Creado por']: item.createdByName || '-',
+                [isFr ? 'Date d\'enreg.' : 'Fecha Reg.']: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-'
+            };
+        };
+
+        const formatSoldRow = (item: StockItem) => {
+            let statusText = 'OK';
+            if (item.isDeleted) statusText = isFr ? 'Supprimé' : 'Eliminado';
+            else if (item.needs_validation) statusText = isFr ? 'À Valider' : 'Por Validar';
+            else if (item.totalStock === 0) statusText = isFr ? 'Épuisé' : 'Agotado';
+            else if (item.totalStock < 5) statusText = isFr ? 'Stock Faible' : 'Stock Bajo';
+
+            return {
+                [isFr ? 'Produit' : 'Producto']: item.name,
+                [isFr ? 'Code-barres' : 'Código']: item.barcode || '-',
+                [isFr ? 'Catégorie' : 'Categoría']: categories.find(c => c.id === item.categoryId)?.name || '-',
+                [isFr ? 'Quantité Vendue' : 'Cantidad Vendida']: item.sold,
+                [isFr ? 'Prix de Vente' : 'Precio Venta']: item.basePrice || 0,
+                [isFr ? 'Total Ventes' : 'Total Ventas']: item.sold * (item.basePrice || 0),
+                [isFr ? 'Stock Actuel' : 'Stock Actual']: item.totalStock,
+                [isFr ? 'État' : 'Estado']: statusText
+            };
+        };
+
+        // Group datasets
+        const inStockItems = stockItems.filter(item => !item.isDeleted && item.totalStock > 0 && !item.needs_validation);
+        const validateItems = stockItems.filter(item => !item.isDeleted && (item.needs_validation || item.status === 'validate'));
+        const allActiveNoZero = stockItems.filter(item => !item.isDeleted && item.totalStock > 0);
+        const zeroStockItems = stockItems.filter(item => !item.isDeleted && item.totalStock === 0);
+        const deletedItems = stockItems.filter(item => item.isDeleted);
+        const soldItems = stockItems.filter(item => item.sold > 0).sort((a, b) => b.sold - a.sold);
+
+        // Helper for summary calculation
+        const getStats = (name: string, items: StockItem[]) => {
+            const prodCount = items.length;
+            const unitsCount = items.reduce((s, i) => s + i.totalStock, 0);
+            const valSum = items.reduce((s, i) => s + (i.value || 0), 0);
+            const costSum = items.reduce((s, i) => s + (i.costValue || 0), 0);
+            const profitSum = valSum - costSum;
+
+            return {
+                [isFr ? 'Página / Section' : 'Página / Sección']: name,
+                [isFr ? 'Nombre de Produits' : 'Total Productos']: prodCount,
+                [isFr ? 'Total Unités Stock' : 'Total Unidades Stock']: unitsCount,
+                [isFr ? 'Valeur Vente Total' : 'Valor Venta Total']: valSum,
+                [isFr ? 'Coût Total' : 'Costo Total']: costSum,
+                [isFr ? 'Bénéfice Estimé' : 'Beneficio Estimado']: profitSum
+            };
+        };
+
+        const totalSoldUnits = soldItems.reduce((s, i) => s + i.sold, 0);
+        const totalSoldRevenue = soldItems.reduce((s, i) => s + (i.sold * (i.basePrice || 0)), 0);
+
+        const summaryData = [
+            getStats(isFr ? '1. Produits en Stock' : '1. Productos en Stock', inStockItems),
+            getStats(isFr ? '2. Produits À Valider' : '2. Productos Por Validar', validateItems),
+            getStats(isFr ? '3. Tous les Produits (hors stock 0)' : '3. Todos los Productos (excl. stock 0)', allActiveNoZero),
+            getStats(isFr ? '4. Produits Stock 0' : '4. Productos Stock 0', zeroStockItems),
+            getStats(isFr ? '5. Produits Supprimés' : '5. Productos Eliminados', deletedItems),
+            {
+                [isFr ? 'Página / Section' : 'Página / Sección']: isFr ? '6. Produits Vendus' : '6. Productos Vendidos',
+                [isFr ? 'Nombre de Produits' : 'Total Productos']: soldItems.length,
+                [isFr ? 'Total Unités Stock' : 'Total Unidades Stock']: `${totalSoldUnits} ${isFr ? 'unités vendues' : 'unid. vendidas'}`,
+                [isFr ? 'Valeur Vente Total' : 'Valor Venta Total']: totalSoldRevenue,
+                [isFr ? 'Coût Total' : 'Costo Total']: '-',
+                [isFr ? 'Bénéfice Estimé' : 'Beneficio Estimado']: '-'
+            }
+        ];
+
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Inventario");
-        XLSX.writeFile(wb, `Inventario_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+        // 1. Hoja Principal: Calculs & Résumé / Cálculo & Resumen
+        const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+        XLSX.utils.book_append_sheet(wb, wsSummary, isFr ? 'Calculs & Résumé' : 'Cálculo & Resumen');
+
+        // 2. Hoja 2: Produits en Stock (>0 y validados)
+        const wsInStock = XLSX.utils.json_to_sheet(inStockItems.map(formatRow));
+        XLSX.utils.book_append_sheet(wb, wsInStock, isFr ? 'Produits en Stock' : 'Productos en Stock');
+
+        // 3. Hoja 3: Produits À Valider (solo a validar)
+        const wsValidate = XLSX.utils.json_to_sheet(validateItems.map(formatRow));
+        XLSX.utils.book_append_sheet(wb, wsValidate, isFr ? 'Produits À Valider' : 'Productos Por Validar');
+
+        // 4. Hoja 4: Todos los productos activos (excluyendo stock 0)
+        const wsAllActive = XLSX.utils.json_to_sheet(allActiveNoZero.map(formatRow));
+        XLSX.utils.book_append_sheet(wb, wsAllActive, isFr ? 'Tous les Produits' : 'Todos los Productos');
+
+        // 5. Hoja 5: Productos con Stock 0
+        const wsZeroStock = XLSX.utils.json_to_sheet(zeroStockItems.map(formatRow));
+        XLSX.utils.book_append_sheet(wb, wsZeroStock, isFr ? 'Produits Stock 0' : 'Productos Stock 0');
+
+        // 6. Hoja 6: Productos Eliminados
+        const wsDeleted = XLSX.utils.json_to_sheet(deletedItems.map(formatRow));
+        XLSX.utils.book_append_sheet(wb, wsDeleted, isFr ? 'Produits Supprimés' : 'Productos Eliminados');
+
+        // 7. Hoja 7: Productos Vendidos
+        const wsSold = XLSX.utils.json_to_sheet(soldItems.map(formatSoldRow));
+        XLSX.utils.book_append_sheet(wb, wsSold, isFr ? 'Produits Vendus' : 'Productos Vendidos');
+
+        XLSX.writeFile(wb, `Inventaire_${new Date().toISOString().split('T')[0]}.xlsx`);
         toast.success(t('Excel generado correctamente'));
     };
 
@@ -365,6 +469,7 @@ export function StockAnalytics() {
             return true; // 'all'
         })
         .filter(item => {
+            if (filter === 'in_stock') return item.totalStock > 0;
             if (filter === 'low') return item.status === 'low';
             if (filter === 'out') return item.status === 'out';
             if (filter === 'validate') return item.status === 'validate';
@@ -423,8 +528,8 @@ export function StockAnalytics() {
                         <Package className="w-6 h-6 text-blue-600" />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-gray-500">{t('Artículos en Stock (>0)')}</p>
-                        <h3 className="text-2xl font-black text-gray-900">{availableStockUnits} <span className="text-xs font-normal text-gray-400">unidades</span></h3>
+                        <p className="text-sm font-medium text-gray-500">{t('stock.available_items')}</p>
+                        <h3 className="text-2xl font-black text-gray-900">{availableProductsCount} <span className="text-xs font-normal text-gray-400">({availableStockUnits} {t('stock.units')})</span></h3>
                     </div>
                 </div>
 
@@ -433,8 +538,8 @@ export function StockAnalytics() {
                         <Archive className="w-6 h-6 text-purple-600" />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-gray-500">{t('Total Unidades Vendidas')}</p>
-                        <h3 className="text-2xl font-black text-purple-700">{totalSoldUnits} <span className="text-xs font-normal text-gray-400">vendidas</span></h3>
+                        <p className="text-sm font-medium text-gray-500">{t('stock.total_sold_units')}</p>
+                        <h3 className="text-2xl font-black text-purple-700">{totalSoldUnits} <span className="text-xs font-normal text-gray-400">{t('stock.sold')}</span></h3>
                     </div>
                 </div>
 
@@ -525,7 +630,7 @@ export function StockAnalytics() {
                         {/* Advanced Filters */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Ver Catálogo')}</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('stock.catalog_view')}</label>
                                 <select
                                     value={productStatusFilter}
                                     onChange={(e) => {
@@ -534,9 +639,9 @@ export function StockAnalytics() {
                                     }}
                                     className="w-full px-3 py-2 text-sm font-bold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                                 >
-                                    <option value="active">🟢 {t('Productos Activos')}</option>
-                                    <option value="all">📋 {t('Todos los Registrados')}</option>
-                                    <option value="deleted">🔴 {t('Productos Eliminados')}</option>
+                                    <option value="active">🟢 {t('stock.status_active')}</option>
+                                    <option value="all">📋 {t('stock.status_all')}</option>
+                                    <option value="deleted">🔴 {t('stock.status_deleted')}</option>
                                 </select>
                             </div>
 
@@ -589,7 +694,7 @@ export function StockAnalytics() {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Estado Stock')}</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('stock.status_stock')}</label>
                                 <select
                                     value={filter}
                                     onChange={(e) => {
@@ -598,7 +703,8 @@ export function StockAnalytics() {
                                     }}
                                     className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
                                 >
-                                    <option value="all">{t('Todos los Estados')}</option>
+                                    <option value="all">{t('stock.all_statuses')}</option>
+                                    <option value="in_stock">📦 {t('stock.in_stock')}</option>
                                     <option value="low">{t('stock.low_stock')}</option>
                                     <option value="out">{t('stock.out_of_stock')}</option>
                                     <option value="validate">{t('stock.needs_validation')}</option>
@@ -719,7 +825,7 @@ export function StockAnalytics() {
                                             <td className="px-4 py-3 text-center">
                                                 {item.isDeleted ? (
                                                     <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-bold rounded-full border border-gray-300 flex items-center justify-center gap-1">
-                                                        🔴 {t('Eliminado')}
+                                                        🔴 {t('stock.deleted')}
                                                     </span>
                                                 ) : (
                                                     <>

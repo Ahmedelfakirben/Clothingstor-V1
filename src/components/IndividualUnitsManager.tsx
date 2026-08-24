@@ -84,8 +84,8 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
             return;
         }
 
-        const stockVal = parseInt(newSizeStock);
-        if (isNaN(stockVal) || stockVal < 0) {
+        const stockVal = isCashier ? 0 : parseInt(newSizeStock);
+        if (!isCashier && (isNaN(stockVal) || stockVal < 0)) {
             toast.error(t('Stock inválido'));
             return;
         }
@@ -209,9 +209,9 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
 
             {/* Cashier restriction banner */}
             {isCashier && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-3 text-sm text-amber-800">
-                    <Lock className="w-4 h-4 flex-shrink-0" />
-                    <span>{t('Solo los administradores pueden añadir o eliminar tallas.')}</span>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center gap-3 text-sm text-blue-800">
+                    <Lock className="w-4 h-4 flex-shrink-0 text-blue-600" />
+                    <span>{t('Puedes añadir tallas y editar códigos de barras. La edición de cantidad de stock requiere permisos de administrador.')}</span>
                 </div>
             )}
 
@@ -233,11 +233,11 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
                         <label className="block text-xs font-medium text-gray-500 mb-1">{t('Stock')}</label>
                         <input
                             type="number"
-                            value={newSizeStock}
+                            value={isCashier ? '0' : newSizeStock}
                             disabled={isCashier}
                             onChange={e => setNewSizeStock(e.target.value)}
                             className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-75"
-                            title={isCashier ? t('No tienes permisos para establecer stock') : ''}
+                            title={isCashier ? t('No tienes permisos para modificar stock') : ''}
                             min="0"
                         />
                     </div>
@@ -265,8 +265,7 @@ export default function IndividualUnitsManager({ productId, productName }: Indiv
                     </div>
                     <button
                         onClick={handleAddSize}
-                        disabled={processing || !newSizeName || isCashier}
-                        title={isCashier ? t('Solo el administrador puede añadir tallas') : ''}
+                        disabled={processing || !newSizeName.trim()}
                         className="w-full md:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 h-[42px]"
                     >
                         <Plus className="w-4 h-4" />

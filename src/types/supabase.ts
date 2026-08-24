@@ -23,6 +23,8 @@ export interface Product {
   barcode?: string;
   purchase_price?: number;
   deleted_at?: string | null;
+  is_promo?: boolean;
+  promo_price?: number | null;
 }
 
 export interface ProductSize {

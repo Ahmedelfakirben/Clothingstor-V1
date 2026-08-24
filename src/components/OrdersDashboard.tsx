@@ -93,7 +93,7 @@ interface CashEvent {
   note?: string | null;
 }
 
-export function OrdersDashboard() {
+export function OrdersDashboard(): JSX.Element {
   const { profile, user } = useAuth();
   const { t } = useLanguage();
   const { formatCurrency } = useCurrency();
@@ -443,6 +443,7 @@ export function OrdersDashboard() {
             )
           )
         `)
+        .neq('notes', 'WEB_WHATSAPP')
         .order('created_at', { ascending: false });
 
       // Mostrar últimas 24 horas desde las 2 AM en vista actual

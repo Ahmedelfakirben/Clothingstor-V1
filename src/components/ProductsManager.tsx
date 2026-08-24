@@ -39,6 +39,8 @@ interface Product {
   needs_validation?: boolean;
   product_sizes?: ProductSize[];
   deleted_at?: string | null;
+  is_promo?: boolean;
+  promo_price?: number | null;
 }
 
 interface ProductSize {
@@ -85,12 +87,16 @@ export function ProductsManager() {
     image_url?: string;
     color?: string;
     purchase_price?: number;
+    is_promo?: boolean;
+    promo_price?: number;
   }>({
     name: '',
     description: '',
     category_id: '',
     base_price: 0,
     available: true,
+    is_promo: false,
+    promo_price: 0,
   });
   const [newProductSizes, setNewProductSizes] = useState<{ name: string; stock: number; price: number; barcode?: string }[]>([]);
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
@@ -98,7 +104,7 @@ export function ProductsManager() {
 
   // Auxiliar para registrar movimientos de stock
   const logStockMovement = async (productId: string, quantity: number, type: 'manual_add' | 'manual_deduct' | 'sale' | 'return' | 'correction', sizeId?: string, reason?: string) => {
-    if (quantity === 0) return;
+    if (quantity === 0 && type !== 'correction') return;
     try {
       await supabase.from('stock_movements').insert({
         product_id: productId,
@@ -114,6 +120,7 @@ export function ProductsManager() {
   };
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingProductOriginal, setEditingProductOriginal] = useState<Product | null>(null);
 
   const [newProductImage, setNewProductImage] = useState<File | null>(null);
   const [newProductPreviewUrl, setNewProductPreviewUrl] = useState<string | null>(null);
@@ -133,6 +140,7 @@ export function ProductsManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedSize, setSelectedSize] = useState<string>('all');
+  const [promoFilter, setPromoFilter] = useState<'all' | 'promo' | 'no_promo'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -258,7 +266,7 @@ export function ProductsManager() {
       fetchUniqueSizes(selectedCategory);
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedCategory, selectedSize, sortBy]);
+  }, [searchTerm, selectedCategory, selectedSize, sortBy, promoFilter]);
 
   useEffect(() => {
     if (selectedSize !== 'all' && !availableSizes.includes(selectedSize)) {
@@ -381,6 +389,8 @@ export function ProductsManager() {
       // Aplicar filtros estándar
       if (selectedCategory !== 'all') query = query.eq('category_id', selectedCategory);
       if (selectedSize !== 'all') query = query.eq('product_sizes.size_name', selectedSize);
+      if (promoFilter === 'promo') query = query.eq('is_promo', true);
+      if (promoFilter === 'no_promo') query = query.or('is_promo.eq.false,is_promo.is.null');
 
       let matchedProductIds: string[] = [];
       if (searchTerm) {
@@ -418,6 +428,8 @@ export function ProductsManager() {
           const fallbackQuery = getBaseQuery();
           if (selectedCategory !== 'all') fallbackQuery.eq('category_id', selectedCategory);
           if (selectedSize !== 'all') fallbackQuery.eq('product_sizes.size_name', selectedSize);
+          if (promoFilter === 'promo') fallbackQuery.eq('is_promo', true);
+          if (promoFilter === 'no_promo') fallbackQuery.or('is_promo.eq.false,is_promo.is.null');
           
           if (searchTerm) {
             let orConditions = `name.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%`;
@@ -755,6 +767,13 @@ export function ProductsManager() {
       return;
     }
 
+    if (newProduct.is_promo) {
+      if (!newProduct.promo_price || newProduct.promo_price <= 0 || newProduct.promo_price >= newProduct.base_price) {
+        toast.error(t('products.invalid_promo_price'));
+        return;
+      }
+    }
+
     setCreatingProduct(true);
     try {
       // Preparar datos para insertar (eliminar campos vacíos opcionales)
@@ -772,6 +791,8 @@ export function ProductsManager() {
         available: newProduct.available ?? true,
         needs_validation: isCashier,
         created_by: profile?.id,
+        is_promo: isAdmin ? (newProduct.is_promo || false) : false,
+        promo_price: (isAdmin && newProduct.is_promo) ? (newProduct.promo_price || null) : null,
       };
 
       // Solo agregar campos opcionales si tienen valor válido
@@ -830,6 +851,16 @@ export function ProductsManager() {
         .insert(productData)
         .select('id')
         .single();
+
+      if (created && productData.is_promo) {
+        await logStockMovement(
+          created.id,
+          0,
+          'correction',
+          undefined,
+          `🔥 Promoción activada: Precio Promoción ${productData.promo_price} DH (Precio base: ${productData.base_price} DH)`
+        );
+      }
 
       if (error) {
         console.error('❌ [PRODUCTS] Error creating product:', error);
@@ -1007,6 +1038,8 @@ export function ProductsManager() {
         purchase_price: 0,
         available: true,
         barcode: '',
+        is_promo: false,
+        promo_price: 0,
       });
       setNewProductSizes([]);
       setNewProductImage(null);
@@ -1042,7 +1075,9 @@ export function ProductsManager() {
       gender: product.gender || '',
       season: product.season || '',
       stock: product.stock || 0,
-      image_url: product.image_url
+      image_url: product.image_url,
+      is_promo: product.is_promo || false,
+      promo_price: product.promo_price || 0,
     });
 
     // 2. Cargar tallas
@@ -1057,6 +1092,7 @@ export function ProductsManager() {
     // 3. Configurar estado de edición
     setIsEditing(true);
     setEditingId(product.id);
+    setEditingProductOriginal(product);
     setShowNewProduct(true);
     setNewProductPreviewUrl(product.image_url || null);
 
@@ -1069,6 +1105,13 @@ export function ProductsManager() {
 
   const handleFullUpdate = async () => {
     if (!editingId) return;
+
+    if (newProduct.is_promo) {
+      if (!newProduct.promo_price || newProduct.promo_price <= 0 || newProduct.promo_price >= newProduct.base_price) {
+        toast.error(t('products.invalid_promo_price'));
+        return;
+      }
+    }
 
     setCreatingProduct(true);
     try {
@@ -1087,6 +1130,8 @@ export function ProductsManager() {
         season: newProduct.season || null,
         image_url: newProduct.image_url?.trim() || null,
         needs_validation: isCashier,
+        is_promo: isAdmin ? (newProduct.is_promo || false) : false,
+        promo_price: (isAdmin && newProduct.is_promo) ? (newProduct.promo_price || null) : null,
       };
 
       // Handle stock logic
@@ -1096,6 +1141,9 @@ export function ProductsManager() {
       }
       productData.stock = totalStock;
 
+      // Find previous product for promo history tracking
+      const prevProd = editingProductOriginal || products.find(p => p.id === editingId);
+
       // 2. Update Product
       const { error } = await supabase
         .from('products')
@@ -1103,6 +1151,40 @@ export function ProductsManager() {
         .eq('id', editingId);
 
       if (error) throw error;
+
+      // Track promo history changes
+      if (prevProd) {
+        const wasPromo = prevProd.is_promo || false;
+        const isPromoNow = productData.is_promo || false;
+        const prevPromoPrice = prevProd.promo_price || 0;
+        const newPromoPrice = productData.promo_price || 0;
+
+        if (!wasPromo && isPromoNow) {
+          await logStockMovement(
+            editingId,
+            0,
+            'correction',
+            undefined,
+            `🔥 Promoción activada: Precio Promoción ${newPromoPrice} DH (Precio base: ${productData.base_price} DH)`
+          );
+        } else if (wasPromo && !isPromoNow) {
+          await logStockMovement(
+            editingId,
+            0,
+            'correction',
+            undefined,
+            `🚫 Promoción desactivada`
+          );
+        } else if (wasPromo && isPromoNow && prevPromoPrice !== newPromoPrice) {
+          await logStockMovement(
+            editingId,
+            0,
+            'correction',
+            undefined,
+            `✏️ Precio Promoción actualizado a ${newPromoPrice} DH (Precio base: ${productData.base_price} DH)`
+          );
+        }
+      }
 
       // 3. Update Sizes (Delete all and re-insert)
       // First delete existing
@@ -1839,6 +1921,37 @@ export function ProductsManager() {
                 </div>
               </div>
 
+              {/* Seccion Promocion (Solo Admins) */}
+              {isAdmin && (
+                <div className="border-t border-gray-100 pt-3 mt-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="checkbox"
+                      id="is_promo"
+                      checked={newProduct.is_promo || false}
+                      onChange={e => setNewProduct({ ...newProduct, is_promo: e.target.checked })}
+                      className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
+                    />
+                    <label htmlFor="is_promo" className="text-sm font-bold text-gray-800 flex items-center gap-1 cursor-pointer">
+                      🔥 {t('products.promo_active')}
+                    </label>
+                  </div>
+                  {newProduct.is_promo && (
+                    <div>
+                      <label className="block text-xs font-bold text-amber-800 mb-1">{t('products.promo_price')} (DH)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={newProduct.promo_price || ''}
+                        onChange={e => setNewProduct({ ...newProduct, promo_price: parseFloat(e.target.value) || 0 })}
+                        placeholder="Ej: 80"
+                        className="w-full px-3 py-2 border border-amber-300 bg-amber-50/50 rounded-lg focus:ring-2 focus:ring-amber-500 font-bold text-amber-900 text-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
 
               <div className="flex gap-2">
                 <button
@@ -1908,6 +2021,15 @@ export function ProductsManager() {
             ))}
           </select>
           <select
+            value={promoFilter}
+            onChange={(e) => setPromoFilter(e.target.value as any)}
+            className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white shadow-sm text-sm text-gray-700 outline-none min-w-[140px]"
+          >
+            <option value="all">{t('Todos los productos')}</option>
+            <option value="promo">🔥 {t('Solo Promociones')}</option>
+            <option value="no_promo">{t('Sin Promoción')}</option>
+          </select>
+          <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
             className="px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 bg-white shadow-sm text-sm text-gray-700 outline-none"
@@ -1952,7 +2074,17 @@ export function ProductsManager() {
                 <div>
                   <h3 className="font-bold text-gray-900 truncate">{product.name}</h3>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-lg font-bold text-amber-600">{formatCurrency(product.base_price)}</span>
+                    {product.is_promo && product.promo_price && product.promo_price > 0 && product.promo_price < product.base_price ? (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-lg font-black text-emerald-600">{formatCurrency(product.promo_price)}</span>
+                        <span className="text-xs line-through text-gray-400 font-medium">{formatCurrency(product.base_price)}</span>
+                        <span className="text-[10px] font-extrabold bg-red-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                          🔥 PROMO
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-lg font-bold text-amber-600">{formatCurrency(product.base_price)}</span>
+                    )}
                     <span className={`text-xs px-2 py-0.5 rounded-full ${(getProductSizes(product).length > 0
                       ? getProductSizes(product).reduce((sum, s) => sum + s.stock, 0)
                       : (product.stock || 0)) > 0
@@ -2217,7 +2349,17 @@ export function ProductsManager() {
                       title={isCashier ? t('No tienes permisos para editar el precio') : ''}
                     />
                   ) : (
-                    formatCurrency(product.base_price)
+                    product.is_promo && product.promo_price && product.promo_price > 0 && product.promo_price < product.base_price ? (
+                      <div className="flex flex-col">
+                        <span className="font-black text-emerald-600">{formatCurrency(product.promo_price)}</span>
+                        <span className="text-xs line-through text-gray-400 font-medium">{formatCurrency(product.base_price)}</span>
+                        <span className="inline-block mt-0.5 text-[9px] font-black bg-red-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wider w-fit">
+                          🔥 PROMO
+                        </span>
+                      </div>
+                    ) : (
+                      formatCurrency(product.base_price)
+                    )
                   )}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-600">

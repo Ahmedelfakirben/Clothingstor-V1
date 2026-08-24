@@ -301,9 +301,14 @@ export default function ProductHistoryModal({ productId, productName, currentSto
     return groups;
   }, [filteredEvents, isFr]);
 
-  const getIcon = (type: HistoryEvent['type']) => {
+  const isPromoEvent = (ev: HistoryEvent) => {
+    return ev.reason?.includes('Promoción') || ev.reason?.includes('Promotion') || ev.reason?.includes('🔥') || ev.reason?.includes('🚫') || ev.reason?.includes('✏️');
+  };
+
+  const getIcon = (ev: HistoryEvent) => {
     const cls = 'w-4 h-4';
-    switch (type) {
+    if (isPromoEvent(ev)) return <Tag className={cls} />;
+    switch (ev.type) {
       case 'creation': return <Package className={cls} />;
       case 'validation': return <CheckCircle className={cls} />;
       case 'sale': return <ShoppingCart className={cls} />;
@@ -313,8 +318,11 @@ export default function ProductHistoryModal({ productId, productName, currentSto
     }
   };
 
-  const getColors = (type: HistoryEvent['type']) => {
-    switch (type) {
+  const getColors = (ev: HistoryEvent) => {
+    if (isPromoEvent(ev)) {
+      return { dot: 'bg-amber-500', icon: 'bg-amber-100 text-amber-600', title: 'text-amber-700', border: 'border-amber-200' };
+    }
+    switch (ev.type) {
       case 'creation': return { dot: 'bg-blue-500', icon: 'bg-blue-100 text-blue-600', title: 'text-blue-700', border: 'border-blue-100' };
       case 'validation': return { dot: 'bg-purple-500', icon: 'bg-purple-100 text-purple-600', title: 'text-purple-700', border: 'border-purple-100' };
       case 'sale': return { dot: 'bg-green-500', icon: 'bg-green-100 text-green-600', title: 'text-green-700', border: 'border-green-100' };
@@ -324,8 +332,11 @@ export default function ProductHistoryModal({ productId, productName, currentSto
     }
   };
 
-  const getTitle = (type: HistoryEvent['type']) => {
-    switch (type) {
+  const getTitle = (ev: HistoryEvent) => {
+    if (isPromoEvent(ev)) {
+      return tf('Promoción de Producto', 'Promotion de Produit');
+    }
+    switch (ev.type) {
       case 'creation': return tf('Producto Registrado', 'Produit Enregistre');
       case 'validation': return tf('Producto Validado', 'Produit Valide');
       case 'sale': return tf('Venta Completada', 'Vente Realisee');
@@ -522,8 +533,9 @@ export default function ProductHistoryModal({ productId, productName, currentSto
                           </div>
                           <div className="relative border-l-2 border-gray-200 ml-3 space-y-4">
                             {group.events.map((ev, idx) => {
-                              const colors = getColors(ev.type);
+                              const colors = getColors(ev);
                               const clickable = isClickable(ev);
+                              const promoEvent = isPromoEvent(ev);
                               return (
                                 <div key={ev.id + idx} className="relative pl-6">
                                   <div className={`absolute -left-[9px] top-3 h-4 w-4 rounded-full border-2 border-white shadow-sm ${colors.dot}`} />
@@ -533,14 +545,14 @@ export default function ProductHistoryModal({ productId, productName, currentSto
                                   >
                                     <div className="flex justify-between items-start gap-2 mb-2">
                                       <div className="flex items-center gap-2">
-                                        <span className={`p-1.5 rounded-lg ${colors.icon}`}>{getIcon(ev.type)}</span>
+                                        <span className={`p-1.5 rounded-lg ${colors.icon}`}>{getIcon(ev)}</span>
                                         <h5 className={`font-bold text-sm ${colors.title}`}>
-                                          {getTitle(ev.type)}
+                                          {getTitle(ev)}
                                           {clickable && <span className="ml-1 text-xs opacity-50"> &#8599;</span>}
                                         </h5>
                                       </div>
                                       <div className="flex items-center gap-2 flex-shrink-0">
-                                        {ev.stockAfterBySizeOrTotal !== undefined && ev.type !== 'validation' && (
+                                        {ev.stockAfterBySizeOrTotal !== undefined && ev.type !== 'validation' && !promoEvent && (
                                           <span className="text-xs bg-gray-100 text-gray-600 font-mono px-2 py-0.5 rounded-full border border-gray-200">
                                             📦 {ev.stockAfterBySizeOrTotal}
                                           </span>
@@ -552,7 +564,14 @@ export default function ProductHistoryModal({ productId, productName, currentSto
                                     </div>
                                     <div className="mb-2">{renderSizeBadge(ev)}</div>
                                     <div className="text-sm text-gray-600 space-y-1">
-                                      {ev.type === 'creation' ? (
+                                      {promoEvent ? (
+                                        <>
+                                          <p className="font-semibold text-amber-900 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 inline-block text-xs">
+                                            {ev.reason}
+                                          </p>
+                                          <p className="text-xs text-gray-500"><span className="font-medium text-gray-700">{tf('Por:', 'Par:')} </span><span className="font-bold text-amber-700">{ev.employeeName}</span></p>
+                                        </>
+                                      ) : ev.type === 'creation' ? (
                                         <>
                                           <p>{tf('Ingresado por:', 'Saisi par:')} <span className={`font-bold ${colors.title}`}>{ev.employeeName}</span></p>
                                           <p className="text-xs text-blue-600 font-bold">{ev.sizeName}</p>

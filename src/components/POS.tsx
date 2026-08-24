@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { useCart } from '../contexts/CartContext';
+import { useCart, getProductEffectivePrice } from '../contexts/CartContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { Category, Product, ProductSize } from '../types/supabase';
-import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, ChevronRight, ChevronLeft, Search, ScanBarcode, ShoppingBag, Users, CheckCircle, RotateCcw, Tag, X } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, Smartphone, ChevronRight, ChevronLeft, Search, ScanBarcode, ShoppingBag, Users, CheckCircle, RotateCcw, Tag, X, Globe, MessageCircle } from 'lucide-react';
 import { TicketPrinter } from './TicketPrinter';
 import { LoadingSpinner, LoadingPage } from './LoadingSpinner';
 import { toast } from 'react-hot-toast';
@@ -100,6 +100,104 @@ export function POS() {
   const [returnDateFilter, setReturnDateFilter] = useState('');
   const [returnCategoryFilter, setReturnCategoryFilter] = useState('all');
   const [returnSizeFilter, setReturnSizeFilter] = useState('all');
+  
+  // Web Orders Modal State
+  const [showWebOrdersModal, setShowWebOrdersModal] = useState(false);
+  const [webOrders, setWebOrders] = useState<any[]>([]);
+  const [webOrdersLoading, setWebOrdersLoading] = useState(false);
+  const [webOrdersSearch, setWebOrdersSearch] = useState('');
+
+  const fetchPendingWebOrders = async () => {
+    setWebOrdersLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          total,
+          created_at,
+          status,
+          notes,
+          order_items (
+            id,
+            quantity,
+            unit_price,
+            subtotal,
+            size_id,
+            product_id,
+            products (*),
+            product_sizes (*)
+          )
+        `)
+        .eq('status', 'pending')
+        .eq('notes', 'WEB_WHATSAPP')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setWebOrders(data || []);
+    } catch (err: any) {
+      console.error('Error fetching web orders:', err);
+      toast.error(currentLanguage === 'fr' ? 'Erreur lors de la récupération des commandes web' : 'Error al obtener pedidos web');
+    } finally {
+      setWebOrdersLoading(false);
+    }
+  };
+
+  const updateWebOrderItemQuantity = (orderId: string, itemId: string, delta: number) => {
+    setWebOrders(prevOrders => {
+      return prevOrders.map(order => {
+        if (order.id !== orderId) return order;
+        const updatedItems = order.order_items.map((item: any) => {
+          if (item.id !== itemId) return item;
+          const newQty = Math.max(0, item.quantity + delta);
+          return {
+            ...item,
+            quantity: newQty,
+            subtotal: item.unit_price * newQty
+          };
+        }).filter((item: any) => item.quantity > 0);
+
+        const newTotal = updatedItems.reduce((sum: number, i: any) => sum + (i.unit_price * i.quantity), 0);
+        return {
+          ...order,
+          order_items: updatedItems,
+          total: newTotal
+        };
+      });
+    });
+  };
+
+  const loadWebOrderToCart = (order: any) => {
+    if (!order.order_items || order.order_items.length === 0) {
+      toast.error(currentLanguage === 'fr' ? 'La commande ne contient aucun article' : 'El pedido no contiene productos');
+      return;
+    }
+    clearCart();
+    setActiveOrderId(order.id);
+    setSaleChannel('website');
+
+    order.order_items.forEach((item: any) => {
+      const productObj = item.products;
+      const sizeObj = item.product_sizes || null;
+      if (productObj) {
+        const qty = item.quantity || 1;
+        for (let i = 0; i < qty; i++) {
+          addItem(productObj, sizeObj);
+        }
+      }
+    });
+
+    setShowWebOrdersModal(false);
+    const refCode = `#WEB-${order.id.slice(0, 8).toUpperCase()}`;
+    toast.success(
+      currentLanguage === 'fr'
+        ? `Commande ${refCode} validée et chargée dans le panier POS`
+        : `Pedido ${refCode} validado y cargado en el carrito del POS`
+    );
+  };
+
   // Discount popover state per cart item
   const [discountPopoverIndex, setDiscountPopoverIndex] = useState<number | null>(null);
   const [discountInput, setDiscountInput] = useState('');
@@ -562,12 +660,19 @@ export function POS() {
     const ticketData = {
       orderDate: new Date(),
       orderNumber: activeOrderId ? activeOrderId.slice(-8) : undefined, // Will be assigned by DB if new
-      items: cart.map(item => ({
-        name: item.product.name,
-        size: item.size?.size_name,
-        quantity: item.quantity,
-        price: item.product.base_price + (item.size?.price_modifier || 0)
-      })),
+      items: cart.map(item => {
+        const originalBasePrice = item.product.base_price + (item.size?.price_modifier || 0);
+        const effectivePrice = getProductEffectivePrice(item.product) + (item.size?.price_modifier || 0);
+        const isPromo = item.product.is_promo && item.product.promo_price && item.product.promo_price > 0 && item.product.promo_price < item.product.base_price;
+        return {
+          name: item.product.name,
+          size: item.size?.size_name,
+          quantity: item.quantity,
+          price: effectivePrice,
+          originalPrice: originalBasePrice,
+          isPromo: !!isPromo
+        };
+      }),
       total: total,
       amountPaid: amount,
       paymentStatus: status,
@@ -777,25 +882,56 @@ export function POS() {
         };
       });
 
-      // CREAR la orden en la base de datos (SOLO AQUÍ)
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          employee_id: user.id,
-          status: targetStatus,
-          payment_status: paymentStatus,
-          amount_paid: amountPaid,
-          customer_id: customerId, // Save the customer connection!
-          total: pendingOrderData.total,
-          payment_method: paymentMethodDB,
-          service_type: saleChannel,
-          table_id: null,
-        })
-        .select('id,total,created_at,order_number')
-        .single();
+      // CREAR O ACTUALIZAR la orden en la base de datos
+      let order: any = null;
+      let orderError: any = null;
+
+      if (activeOrderId) {
+        // Eliminar los items anteriores asociados al pedido para insertar la lista actualizada del carrito
+        await supabase.from('order_items').delete().eq('order_id', activeOrderId);
+
+        const { data: updatedOrder, error: updateErr } = await supabase
+          .from('orders')
+          .update({
+            employee_id: user.id,
+            status: targetStatus,
+            payment_status: paymentStatus,
+            amount_paid: amountPaid,
+            customer_id: customerId,
+            total: pendingOrderData.total,
+            payment_method: paymentMethodDB,
+            service_type: saleChannel,
+            notes: 'WEB_WHATSAPP_COMPLETED',
+          })
+          .eq('id', activeOrderId)
+          .select('id,total,created_at,order_number')
+          .single();
+
+        order = updatedOrder;
+        orderError = updateErr;
+      } else {
+        const { data: newOrder, error: insertErr } = await supabase
+          .from('orders')
+          .insert({
+            employee_id: user.id,
+            status: targetStatus,
+            payment_status: paymentStatus,
+            amount_paid: amountPaid,
+            customer_id: customerId,
+            total: pendingOrderData.total,
+            payment_method: paymentMethodDB,
+            service_type: saleChannel,
+            table_id: null,
+          })
+          .select('id,total,created_at,order_number')
+          .single();
+
+        order = newOrder;
+        orderError = insertErr;
+      }
 
       if (orderError) {
-        console.error('❌ Error creating order:', orderError);
+        console.error('❌ Error saving order:', orderError);
         throw orderError;
       }
 
@@ -1148,6 +1284,18 @@ export function POS() {
         >
           <ScanBarcode className="w-6 h-6" />
         </button>
+        {/* Botón Pedidos Web Móvil */}
+        <button
+          onClick={() => {
+            setShowWebOrdersModal(true);
+            setWebOrdersSearch('');
+            fetchPendingWebOrders();
+          }}
+          className="p-2.5 bg-green-50 border border-green-200 text-green-600 hover:bg-green-100 rounded-xl shadow-sm active:scale-95 transition-all flex items-center justify-center"
+          title={currentLanguage === 'fr' ? 'Commandes Web WhatsApp' : 'Pedidos Web WhatsApp'}
+        >
+          <Globe className="w-6 h-6" />
+        </button>
         {/* Botón de Retour Móvil */}
         <button
           onClick={() => {
@@ -1291,7 +1439,17 @@ export function POS() {
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-gray-900 text-sm">{product.name}</h3>
                     <p className="text-xs text-gray-500 truncate">{product.description}</p>
-                    <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(product.base_price)}</p>
+                    {product.is_promo && product.promo_price && product.promo_price > 0 && product.promo_price < product.base_price ? (
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        <span className="text-lg font-black text-emerald-600">{formatCurrency(product.promo_price)}</span>
+                        <span className="text-xs line-through text-gray-400 font-medium">{formatCurrency(product.base_price)}</span>
+                        <span className="text-[10px] font-extrabold bg-red-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                          🔥 PROMO
+                        </span>
+                      </div>
+                    ) : (
+                      <p className="text-lg font-bold text-gray-900 mt-1">{formatCurrency(product.base_price)}</p>
+                    )}
                   </div>
                 </div>
 
@@ -1651,7 +1809,17 @@ export function POS() {
                         <div className="pt-2 border-t border-gray-100 flex items-end justify-between">
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-400">{t('Precio')}</span>
-                            <span className="text-xl font-bold text-gray-900">{formatCurrency(product.base_price)}</span>
+                            {product.is_promo && product.promo_price && product.promo_price > 0 && product.promo_price < product.base_price ? (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xl font-black text-emerald-600">{formatCurrency(product.promo_price)}</span>
+                                <span className="text-xs line-through text-gray-400 font-medium">{formatCurrency(product.base_price)}</span>
+                                <span className="text-[10px] font-extrabold bg-red-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                                  🔥 PROMO
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xl font-bold text-gray-900">{formatCurrency(product.base_price)}</span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1721,24 +1889,44 @@ export function POS() {
                   <h2 className="text-lg font-bold text-gray-800">{t('Carrito de Compras')}</h2>
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-gray-500">{cart.length} {cart.length === 1 ? 'producto' : 'productos'}</p>
+                    {activeOrderId && (
+                      <span className="bg-green-100 text-green-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-green-300">
+                        #WEB-{activeOrderId.slice(0, 8).toUpperCase()}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
-              {/* Return Button */}
-              <button
-                onClick={() => {
-                  setShowReturnModal(true);
-                  setSelectedReturnItem(null);
-                  setReturnQuantity(1);
-                  setReturnSearch('');
-                  fetchSoldItems();
-                }}
-                title={t('pos.return_title')}
-                className="flex items-center gap-1.5 px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-xl text-xs font-bold transition-all"
-              >
-                <RotateCcw className="w-4 h-4" />
-                {t('pos.return_btn')}
-              </button>
+              <div className="flex items-center gap-1.5">
+                {/* Web Orders Button */}
+                <button
+                  onClick={() => {
+                    setShowWebOrdersModal(true);
+                    setWebOrdersSearch('');
+                    fetchPendingWebOrders();
+                  }}
+                  title={currentLanguage === 'fr' ? 'Commandes Web WhatsApp' : 'Pedidos Web WhatsApp'}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 rounded-xl text-xs font-bold transition-all"
+                >
+                  <Globe className="w-4 h-4 text-green-600" />
+                  {currentLanguage === 'fr' ? 'Commandes Web' : 'Pedidos Web'}
+                </button>
+                {/* Return Button */}
+                <button
+                  onClick={() => {
+                    setShowReturnModal(true);
+                    setSelectedReturnItem(null);
+                    setReturnQuantity(1);
+                    setReturnSearch('');
+                    fetchSoldItems();
+                  }}
+                  title={t('pos.return_title')}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 rounded-xl text-xs font-bold transition-all"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  {t('pos.return_btn')}
+                </button>
+              </div>
             </div>
 
             {/* Customer Selector in Cart Sidebar */}
@@ -1760,65 +1948,6 @@ export function POS() {
             </div>
           </div>
 
-          {activeOrderId && (
-            <div className="px-3 pt-3 pb-2 border-b bg-white">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900">Pedido activo #{activeOrderId}</h3>
-                  <p className="text-xs text-gray-600">Total actual: <span className="font-semibold">{formatCurrency(existingOrderTotal)}</span></p>
-                  <p className="text-xs text-pink-600 font-medium">Pendiente de validación</p>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const ticketData = {
-                        orderDate: new Date(),
-                        orderNumber: existingOrderNumber ? existingOrderNumber.toString().padStart(3, '0') : activeOrderId.slice(-8),
-                        items: existingItems,
-                        total: existingOrderTotal,
-                        paymentMethod: 'Pendiente',
-                        cashierName: user ? ((user.user_metadata as any)?.full_name || user.email || 'Usuario') : 'Usuario',
-                      };
-                      setPendingOrderData(ticketData);
-                      setShowValidationModal(true);
-                    }}
-                    className="px-3 py-2 rounded-lg border text-xs gradient-primary text-white transition-colors hover:gradient-primary-hover"
-                  >
-                    Validar
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveOrderId(null);
-                      setTableId(null);
-                      setServiceType('takeaway');
-                      toast.success('Pedido finalizado');
-                    }}
-                    className="px-3 py-2 rounded-lg border text-xs bg-white transition-colors hover:bg-gray-50 border-pink-300 text-pink-700"
-                  >
-                    Finalizar
-                  </button>
-                </div>
-              </div>
-              <div className="mt-2 space-y-2 max-h-32 overflow-auto">
-                {existingItems.length === 0 ? (
-                  <p className="text-xs text-gray-500">Sin productos registrados en el pedido.</p>
-                ) : (
-                  existingItems.map((it, idx) => (
-                    <div key={idx} className="bg-gray-50 rounded-lg p-2 border border-gray-200">
-                      <div className="flex justify-between items-start">
-                        <div className="text-xs text-gray-900 font-medium">
-                          {it.quantity}x {it.name}{it.size ? ` (${it.size})` : ''}
-                        </div>
-                        <div className="text-xs font-semibold text-gray-900">{formatCurrency(it.subtotal)}</div>
-                      </div>
-                      <div className="text-[11px] text-gray-600">c/u {formatCurrency(it.price)}</div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
           <div className="flex-1 overflow-auto p-4 bg-gray-50">
             {cart.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
@@ -1832,7 +1961,7 @@ export function POS() {
               <div className="space-y-3">
                 {cart.slice().reverse().map((item, index) => {
                   const cartIndex = cart.length - 1 - index;
-                  const basePrice = item.product.base_price + (item.size?.price_modifier || 0);
+                  const basePrice = getProductEffectivePrice(item.product) + (item.size?.price_modifier || 0);
                   const finalPrice = basePrice - (item.discount || 0);
                   const isDiscountPopoverOpen = discountPopoverIndex === cartIndex;
 
@@ -1994,22 +2123,9 @@ export function POS() {
 
             <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
               <div className="flex justify-between items-center text-2xl font-bold">
-                <span className="text-gray-800">{activeOrderId ? 'Añadir:' : 'Total:'}</span>
+                <span className="text-gray-800">Total:</span>
                 <span className="text-gray-900">{formatCurrency(total)}</span>
               </div>
-
-              {activeOrderId && (
-                <div className="mt-3 space-y-2 pt-3 border-t border-gray-200">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">Total pedido actual:</span>
-                    <span className="font-semibold text-gray-900">{formatCurrency(existingOrderTotal)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600">Total después de añadir:</span>
-                    <span className="font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">{formatCurrency(existingOrderTotal + total)}</span>
-                  </div>
-                </div>
-              )}
             </div>
 
             <button
@@ -2085,7 +2201,7 @@ export function POS() {
               ) : (
                 cart.slice().reverse().map((item, index) => {
                   const cartIndex = cart.length - 1 - index;
-                  const basePrice = item.product.base_price + (item.size?.price_modifier || 0);
+                  const basePrice = getProductEffectivePrice(item.product) + (item.size?.price_modifier || 0);
                   const finalPrice = basePrice - (item.discount || 0);
                   
                   return (
@@ -2699,6 +2815,332 @@ export function POS() {
           </div>
         </div>
       )}
+
+      {/* Modal de Pedidos Web WhatsApp */}
+      {showWebOrdersModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-3 md:p-6">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-5 md:p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-white/20 backdrop-blur-md text-white rounded-2xl shadow-inner">
+                  <Globe className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black tracking-tight">
+                    {currentLanguage === 'fr' ? 'Commandes Web WhatsApp' : 'Pedidos Web WhatsApp'}
+                  </h3>
+                  <p className="text-xs text-green-100 font-medium mt-0.5">
+                    {currentLanguage === 'fr'
+                      ? 'Recherchez par code de référence, vérifiez et modifiez les articles avant de valider.'
+                      : 'Busca por código de referencia, verifica y modifica los artículos antes de validar.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWebOrdersModal(false)}
+                className="p-2 hover:bg-white/20 rounded-full transition-colors text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Search & Refresh */}
+            <div className="p-4 border-b border-gray-100 bg-gray-50/80 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input
+                  type="text"
+                  value={webOrdersSearch}
+                  onChange={(e) => setWebOrdersSearch(e.target.value)}
+                  placeholder={
+                    currentLanguage === 'fr'
+                      ? 'Rechercher par référence (ex: WEB-D849046B, D849046B, code-barres)...'
+                      : 'Buscar por referencia (ej: WEB-D849046B, D849046B, código de barras)...'
+                  }
+                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all shadow-sm"
+                />
+                {webOrdersSearch && (
+                  <button
+                    onClick={() => setWebOrdersSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs bg-gray-100 rounded-full p-1"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={fetchPendingWebOrders}
+                disabled={webOrdersLoading}
+                className="px-4 py-2.5 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-sm active:scale-95"
+              >
+                <RotateCcw className={`w-4 h-4 ${webOrdersLoading ? 'animate-spin' : ''}`} />
+                {currentLanguage === 'fr' ? 'Actualiser' : 'Actualizar'}
+              </button>
+            </div>
+
+            {/* Orders List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
+              {webOrdersLoading ? (
+                <div className="py-16 text-center text-gray-400 font-medium flex flex-col items-center justify-center">
+                  <LoadingSpinner size="md" />
+                  <p className="mt-3 text-sm font-semibold text-gray-600">
+                    {currentLanguage === 'fr' ? 'Recherche des commandes web...' : 'Buscando pedidos web...'}
+                  </p>
+                </div>
+              ) : !webOrdersSearch.trim() ? (
+                <div className="py-16 text-center text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200 p-8 shadow-sm">
+                  <Search className="w-14 h-14 mx-auto mb-3 opacity-25 text-green-600" />
+                  <p className="font-bold text-gray-800 text-base">
+                    {currentLanguage === 'fr' ? 'Saisissez le code de référence' : 'Ingrese el código de referencia'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
+                    {currentLanguage === 'fr'
+                      ? 'Tapez ou scannez le code de commande WhatsApp (ex: WEB-D849046B ou D849046B) pour afficher la commande et la charger.'
+                      : 'Escriba o escanee el código del pedido de WhatsApp (ej: WEB-D849046B o D849046B) para buscarlo y cargarlo.'}
+                  </p>
+                </div>
+              ) : webOrders.filter(o => {
+                  const cleanSearch = webOrdersSearch.trim().toLowerCase().replace(/^#?web-?/i, '');
+                  const refCode = `WEB-${o.id.slice(0, 8).toUpperCase()}`.toLowerCase();
+                  const orderIdShort = o.id.slice(0, 8).toLowerCase();
+                  const orderIdFull = o.id.toLowerCase();
+                  const orderNumber = o.order_number ? String(o.order_number).toLowerCase() : '';
+                  if (
+                    refCode.includes(cleanSearch) ||
+                    orderIdShort.includes(cleanSearch) ||
+                    orderIdFull.includes(cleanSearch) ||
+                    orderNumber.includes(cleanSearch)
+                  ) return true;
+                  return o.order_items?.some((it: any) => {
+                    const pName = it.products?.name?.toLowerCase() || '';
+                    const pBarcode = it.products?.barcode?.toLowerCase() || '';
+                    const sName = it.product_sizes?.size_name?.toLowerCase() || '';
+                    const sBarcode = it.product_sizes?.barcode?.toLowerCase() || '';
+                    return pName.includes(cleanSearch) || pBarcode.includes(cleanSearch) || sName.includes(cleanSearch) || sBarcode.includes(cleanSearch);
+                  });
+                }).length === 0 ? (
+                <div className="py-16 text-center text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200 p-8 shadow-sm">
+                  <MessageCircle className="w-14 h-14 mx-auto mb-3 opacity-20 text-amber-500" />
+                  <p className="font-bold text-gray-800 text-base">
+                    {currentLanguage === 'fr' ? 'Aucune commande web trouvée' : 'No se encontró ningún pedido web'}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
+                    {currentLanguage === 'fr'
+                      ? `Aucune commande ne correspond à la référence "${webOrdersSearch}". Vérifiez le code.`
+                      : `Ningún pedido coincide con la referencia "${webOrdersSearch}". Revisa el código.`}
+                  </p>
+                </div>
+              ) : (
+                webOrders
+                  .filter(o => {
+                    const cleanSearch = webOrdersSearch.trim().toLowerCase().replace(/^#?web-?/i, '');
+                    const refCode = `WEB-${o.id.slice(0, 8).toUpperCase()}`.toLowerCase();
+                    const orderIdShort = o.id.slice(0, 8).toLowerCase();
+                    const orderIdFull = o.id.toLowerCase();
+                    const orderNumber = o.order_number ? String(o.order_number).toLowerCase() : '';
+                    if (
+                      refCode.includes(cleanSearch) ||
+                      orderIdShort.includes(cleanSearch) ||
+                      orderIdFull.includes(cleanSearch) ||
+                      orderNumber.includes(cleanSearch)
+                    ) return true;
+                    return o.order_items?.some((it: any) => {
+                      const pName = it.products?.name?.toLowerCase() || '';
+                      const pBarcode = it.products?.barcode?.toLowerCase() || '';
+                      const sName = it.product_sizes?.size_name?.toLowerCase() || '';
+                      const sBarcode = it.product_sizes?.barcode?.toLowerCase() || '';
+                      return pName.includes(cleanSearch) || pBarcode.includes(cleanSearch) || sName.includes(cleanSearch) || sBarcode.includes(cleanSearch);
+                    });
+                  })
+                  .map((order) => {
+                    const refCode = `#WEB-${order.id.slice(0, 8).toUpperCase()}`;
+                    const orderDate = new Date(order.created_at).toLocaleString(currentLanguage === 'es' ? 'es-ES' : 'fr-FR', {
+                      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    });
+                    const totalItems = order.order_items ? order.order_items.reduce((sum: number, i: any) => sum + i.quantity, 0) : 0;
+
+                    return (
+                      <div
+                        key={order.id}
+                        className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden"
+                      >
+                        {/* Order Header Bar */}
+                        <div className="p-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <span className="font-black text-sm text-green-800 bg-green-100/80 px-3 py-1 rounded-xl border border-green-300 shadow-sm flex items-center gap-1.5">
+                              <Tag className="w-3.5 h-3.5" />
+                              {refCode}
+                            </span>
+                            <span className="text-xs font-semibold text-gray-500">
+                              {orderDate}
+                            </span>
+                            <span className="bg-amber-100 text-amber-800 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full uppercase">
+                              {currentLanguage === 'fr' ? 'En attente' : 'Pendiente'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-4 ml-auto">
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-400 font-bold uppercase block">{currentLanguage === 'fr' ? 'Total estimé' : 'Total estimado'}</span>
+                              <span className="text-lg font-black text-emerald-600">{formatCurrency(order.total)}</span>
+                            </div>
+
+                            <button
+                              onClick={() => loadWebOrderToCart(order)}
+                              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md hover:shadow-lg active:scale-95 transition-all flex items-center gap-2"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              {currentLanguage === 'fr' ? 'Valider et Charger au POS' : 'Validar y Cargar al POS'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Order Items Table */}
+                        <div className="p-4">
+                          <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <ShoppingBag className="w-3.5 h-3.5 text-gray-400" />
+                            {currentLanguage === 'fr' ? 'Articles de la commande' : 'Artículos del pedido'} ({totalItems})
+                          </h4>
+
+                          <div className="divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden bg-white">
+                            {order.order_items && order.order_items.length > 0 ? (
+                              order.order_items.map((item: any) => {
+                                const product = item.products;
+                                const size = item.product_sizes;
+                                const barcode = size?.barcode || product?.barcode || 'N/A';
+                                const sizeName = size?.size_name || null;
+                                const isPromo = product?.is_promo && product?.promo_price && product?.promo_price > 0 && product?.promo_price < product?.base_price;
+                                const basePrice = product?.base_price || item.unit_price;
+                                const effectivePrice = item.unit_price;
+
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className="p-3 hover:bg-gray-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                                  >
+                                    {/* Product Details */}
+                                    <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
+                                      {product?.image_url ? (
+                                        <img
+                                          src={product.image_url}
+                                          alt={product.name}
+                                          className="w-11 h-11 object-cover rounded-lg border border-gray-200 flex-shrink-0"
+                                        />
+                                      ) : (
+                                        <div className="w-11 h-11 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 flex-shrink-0 font-bold text-xs">
+                                          N/A
+                                        </div>
+                                      )}
+
+                                      <div className="space-y-1 min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className="font-bold text-gray-900 text-sm truncate">
+                                            {product?.name || (currentLanguage === 'fr' ? 'Produit inconnu' : 'Producto desconocido')}
+                                          </span>
+                                          {sizeName ? (
+                                            <span className="bg-purple-100 text-purple-800 text-[11px] font-extrabold px-2 py-0.5 rounded-md border border-purple-200">
+                                              {currentLanguage === 'fr' ? 'Taille:' : 'Talla:'} {sizeName}
+                                            </span>
+                                          ) : (
+                                            <span className="bg-gray-100 text-gray-600 text-[11px] font-semibold px-2 py-0.5 rounded-md">
+                                              {currentLanguage === 'fr' ? 'Taille unique' : 'Talla Única'}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        <div className="flex items-center gap-3 text-gray-500 font-medium">
+                                          <span className="flex items-center gap-1 font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-[11px]">
+                                            <ScanBarcode className="w-3 h-3 text-gray-400" />
+                                            {barcode}
+                                          </span>
+                                          {isPromo && (
+                                            <span className="bg-red-500 text-white text-[10px] font-black uppercase px-1.5 py-0.2 rounded tracking-wider animate-pulse">
+                                              {currentLanguage === 'fr' ? 'PROMOTION' : 'PROMOCIÓN'}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Price & Quantity Controls */}
+                                    <div className="flex items-center justify-between sm:justify-end gap-4 pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-50">
+                                      {/* Price display */}
+                                      <div className="text-right">
+                                        {isPromo ? (
+                                          <div>
+                                            <span className="text-[10px] text-gray-400 line-through block">
+                                              {formatCurrency(basePrice)}
+                                            </span>
+                                            <span className="text-sm font-black text-red-600">
+                                              {formatCurrency(effectivePrice)}
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <span className="text-sm font-black text-gray-900">
+                                            {formatCurrency(effectivePrice)}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Quantity Adjusters */}
+                                      <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl border border-gray-200">
+                                        <button
+                                          onClick={() => updateWebOrderItemQuantity(order.id, item.id, -1)}
+                                          className="p-1 hover:bg-white rounded-lg text-gray-600 hover:text-red-600 transition-colors active:scale-95 shadow-sm"
+                                          title={currentLanguage === 'fr' ? 'Diminuer' : 'Disminuir'}
+                                        >
+                                          {item.quantity === 1 ? <Trash2 className="w-3.5 h-3.5 text-red-500" /> : <Minus className="w-3.5 h-3.5" />}
+                                        </button>
+                                        <span className="w-6 text-center font-black text-xs text-gray-800">
+                                          {item.quantity}
+                                        </span>
+                                        <button
+                                          onClick={() => updateWebOrderItemQuantity(order.id, item.id, 1)}
+                                          className="p-1 hover:bg-white rounded-lg text-gray-600 hover:text-green-600 transition-colors active:scale-95 shadow-sm"
+                                          title={currentLanguage === 'fr' ? 'Augmenter' : 'Aumentar'}
+                                        >
+                                          <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+
+                                      {/* Item Subtotal */}
+                                      <div className="text-right min-w-[70px]">
+                                        <span className="text-[10px] text-gray-400 uppercase font-bold block">Subtotal</span>
+                                        <span className="text-xs font-black text-gray-900">
+                                          {formatCurrency(item.unit_price * item.quantity)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="p-4 text-center text-xs text-gray-400 italic">
+                                {currentLanguage === 'fr' ? 'Aucun article dans cette commande' : 'Sin artículos en este pedido'}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setShowWebOrdersModal(false)}
+                className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold text-xs text-gray-700 transition-all active:scale-95"
+              >
+                {currentLanguage === 'fr' ? 'Fermer' : 'Cerrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showScanner && (
         <BarcodeScanner
           onScanSuccess={handleScanSuccess}
