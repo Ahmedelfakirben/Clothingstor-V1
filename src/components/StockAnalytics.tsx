@@ -21,7 +21,7 @@ interface StockItem {
     basePrice: number;
     purchasePrice: number;
     imageUrl?: string;
-    status: 'ok' | 'low' | 'out' | 'validate';
+    status: 'ok' | 'low' | 'out' | 'validate' | 'deleted';
     sold: number;
     sizes?: { name: string; stock: number }[];
     needs_validation?: boolean;
@@ -33,6 +33,8 @@ interface StockItem {
     updatedBy?: string;
     createdByName?: string;
     updatedByName?: string;
+    isDeleted?: boolean;
+    deletedAt?: string;
 }
 
 interface BestSeller {
@@ -49,6 +51,7 @@ export function StockAnalytics() {
     const [stockItems, setStockItems] = useState<StockItem[]>([]);
     const [bestSellers, setBestSellers] = useState<BestSeller[]>([]);
     const [filter, setFilter] = useState<'all' | 'low' | 'out' | 'validate'>('all');
+    const [productStatusFilter, setProductStatusFilter] = useState<'active' | 'all' | 'deleted'>('active');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedItem, setSelectedItem] = useState<StockItem | null>(null);
     const [categories, setCategories] = useState<any[]>([]);
@@ -135,6 +138,8 @@ export function StockAnalytics() {
 
     // KPIs
     const [totalItems, setTotalItems] = useState(0);
+    const [availableStockUnits, setAvailableStockUnits] = useState(0);
+    const [totalSoldUnits, setTotalSoldUnits] = useState(0);
     const [totalValue, setTotalValue] = useState(0);
     const [totalCost, setTotalCost] = useState(0);
     const [totalPotentialProfit, setTotalPotentialProfit] = useState(0);
@@ -167,23 +172,15 @@ export function StockAnalytics() {
             const empMap: Record<string, string> = {};
             (empsRes || []).forEach(e => empMap[e.id] = e.full_name);
 
-            // 1. Fetch Products (Resilient)
+            // 1. Fetch Products (Fetch ALL including deleted to support status filter)
             let products: any[] = [];
             let { data: pData, error: pError } = await supabase
                 .from('products')
-                .select('id, name, base_price, purchase_price, stock, image_url, needs_validation, category_id, barcode, created_at, created_by, validated_by')
-                .eq('available', true)
-                .is('deleted_at', null);
+                .select('id, name, base_price, purchase_price, stock, image_url, needs_validation, category_id, barcode, created_at, created_by, validated_by, deleted_at, available');
 
-            if (pError && pError.message.includes('deleted_at')) {
-                const { data: fpData, error: fpError } = await supabase
-                    .from('products')
-                    .select('id, name, base_price, purchase_price, stock, image_url, needs_validation, category_id, barcode, created_at, created_by, validated_by')
-                    .eq('available', true);
-                if (fpError) throw fpError;
-                products = fpData || [];
+            if (pError) {
+                console.error("Error fetching products:", pError);
             } else {
-                if (pError) throw pError;
                 products = pData || [];
             }
 
@@ -211,14 +208,16 @@ export function StockAnalytics() {
                     }));
                 }
 
-                let status: 'ok' | 'low' | 'out' | 'validate' = 'ok';
-                if (product.needs_validation) status = 'validate';
+                const isDeleted = !!product.deleted_at;
+                let status: 'ok' | 'low' | 'out' | 'validate' | 'deleted' = 'ok';
+                if (isDeleted) status = 'deleted';
+                else if (product.needs_validation) status = 'validate';
                 else if (product.purchase_price === 0 && currentStock === 0) status = 'validate';
                 else if (currentStock === 0) status = 'out';
                 else if (currentStock < 5) status = 'low';
 
-                const costValue = currentStock * (product.purchase_price || 0);
-                const value = currentStock * product.base_price;
+                const costValue = isDeleted ? 0 : currentStock * (product.purchase_price || 0);
+                const value = isDeleted ? 0 : currentStock * product.base_price;
 
                 return {
                     id: product.id,
@@ -241,7 +240,9 @@ export function StockAnalytics() {
                     createdBy: (product as any).created_by,
                     updatedBy: (product as any).validated_by,
                     createdByName: empMap[(product as any).created_by] || t('Sistema'),
-                    updatedByName: empMap[(product as any).validated_by] || '-'
+                    updatedByName: empMap[(product as any).validated_by] || '-',
+                    isDeleted,
+                    deletedAt: product.deleted_at
                 };
             });
 
@@ -267,16 +268,20 @@ export function StockAnalytics() {
                 sold: salesMap[item.id] || 0
             }));
 
-            // Calculate KPIs
-            const tItems = finalItems.reduce((sum, item) => sum + item.totalStock, 0);
-            const tValue = finalItems.reduce((sum, item) => sum + item.value, 0);
-            const tCost = finalItems.reduce((sum, item) => sum + item.costValue, 0);
-            const lowCount = finalItems.filter(i => i.status === 'low').length;
-            const outCount = finalItems.filter(i => i.status === 'out').length;
-            const valCount = finalItems.filter(i => i.status === 'validate').length;
+            // Calculate KPIs (Stock Disponible counts ONLY items with stock > 0 among active products)
+            const activeItems = finalItems.filter(i => !i.isDeleted);
+            const availableUnits = activeItems.reduce((sum, item) => sum + (item.totalStock > 0 ? item.totalStock : 0), 0);
+            const totalSoldAll = finalItems.reduce((sum, item) => sum + item.sold, 0);
+            const tValue = activeItems.reduce((sum, item) => sum + item.value, 0);
+            const tCost = activeItems.reduce((sum, item) => sum + item.costValue, 0);
+            const lowCount = activeItems.filter(i => i.status === 'low').length;
+            const outCount = activeItems.filter(i => i.status === 'out').length;
+            const valCount = activeItems.filter(i => i.status === 'validate').length;
 
             setStockItems(finalItems);
-            setTotalItems(tItems);
+            setTotalItems(activeItems.length);
+            setAvailableStockUnits(availableUnits);
+            setTotalSoldUnits(totalSoldAll);
             setTotalValue(tValue);
             setTotalCost(tCost);
             setTotalPotentialProfit(tValue - tCost);
@@ -355,6 +360,11 @@ export function StockAnalytics() {
 
     const filteredItems = stockItems
         .filter(item => {
+            if (productStatusFilter === 'active') return !item.isDeleted;
+            if (productStatusFilter === 'deleted') return !!item.isDeleted;
+            return true; // 'all'
+        })
+        .filter(item => {
             if (filter === 'low') return item.status === 'low';
             if (filter === 'out') return item.status === 'out';
             if (filter === 'validate') return item.status === 'validate';
@@ -407,14 +417,24 @@ export function StockAnalytics() {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
                     <div className="p-3 bg-blue-100 rounded-xl">
                         <Package className="w-6 h-6 text-blue-600" />
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-gray-500">{t('stock.total_items')}</p>
-                        <h3 className="text-2xl font-black text-gray-900">{totalItems}</h3>
+                        <p className="text-sm font-medium text-gray-500">{t('Artículos en Stock (>0)')}</p>
+                        <h3 className="text-2xl font-black text-gray-900">{availableStockUnits} <span className="text-xs font-normal text-gray-400">unidades</span></h3>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                    <div className="p-3 bg-purple-100 rounded-xl">
+                        <Archive className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">{t('Total Unidades Vendidas')}</p>
+                        <h3 className="text-2xl font-black text-purple-700">{totalSoldUnits} <span className="text-xs font-normal text-gray-400">vendidas</span></h3>
                     </div>
                 </div>
 
@@ -425,6 +445,16 @@ export function StockAnalytics() {
                     <div>
                         <p className="text-sm font-medium text-gray-500">{t('stock.total_value')}</p>
                         <h3 className="text-2xl font-black text-gray-900">{formatCurrency(totalValue)}</h3>
+                    </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                    <div className="p-3 bg-indigo-100 rounded-xl">
+                        <TrendingUp className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500">{t('stock.total_cost')}</p>
+                        <h3 className="text-2xl font-black text-gray-900">{formatCurrency(totalCost)}</h3>
                     </div>
                 </div>
 
@@ -455,16 +485,6 @@ export function StockAnalytics() {
                     <div>
                         <p className="text-sm font-medium text-gray-500">{t('stock.needs_validation')}</p>
                         <h3 className="text-2xl font-black text-gray-900">{validateCount}</h3>
-                    </div>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-                    <div className="p-3 bg-indigo-100 rounded-xl">
-                        <TrendingUp className="w-6 h-6 text-indigo-600" />
-                    </div>
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">{t('stock.total_cost')}</p>
-                        <h3 className="text-2xl font-black text-gray-900">{formatCurrency(totalCost)}</h3>
                     </div>
                 </div>
 
@@ -503,7 +523,23 @@ export function StockAnalytics() {
                         </div>
 
                         {/* Advanced Filters */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Ver Catálogo')}</label>
+                                <select
+                                    value={productStatusFilter}
+                                    onChange={(e) => {
+                                        setProductStatusFilter(e.target.value as any);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="w-full px-3 py-2 text-sm font-bold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                                >
+                                    <option value="active">🟢 {t('Productos Activos')}</option>
+                                    <option value="all">📋 {t('Todos los Registrados')}</option>
+                                    <option value="deleted">🔴 {t('Productos Eliminados')}</option>
+                                </select>
+                            </div>
+
                             <div className="relative">
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Buscar (Nombre/Código)')}</label>
                                 <div className="relative">
@@ -553,7 +589,7 @@ export function StockAnalytics() {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Estado')}</label>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-1">{t('Estado Stock')}</label>
                                 <select
                                     value={filter}
                                     onChange={(e) => {
@@ -681,25 +717,33 @@ export function StockAnalytics() {
                                             <td className="px-4 py-3 text-center font-medium text-blue-600">{item.sold}</td>
                                             <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(item.value)}</td>
                                             <td className="px-4 py-3 text-center">
-                                                {item.status === 'validate' && (
-                                                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded-full border border-yellow-200">
-                                                        {t('stock.needs_validation')}
+                                                {item.isDeleted ? (
+                                                    <span className="px-2 py-1 bg-gray-200 text-gray-700 text-xs font-bold rounded-full border border-gray-300 flex items-center justify-center gap-1">
+                                                        🔴 {t('Eliminado')}
                                                     </span>
-                                                )}
-                                                {item.status === 'out' && (
-                                                    <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-200">
-                                                        {t('stock.out_of_stock')}
-                                                    </span>
-                                                )}
-                                                {item.status === 'low' && (
-                                                    <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full border border-orange-200">
-                                                        {t('stock.low_stock')}
-                                                    </span>
-                                                )}
-                                                {item.status === 'ok' && (
-                                                    <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full border border-green-200">
-                                                        OK
-                                                    </span>
+                                                ) : (
+                                                    <>
+                                                        {item.status === 'validate' && (
+                                                            <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-bold rounded-full border border-yellow-200">
+                                                                {t('stock.needs_validation')}
+                                                            </span>
+                                                        )}
+                                                        {item.status === 'out' && (
+                                                            <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full border border-red-200">
+                                                                {t('stock.out_of_stock')}
+                                                            </span>
+                                                        )}
+                                                        {item.status === 'low' && (
+                                                            <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full border border-orange-200">
+                                                                {t('stock.low_stock')}
+                                                            </span>
+                                                        )}
+                                                        {item.status === 'ok' && (
+                                                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full border border-green-200">
+                                                                OK
+                                                            </span>
+                                                        )}
+                                                    </>
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-center">
