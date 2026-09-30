@@ -25,7 +25,7 @@ const BackupManager = lazy(() => import('./components/BackupManager').then(modul
 const ClientsManager = lazy(() => import('./components/ClientsManager').then(module => ({ default: module.ClientsManager })));
 const StockAnalytics = lazy(() => import('./components/StockAnalytics').then(module => ({ default: module.StockAnalytics })));
 const OnlineStoreManager = lazy(() => import('./components/OnlineStoreManager').then(module => ({ default: module.OnlineStoreManager })));
-const OscarioTrackerManager = lazy(() => import('./components/OscarioTrackerManager').then(module => ({ default: module.OscarioTrackerManager })));
+// const OscarioTrackerManager = lazy(() => import('./components/OscarioTrackerManager').then(module => ({ default: module.OscarioTrackerManager })));
 import { NotificationListener } from './components/NotificationListener';
 import { supabase } from './lib/supabase';
 
@@ -209,7 +209,7 @@ function AppContent() {
           {currentView === 'clients' && userPermissions['clients'] && <ClientsManager />}
           {currentView === 'stock-analytics' && userPermissions['stock-analytics'] && <StockAnalytics />}
           {currentView === 'online-store' && <OnlineStoreManager />}
-          {currentView === 'oscario-tracking' && <OscarioTrackerManager />}
+          {/* {currentView === 'oscario-tracking' && <OscarioTrackerManager />} */}
         </Suspense>
       </div>
 
