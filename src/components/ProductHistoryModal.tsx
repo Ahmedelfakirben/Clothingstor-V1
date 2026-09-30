@@ -106,12 +106,9 @@ export default function ProductHistoryModal({ productId, productName, currentSto
         .eq('id', productId).single();
 
       if (productData && !productError) {
-        const sizesInfo = (productData.product_sizes as any[])?.length > 0
-          ? (productData.product_sizes as any[]).map(s => `${s.size_name}: ${s.stock}`).join(', ')
-          : `Stock: ${productData.stock || 0}`;
         timeline.push({
           id: 'creation', type: 'creation', date: productData.created_at,
-          quantity: productData.stock || 0, sizeName: sizesInfo,
+          quantity: 0,
           employeeName: productData.created_by
             ? profileMap.get(productData.created_by) || tf('Sistema', 'Systeme')
             : tf('Administrador', 'Administrateur'),
@@ -131,7 +128,7 @@ export default function ProductHistoryModal({ productId, productName, currentSto
       let soldUnits = 0;
       if (!salesError && salesData) {
         salesData.forEach((item: any) => {
-          if (item.orders?.status === 'completed') {
+          if (item.orders && (item.orders.status === 'completed' || item.orders.status === 'preparing')) {
             soldUnits += item.quantity;
             timeline.push({
               id: item.id, type: 'sale', date: item.orders.created_at,

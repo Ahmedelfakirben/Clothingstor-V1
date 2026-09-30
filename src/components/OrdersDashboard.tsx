@@ -21,6 +21,10 @@ interface Order {
   order_number?: number;
   table_id?: string | null;
   service_type?: string;
+  tracking_code?: string;
+  shipping_status?: string;
+  shipping_date_report?: string;
+  shipping_note?: string;
   employee_profiles?: {
     full_name: string;
     role: string;
@@ -603,6 +607,33 @@ export function OrdersDashboard(): JSX.Element {
         }
       }
 
+      // ---------------------------------------------------------
+      // ACTUALIZAR STOCK (SOLO PARA PEDIDOS WEB QUE SE VALIDAN)
+      // ---------------------------------------------------------
+      if (orderToComplete.service_type === 'website') {
+        console.log('🔄 Descontando stock para pedido web validado...');
+        const stockUpdatePromises = (orderToComplete.order_items || []).map(async (item) => {
+          try {
+            if (item.size_id) {
+              const { error: sizeError } = await supabase.rpc('decrement_product_size_stock', {
+                p_size_id: item.size_id,
+                p_quantity: item.quantity
+              });
+              if (sizeError) console.error('Error descontando stock de talla:', sizeError);
+            } else if (item.product_id) {
+              const { error: productError } = await supabase.rpc('decrement_product_stock', {
+                p_product_id: item.product_id,
+                p_quantity: item.quantity
+              });
+              if (productError) console.error('Error descontando stock de producto:', productError);
+            }
+          } catch (err) {
+            console.error('Error actualizando stock:', err);
+          }
+        });
+        await Promise.all(stockUpdatePromises);
+      }
+
       // Prepare ticket data for TicketPrinter component
       // Obtener información del cajero
       const cashierName = orderToComplete.employee_profiles?.full_name || user?.email || 'Usuario';
@@ -736,6 +767,25 @@ export function OrdersDashboard(): JSX.Element {
     } catch (err: any) {
       console.error('Error al completar orden:', err);
       toast.error(`${t('Error al completar la orden:')} ${err.message}`);
+    }
+  };
+
+  const handleSaveTrackingCode = async (orderId: string, trackingCode: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          tracking_code: trackingCode.trim() || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId);
+
+      if (error) throw error;
+      toast.success(t('Código de seguimiento guardado exitosamente'));
+      fetchOrders();
+    } catch (err: any) {
+      console.error('Error al guardar código de seguimiento:', err);
+      toast.error(`${t('Error al guardar tracking:')} ${err.message}`);
     }
   };
 
@@ -1027,6 +1077,48 @@ export function OrdersDashboard(): JSX.Element {
                   </div>
 
                   <div className="border-t-2 border-white/50 pt-4 space-y-3">
+                    {/* <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                          🚚 Tracking Oscario:
+                        </span>
+                        {order.shipping_status && (
+                          <span className="text-[10px] font-extrabold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                            {order.shipping_status}
+                          </span>
+                        )}
+                      </div>
+
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const input = (e.currentTarget.elements.namedItem('orderTrackingInput') as HTMLInputElement);
+                          if (input) handleSaveTrackingCode(order.id, input.value);
+                        }}
+                        className="flex gap-1.5"
+                      >
+                        <input
+                          name="orderTrackingInput"
+                          type="text"
+                          defaultValue={order.tracking_code || ''}
+                          placeholder="Ej: OSC-998877 o WEB-XXXX"
+                          className="flex-1 px-2.5 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
+                        />
+                        <button
+                          type="submit"
+                          className="px-3 py-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors shrink-0"
+                        >
+                          Guardar
+                        </button>
+                      </form>
+
+                      {order.shipping_note && (
+                        <p className="text-[11px] text-gray-600 italic bg-white p-1.5 rounded border border-gray-100">
+                          Nota: "{order.shipping_note}"
+                        </p>
+                      )}
+                    </div> */ }
+
                     <p className="text-xs text-gray-700 font-semibold bg-white/50 rounded-lg px-3 py-2">
                       {t('Empleado:')} <span className="text-amber-700 font-bold">{order.employee_profiles?.full_name || 'N/A'}</span>
                     </p>

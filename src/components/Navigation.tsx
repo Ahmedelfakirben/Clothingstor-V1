@@ -160,6 +160,7 @@ export function Navigation({ currentView, onViewChange }: NavigationProps) {
       items: [
         { id: 'pos', label: t('nav.pos'), icon: ShoppingCart, roles: ['super_admin', 'admin', 'cashier', 'barista'] },
         { id: 'orders', label: t('nav.orders'), icon: ClipboardList, roles: ['super_admin', 'admin', 'cashier', 'barista', 'waiter'] },
+        // { id: 'oscario-tracking', label: '🚚 Tracking Oscario', icon: Truck, roles: ['super_admin', 'admin', 'cashier', 'barista', 'waiter'] },
       ]
     },
     {

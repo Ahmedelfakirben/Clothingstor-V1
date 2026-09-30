@@ -28,6 +28,10 @@ interface OnlineOrder {
     payment_method: string;
     delivery_address: string;
     delivery_notes: string;
+    tracking_code?: string;
+    shipping_status?: string;
+    shipping_date_report?: string;
+    shipping_note?: string;
     customer: {
         full_name: string;
         email: string;
@@ -171,6 +175,26 @@ export function OnlineStoreManager() {
         } catch (err) {
             console.error('Error updating status:', err);
             toast.error('Error al actualizar estado');
+        } finally {
+            setUpdatingId(null);
+        }
+    };
+
+    const saveTrackingCode = async (orderId: string, trackingCode: string) => {
+        try {
+            setUpdatingId(orderId);
+            const { error } = await supabase
+                .from('online_orders')
+                .update({ tracking_code: trackingCode.trim() || null })
+                .eq('id', orderId);
+
+            if (error) throw error;
+
+            toast.success('Código de seguimiento de Oscario guardado');
+            setOrders(orders.map(o => o.id === orderId ? { ...o, tracking_code: trackingCode.trim() } : o));
+        } catch (err) {
+            console.error('Error saving tracking code:', err);
+            toast.error('Error al guardar código de seguimiento');
         } finally {
             setUpdatingId(null);
         }
@@ -422,6 +446,51 @@ export function OnlineStoreManager() {
                                                                     </div>
                                                                 )}
                                                             </div>
+
+                                                            {/* Oscario Tracking Section */}
+                                                            {/* <div className="bg-amber-50/50 p-3 rounded-lg border border-amber-200/60 text-sm space-y-2">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="font-bold text-amber-900 flex items-center gap-1.5 text-xs">
+                                                                        <Truck className="w-4 h-4 text-amber-600" />
+                                                                        Seguimiento Oscario:
+                                                                    </span>
+                                                                    {order.shipping_status && (
+                                                                        <span className="text-[11px] font-extrabold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md">
+                                                                            {order.shipping_status}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+
+                                                                <form
+                                                                    onSubmit={(e) => {
+                                                                        e.preventDefault();
+                                                                        const input = (e.currentTarget.elements.namedItem('trackingCodeInput') as HTMLInputElement);
+                                                                        if (input) saveTrackingCode(order.id, input.value);
+                                                                    }}
+                                                                    className="flex gap-2"
+                                                                >
+                                                                    <input
+                                                                        name="trackingCodeInput"
+                                                                        type="text"
+                                                                        defaultValue={order.tracking_code || ''}
+                                                                        placeholder="Ej: OSC-998877 o WEB-XXXX"
+                                                                        className="flex-1 px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
+                                                                    />
+                                                                    <button
+                                                                        type="submit"
+                                                                        disabled={updatingId === order.id}
+                                                                        className="px-3 py-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors shrink-0 disabled:opacity-50"
+                                                                    >
+                                                                        Guardar
+                                                                    </button>
+                                                                </form>
+
+                                                                {order.shipping_note && (
+                                                                    <p className="text-xs text-gray-600 italic mt-1 bg-white p-1.5 rounded border border-gray-100">
+                                                                        Nota: "{order.shipping_note}"
+                                                                    </p>
+                                                                )}
+                                                            </div> */}
                                                         </div>
 
                                                         {/* Order Items */}
